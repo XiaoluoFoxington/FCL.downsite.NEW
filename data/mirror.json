@@ -15,7 +15,7 @@
   {
     "id": 4,
     "name": "线路5",
-    "baseUrl": "https://fcl.switch.api.072211.xyz",
+    "baseUrl": "https://fcl.072211.xyz",
     "apiVer": "Linkong",
     "contributeId": [3]
   },
