@@ -17,6 +17,15 @@ export function createListController(elements) {
   // 读取用户设置的默认打开方式，未设置时默认为详情页。
   let openMethod = readPreference('fdn-default-open-method') || 'detail';
 
+  // 防抖工具（延迟 500ms）
+  let debounceTimer = null;
+  function debounce(fn, delay = 500) {
+    return function (...args) {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
   function applyFilters() {
     // 搜索同时匹配名称和数字 ID；标签按 tagTagRelation 决定与/或，
     // 搜索词与标签按 searchTagRelation 决定与/或/非。仅一侧生效时关系不参与组合。
@@ -68,9 +77,11 @@ export function createListController(elements) {
     }
   }
 
+  // 搜索输入框使用防抖，其他筛选条件（标签、关系下拉）立即响应
+  const debouncedApply = debounce(applyFilters);
   elements.search.addEventListener('input', () => {
     searchText = elements.search.value;
-    applyFilters();
+    debouncedApply();
   });
   elements.searchTagRelation?.addEventListener('change', applyFilters);
   elements.tagTagRelation?.addEventListener('change', applyFilters);
