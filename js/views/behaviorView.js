@@ -38,13 +38,13 @@ function renderSelectSetting(container, setting, savedValue, onChange) {
   row.className = 'mdui-row';
 
   const labelCol = document.createElement('div');
-  labelCol.className = 'mdui-col-sm-6';
+  labelCol.className = 'mdui-col-xs-6';
   const p = document.createElement('p');
   p.textContent = setting.name;
   labelCol.appendChild(p);
 
   const selectCol = document.createElement('div');
-  selectCol.className = 'mdui-col-sm-6';
+  selectCol.className = 'mdui-col-xs-6';
   const select = document.createElement('select');
   select.className = 'mdui-select';
   select.setAttribute('mdui-select', '');
@@ -135,12 +135,12 @@ export function renderBehaviorError(container, error, onRetry) {
  * 显示保存成功的提示。
  */
 export function showSaveSuccess() {
-  window.mdui?.snackbar({ message: '设置已保存', timeout: 2000 });
+  // window.mdui?.snackbar({ message: '设置已保存', timeout: 5000, position: 'right-bottom' });
 }
 
 /**
  * 显示保存失败的提示。
  */
 export function showSaveError() {
-  window.mdui?.snackbar({ message: '设置保存失败，请重试', timeout: 3000 });
+  window.mdui?.snackbar({ message: '设置保存失败，请重试', timeout: 5000, position: 'right-bottom' });
 }
