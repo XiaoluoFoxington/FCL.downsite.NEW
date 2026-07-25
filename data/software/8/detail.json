@@ -1,0 +1,15 @@
+{
+  "info": [
+    {
+      "name": "Github",
+      "href": "https://github.com/aaaapai/android-openjdk-build"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/aaaapai/android-openjdk-build/releases",
+  "download": [
+    {
+      "mirrorId": 0,
+      "key": "/8/index.json"
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+[
+  {
+    "name": "jre21-arm64-20260223-release.tar.xz",
+    "url": "https://pan.huang1111.cn/f/eWkQI1/jre21-arm64-20260223-release.tar.xz",
+    "size": 29922352
+  },
+  {
+    "name": "jre24-arm64-20260223-release.tar.xz",
+    "url": "https://pan.huang1111.cn/f/vyD3hZ/jre24-arm64-20260223-release.tar.xz",
+    "size": 38521680
+  },
+  {
+    "name": "jre25-arm64-20260223-release.tar.xz",
+    "url": "https://pan.huang1111.cn/f/5NOltm/jre25-arm64-20260223-release.tar.xz",
+    "size": 39109820
+  },
+  {
+    "name": "jre26-android-arm64-20260223-release.tar.xz",
+    "url": "https://pan.huang1111.cn/f/4l3mFW/jre26-android-arm64-20260223-release.tar.xz",
+    "size": 47624400
+  },
+  {
+    "name": "jre27-android-arm64-20260223-release.tar.xz",
+    "url": "https://pan.huang1111.cn/f/b4Qnu1/jre27-android-arm64-20260223-release.tar.xz",
+    "size": 47829380
+  }
+]
