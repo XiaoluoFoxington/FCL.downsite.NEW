@@ -129,3 +129,11 @@ export function createGrid() {
   grid.className = 'mdui-row';
   return grid;
 }
+
+/**
+ * 创建一个换行标签。
+ * @returns {HTMLBreakElement}
+ */
+export function createBreak() {
+  return document.createElement('br');
+}

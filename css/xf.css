@@ -98,3 +98,25 @@
 .xf-download-buttons-container {
   text-wrap: nowrap;
 }
+
+#xf-verWatermarkContainer {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  text-align: right;
+  font-size: 16px;
+  color: #808080;
+  opacity: 0.5;
+  font-family:
+      /* 1. 现代编程字体（若用户安装则启用，颜值最高） */
+      '等距更纱黑体 Slab SC', '等距更纱黑体 SC', 'Maple Mono NF CN', "Sarasa Mono", "Source Code Pro", "JetBrains Mono", "Cascadia Code", "Fira Code",
+      /* 2. macOS / iOS / 鸿蒙 (HarmonyOS) 原生 */
+      "HarmonyOS Sans Mono", Menlo, Monaco,
+      /* 3. Windows 原生 */
+      Consolas, "Courier New",
+      /* 4. Android / Linux 原生 */
+      "Roboto Mono", "Ubuntu Mono", "DejaVu Sans Mono", "Liberation Mono",
+      /* 5. 终极兜底（浏览器强制调用系统默认等宽字体） */
+      monospace;
+  z-index: 5001; /* 刚好比Drawer高1（（（ */
+}
