@@ -1,0 +1,32 @@
+{
+  "info": [
+    {
+      "name": "状态",
+      "text": "停止更新，仓库已存档。"
+    },
+    {
+      "name": "developer",
+      "href": "https://github.com/PojavLauncherTeam"
+    },
+    {
+      "name": "Github",
+      "href": "https://github.com/PojavLauncherTeam/PojavLauncher"
+    }
+  ],
+  "intro": [
+    {
+      "title": "GH-README",
+      "url": "https://github.com/PojavLauncherTeam/PojavLauncher/blob/v3_openjdk",
+      "file": "/README.md",
+      "type": "md"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/PojavLauncherTeam/PojavLauncher/releases",
+  "download": [
+    {
+      "mirrorId": 0,
+      "key": "/7/index.json"
+    }
+  ],
+  "description": "已停更，建议转到新项目：Amethyst。"
+}

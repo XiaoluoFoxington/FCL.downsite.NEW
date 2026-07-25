@@ -45,5 +45,12 @@
     "name": "FCL Driver Plugin",
     "tagIds": [0, 2, 4],
     "detailUrl": "/data/software/6/detail.json"
+  },
+  {
+    "id": 7,
+    "name": "Pojav Launcher",
+    "icon": "/data/software/7/icon.avif",
+    "tagIds": [0, 1],
+    "detailUrl": "/data/software/7/detail.json"
   }
 ]
