@@ -1,0 +1,31 @@
+{
+  "info": [
+    {
+      "name": "状态",
+      "text": "停止更新，仓库已存档。"
+    },
+    {
+      "name": "developer",
+      "href": "https://github.com/PojavLauncherTeam"
+    },
+    {
+      "name": "Github",
+      "href": "https://github.com/PojavLauncherTeam/FFmpegPlugin"
+    }
+  ],
+  "intro": [
+    {
+      "title": "GH-README",
+      "url": "https://github.com/PojavLauncherTeam/FFmpegPlugin/blob/master",
+      "file": "/README.md",
+      "type": "md"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/PojavLauncherTeam/FFmpegPlugin/releases",
+  "download": [
+    {
+      "mirrorId": 0,
+      "key": "/9/index.json"
+    }
+  ]
+}

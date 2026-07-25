@@ -58,5 +58,12 @@
     "name": "Android Openjdk Build",
     "tagIds": [0, 2, 5],
     "detailUrl": "/data/software/8/detail.json"
+  },
+  {
+    "id": 9,
+    "name": "Pojav FFmpeg Plugin",
+    "icon": "/data/software/7/icon.avif",
+    "tagIds": [0, 2],
+    "detailUrl": "/data/software/9/detail.json"
   }
 ]
