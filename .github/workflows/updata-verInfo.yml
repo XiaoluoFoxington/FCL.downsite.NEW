@@ -1,0 +1,66 @@
+name: 更新 verInfo.json
+
+on:
+  push:
+    # 可指定分支，如 main，留空则所有分支均触发
+    # branches:
+    #   - main
+
+permissions:
+  contents: write   # 授予推送权限
+
+jobs:
+  update-verinfo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        # 默认 fetch-depth: 1，足够获取当前提交消息
+
+      - name: 检查是否为本工作流触发的提交
+        id: check
+        run: |
+          # 若最近一条提交消息以 "[GHA]" 开头，说明是本工作流产生的，则跳过后续
+          if git log -1 --pretty=%B | grep -q "^\[GHA\]"; then
+            echo "检测到本工作流提交，跳过后续步骤"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 更新 verInfo.json 并提交推送
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          # 确保 data 目录存在
+          mkdir -p data
+
+          # 获取完整 Git 哈希
+          HASH=$(git rev-parse HEAD)
+
+          # 写入 JSON（保持格式整洁）
+          cat > data/verInfo.json << EOF
+          {
+            "gitHash": "$HASH"
+          }
+          EOF
+
+          # 配置 Git 用户信息
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 添加文件
+          git add data/verInfo.json
+
+          # 获取短哈希用于提交消息
+          SHORT_HASH=$(git rev-parse --short HEAD)
+
+          # 提交变更（消息格式符合要求）
+          git commit -m "[GHA] 内容：更新：verInfo.json：${SHORT_HASH}呜~"
+
+          # 设置远程地址，使用 GITHUB_TOKEN 认证
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+
+          # 推送当前分支
+          git push origin HEAD:${GITHUB_REF}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
