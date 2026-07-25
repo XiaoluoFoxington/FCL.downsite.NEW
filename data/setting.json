@@ -4,6 +4,29 @@
     "label": "行为设置",
     "children": [
       {
+        "name": "common",
+        "label": "通用设置",
+        "children": [
+          {
+            "id": 1,
+            "name": "字节数格式化前缀",
+            "type": "select",
+            "options": [
+              {
+                "value": "IEC",
+                "label": "二进制前缀（IEC 前缀）",
+                "default": true
+              },
+              {
+                "value": "SI",
+                "label": "十进制前缀（SI 前缀）"
+              }
+            ],
+            "storageKey": "fdn-default-format-prefix"
+          }
+        ]
+      },
+      {
         "name": "list",
         "label": "资源列表",
         "children": [

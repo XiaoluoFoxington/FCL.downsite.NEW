@@ -1,7 +1,19 @@
-/** 将字节数转为可读字符串。 */
+/** 将字节数转为可读字符串。根据用户偏好自动选择 IEC/SI 前缀。 */
 export function formatBytes(bytes) {
   if (typeof bytes !== 'number' || bytes < 0) return '未知';
   if (bytes === 0) return '0 B';
+
+  let prefix;
+  try {
+    prefix = localStorage.getItem('fdn-default-format-prefix');
+  } catch (e) { /* 隐私模式等降级 */ }
+
+  if (prefix === 'SI') {
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1000)), units.length - 1);
+    return (bytes / Math.pow(1000, i)).toFixed(2) + ' ' + units[i];
+  }
+
   const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i];
