@@ -26,6 +26,11 @@
     {
       "mirrorId": 0,
       "key": "/9/index.json"
+    },
+    {
+      "mirrorId": 4,
+      "key": "/api/releases?owner=PojavLauncherTeam&repo=FFmpegPlugin&versions=20"
     }
-  ]
+  ],
+  "randomSelectMirror": true
 }
