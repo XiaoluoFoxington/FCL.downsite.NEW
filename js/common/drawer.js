@@ -95,6 +95,9 @@ function createDrawer() {
     createNavigationLink('行为设置', '/html/behavior.html', 'settings'),
     createNavigationLink('主题设置', '/html/theme.html', 'style'),
   ]));
+  panel.appendChild(createDrawerPanel('操作', [
+    createNavigationLink('硬刷新', 'javascript:location.reload(true)', 'refresh'),
+  ]));
   panel.appendChild(createDrawerPanel('回到旧版', [
     createTextArticle(['旧版网站将不会有任何更新，不建议使用，仅作纪念。']),
     createNavigationLink('NEXT版', 'https://next.foldcraftlauncher.cn', 'history', '_blank'),
