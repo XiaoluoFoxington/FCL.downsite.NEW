@@ -95,7 +95,7 @@ function createDrawer() {
     createNavigationLink('行为设置', '/html/behavior.html', 'settings'),
     createNavigationLink('主题设置', '/html/theme.html', 'style'),
   ]));
-  panel.appendChild(createDrawerPanel('操作', [
+  panel.appendChild(createDrawerPanel('页面操作', [
     createNavigationLink('硬刷新', 'javascript:location.reload(true)', 'refresh'),
   ]));
   panel.appendChild(createDrawerPanel('回到旧版', [
