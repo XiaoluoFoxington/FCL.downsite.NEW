@@ -72,5 +72,12 @@
     "icon": "/data/software/10/icon.avif",
     "tagIds": [0, 1],
     "detailUrl": "/data/software/10/detail.json"
+  },
+  {
+    "id": 11,
+    "name": "EnchantNet",
+    "icon": "/data/software/11/icon.avif",
+    "tagIds": [0, 6],
+    "detailUrl": "/data/software/11/detail.json"
   }
 ]

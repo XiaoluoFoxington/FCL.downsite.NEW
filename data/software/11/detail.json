@@ -1,0 +1,32 @@
+{
+  "info": [
+    {
+      "name": "developer",
+      "href": "https://github.com/FCL-Team"
+    },
+    {
+      "name": "Github",
+      "href": "https://github.com/FCL-Team/EnchantNet"
+    }
+  ],
+  "intro": [
+    {
+      "title": "GH-README",
+      "url": "https://raw.githubusercontent.com/FCL-Team/EnchantNet/refs/heads/main",
+      "file": "/README.md",
+      "type": "md"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/FCL-Team/EnchantNet/releases",
+  "download": [
+    {
+      "mirrorId": 0,
+      "key": "/11/index.json"
+    },
+    {
+      "mirrorId": 4,
+      "key": "/api/releases?owner=FCL-Team&repo=EnchantNet&versions=20"
+    }
+  ],
+  "description": "从FCL 1.2.7.1版本开始，此工具已集成，基于easytier，可与支持easytier的启动器一起联机。不再推荐额外下载此工具。"
+}
