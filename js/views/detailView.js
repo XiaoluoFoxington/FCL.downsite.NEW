@@ -7,14 +7,20 @@ let errorToken = 0;
 
 /** 将详情表格置为加载状态，仍遵守 tbody 只能包含 tr 的 HTML 结构。 */
 export function renderDetailLoading(elements) {
-  renderTableStatus(elements.body, 'loading', '正在加载软件详情……');
+  renderTableStatus(elements.body, 2, 'loading', '正在加载软件详情……');
+  if (elements.mirrorInfoBody) {
+    renderTableStatus(elements.mirrorInfoBody, 4, 'loading', '正在加载线路预览……');
+  }
 }
 
 /** 展示详情错误并显示反馈按钮（或反馈渠道加载状态）。 */
 export function renderDetailError(elements, error, onRetry) {
   const token = ++errorToken;
   setErrorTitle();
-  renderTableStatus(elements.body, 'error', error.message, onRetry);
+  renderTableStatus(elements.body, 2, 'error', error.message, onRetry);
+  if (elements.mirrorInfoBody) {
+    renderTableStatus(elements.mirrorInfoBody, 4, 'error', error.message, onRetry);
+  }
 
   // 清空操作区，先显示加载状态
   elements.operations.replaceChildren();
@@ -51,11 +57,20 @@ export function renderDetailError(elements, error, onRetry) {
     });
 }
 
-function renderTableStatus(body, state, message, onRetry) {
+/**
+ * 渲染表格状态行。
+ * @param {HTMLTableElement} body - 要插入状态行的 tbody 元素。
+ * @param {number} colspan - 状态内容单元格的 colspan 属性值，包括 label 列。
+ * @param {string} state - 状态类型，'loading'、'error' 或'success'。
+ * @param {string} message - 状态消息，显示在表格中。
+ * @param {function} onRetry - 点击重试按钮时调用的回调函数。
+ */
+function renderTableStatus(body, colspan = 2, state, message, onRetry) {
   // tbody 只能直接放 tr，不能把通用 div 状态组件直接插入表格。
   const row = document.createElement('tr');
   const label = document.createElement('td');
   const content = document.createElement('td');
+  content.colSpan = colspan - 1; // 减去 label 列
   label.textContent = state === 'error' ? '错误' : '状态';
   renderStatus(content, state, { message, onRetry });
   row.append(label, content);
@@ -65,9 +80,10 @@ function renderTableStatus(body, state, message, onRetry) {
 /**
  * 渲染完整详情表。
  * basic 来自软件目录；detail.info 是可选的补充字段数组；
- * tags 用于将 basic.tagIds 从数字翻译为人可读名称。
+ * tags 用于将 basic.tagIds 从数字翻译为人可读名称；
+ * mirrors 用于将 detail.download 中的 mirrorId 翻译为线路名称。
  */
-export function renderDetail(elements, id, basic, detail, tags) {
+export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   errorToken++;
   // 重置操作按钮区域，移除所有子元素（包括错误时添加的反馈按钮），重新添加三个操作按钮
   const container = elements.operations;
@@ -109,6 +125,9 @@ export function renderDetail(elements, id, basic, detail, tags) {
   });
   elements.body.replaceChildren(fragment);
 
+  elements.isRandomSelect.textContent = detail.randomSelectMirror ? '是' : '否';
+  renderMirrorInfo(elements.mirrorInfoBody, detail.download, mirrors);
+
   elements.download.href = `/html/down.html?id=${id}`;
   elements.intro.href = `/html/intro.html?id=${id}`;
   elements.history.href = `/html/rh.html?id=${id}`;
@@ -134,4 +153,36 @@ function createInfoValue(item) {
   // 外部信息链接经过协议校验，并明确隔离新窗口的 opener。
   if (!item.href || !isSafeNavigationUrl(item.href)) return item.text || item.href || '';
   return createExternalLink(item.href, item.text || item.href);
+}
+
+/**
+ * 渲染线路预览表。
+ * downloads 项结构为 { mirrorId, key, notJoinRandom? }；mirrors 提供 id→name 映射，
+ * 找不到时降级显示纯 ID，避免孤立的 mirrorId 让用户误以为是配置错位。
+ */
+function renderMirrorInfo(body, downloads, mirrors) {
+  if (!body) return;
+  const list = Array.isArray(downloads) ? downloads : [];
+  if (list.length === 0) {
+    renderTableStatus(body, 4, 'empty', '该软件暂无下载线路');
+    return;
+  }
+  const mirrorMap = new Map((mirrors || []).map((mirror) => [mirror.id, mirror]));
+  const fragment = document.createDocumentFragment();
+  list.forEach((download) => {
+    const row = document.createElement('tr');
+    const idCell = document.createElement('td');
+    const nameCell = document.createElement('td');
+    const urlCell = document.createElement('td');
+    const randomCell = document.createElement('td');
+    const mirror = mirrorMap.get(download.mirrorId);
+
+    idCell.textContent = download.mirrorId;
+    nameCell.textContent = mirror.name;
+    urlCell.appendChild(createExternalLink(mirror.baseUrl + download.key));
+    randomCell.textContent = download.notJoinRandom ? '否' : '是';
+    row.append(idCell, nameCell, urlCell, randomCell);
+    fragment.appendChild(row);
+  });
+  body.replaceChildren(fragment);
 }

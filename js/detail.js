@@ -11,6 +11,8 @@ import { renderDetailError } from './views/detailView.js';
 document.addEventListener('DOMContentLoaded', () => {
   const elements = {
     body: document.getElementById('basic-info-body'),
+    isRandomSelect: document.getElementById('is-random-select'),
+    mirrorInfoBody: document.getElementById('mirror-info-body'),
     operations: document.getElementById('operationTable'),
     download: document.getElementById('btn-download'),
     intro: document.getElementById('btn-intro'),

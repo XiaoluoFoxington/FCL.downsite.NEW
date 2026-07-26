@@ -54,7 +54,6 @@
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body mdui-typo" id="infoTable">
-          <!-- 应由JS动态生成，下方为示例 -->
           <div class="mdui-table-fluid">
             <table class="mdui-table">
               <thead>
@@ -65,7 +64,33 @@
               </thead>
               <tbody id="basic-info-body">
                 <!-- 将由JS生成 -->
-                <tr><td colspan="2"><div class="mdui-spinner"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="mdui-panel-item mdui-panel-item-open">
+        <div class="mdui-panel-item-header mdui-ripple">
+          <div>线路预览</div>
+          <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+        </div>
+        <div class="mdui-panel-item-body mdui-typo">
+          <div class="mdui-typo">
+            <p>随机选择线路：<span id="is-random-select"></span></p>
+          </div>
+          <div class="mdui-table-fluid">
+            <table class="mdui-table">
+              <thead>
+                <tr>
+                  <th>线路ID</th>
+                  <th>线路名称</th>
+                  <th>完整API URL</th>
+                  <th>参与随机选择</th>
+                </tr>
+              </thead>
+              <tbody id="mirror-info-body">
+                <!-- 将由JS生成 -->
               </tbody>
             </table>
           </div>
