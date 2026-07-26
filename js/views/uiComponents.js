@@ -71,7 +71,7 @@ export function createExternalLink(href, text, { className } = {}) {
   link.href = href;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  if (text !== undefined) link.textContent = text;
+  text !== undefined ? link.textContent = text : link.textContent = href;
   if (className) link.className = className;
   return link;
 }
@@ -85,7 +85,6 @@ export function createTypoContainer() {
   div.className = 'mdui-typo';
   return div;
 }
-
 /**
  * 创建 MDUI 流体表格（含 thead 与 tbody）。
  * @returns {{ wrapper: HTMLDivElement, table: HTMLTableElement, thead: HTMLTableSectionElement, tbody: HTMLTableSectionElement }}
