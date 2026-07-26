@@ -65,5 +65,12 @@
     "icon": "/data/software/7/icon.avif",
     "tagIds": [0, 2],
     "detailUrl": "/data/software/9/detail.json"
+  },
+  {
+    "id": 10,
+    "name": "HMCL-PE",
+    "icon": "/data/software/10/icon.avif",
+    "tagIds": [0, 1],
+    "detailUrl": "/data/software/10/detail.json"
   }
 ]
