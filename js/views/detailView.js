@@ -72,9 +72,11 @@ function renderTableStatus(body, colspan = 2, state, message, onRetry) {
   const content = document.createElement('td');
   content.colSpan = colspan - 1; // 减去 label 列
   label.textContent = state === 'error' ? '错误' : '状态';
-  renderStatus(content, state, { message, onRetry });
   row.append(label, content);
   body.replaceChildren(row);
+  // 必须先把 row 挂进文档再渲染状态：renderStatus 内部调用 mdui.mutation()，
+  // 若 content 仍是游离节点，mutation 扫不到 spinner，第二个加载块就不会显示 spinner。
+  renderStatus(content, state, { message, onRetry });
 }
 
 /**
