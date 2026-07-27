@@ -24,7 +24,8 @@
   },
   {
     "id": 2,
-    "accentName": "柠枺",
+    "accentName": "Lemwood",
+    "name": "柠枺",
     "link": [
       {
         "name": "Github",
@@ -34,6 +35,32 @@
         "name": "Bilibili",
         "href": "https://space.bilibili.com/3537106787896067"
       }
+    ],
+    "content": [
+      "提供网站域名、服务器"
+    ]
+  },
+  {
+    "id": 7,
+    "accentName": "LateDream",
+    "name": "晚梦",
+    "avatar": "https://assets.latedream.qzz.io/avatars/latedream/current.webp",
+    "link": [
+      {
+        "name": "Github",
+        "href": "https://github.com/LateDreamXD"
+      },
+      {
+        "name": "Bilibili",
+        "href": "https://space.bilibili.com/1988506301"
+      },
+      {
+        "name": "Homepage",
+        "href": "https://about.latedream.cn"
+      }
+    ],
+    "content": [
+      "代码贡献（初版与.mdui版）"
     ]
   },
   {
