@@ -100,6 +100,12 @@
   margin-left: 8px;
 }
 
+/* MDUI select 键盘导航时的高亮项：提高特异性覆盖 mdui-select-menu-item 默认背景 */
+.mdui-select-menu-item.xf-select-highlighted {
+  outline: 2px solid #ff0;
+  outline-offset: -2px;
+}
+
 .xf-download-buttons-container {
   text-wrap: nowrap;
 }
