@@ -8,6 +8,7 @@ import { createBreak } from "../views/uiComponents.js";
 
 document.addEventListener('DOMContentLoaded', async function () {
   const version = await getCurrentVersion();
+  if (!version) return;
   const container = createContainer(version);
   document.body.appendChild(container);
 });
