@@ -24,7 +24,17 @@
   },
   {
     "id": 2,
-    "accentName": "柠枺"
+    "accentName": "柠枺",
+    "link": [
+      {
+        "name": "Github",
+        "href": "https://github.com/ning-g-mo"
+      },
+      {
+        "name": "Bilibili",
+        "href": "https://space.bilibili.com/3537106787896067"
+      }
+    ]
   },
   {
     "id": 1,
