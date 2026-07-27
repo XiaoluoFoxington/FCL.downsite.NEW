@@ -12,6 +12,9 @@
     return `${prefix}-${Date.now()}-${++idCounter}`;
   }
 
+  // 可聚焦元素选择器（面板焦点跳转 / 抽屉焦点管理共用）
+  const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
   // ---------- 同步单个面板项的 aria 状态 ----------
   function syncPanelState(item) {
     const header = item.querySelector('.mdui-panel-item-header');
@@ -78,9 +81,7 @@
         const body = panelItem.querySelector('.mdui-panel-item-body');
         if (!body) return;
         // 查找第一个可聚焦元素
-        const focusable = body.querySelector(
-          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        );
+        const focusable = body.querySelector(FOCUSABLE_SELECTOR);
         if (focusable) {
           focusable.focus();
         } else {
@@ -213,6 +214,67 @@
   function enhanceAllSelects(container) {
     container.querySelectorAll('div.mdui-select:not([data-a11y-select-enhanced])').forEach(enhanceSelect);
   }
+
+  // ---------- MDUI Drawer 焦点管理 ----------
+  let drawerTrigger = null;
+
+  // 抽屉开始打开时记录触发元素
+  document.addEventListener('open.mdui.drawer', function () {
+    drawerTrigger = document.activeElement;
+  }, true);
+
+  // 抽屉打开完成后，自动聚焦到第一个可聚焦元素
+  document.addEventListener('opened.mdui.drawer', function (e) {
+    const drawer = e.target;
+    const focusable = drawer.querySelectorAll(FOCUSABLE_SELECTOR);
+    if (focusable.length) {
+      focusable[0].focus();
+    } else {
+      if (!drawer.hasAttribute('tabindex')) drawer.setAttribute('tabindex', '-1');
+      drawer.focus();
+    }
+  }, true);
+
+  // 抽屉关闭后，焦点返回触发按钮
+  document.addEventListener('closed.mdui.drawer', function () {
+    if (drawerTrigger && typeof drawerTrigger.focus === 'function') {
+      drawerTrigger.focus();
+    }
+    drawerTrigger = null;
+  }, true);
+
+  // 窄屏模态模式下的键盘交互：Escape 关闭 + Tab 焦点陷阱
+  document.addEventListener('keydown', function (e) {
+    const openDrawer = document.querySelector('.mdui-drawer.mdui-drawer-open');
+    if (!openDrawer) return;
+    // 宽屏持久模式（无遮罩层），不拦截
+    if (!document.querySelector('.mdui-overlay.mdui-overlay-show')) return;
+
+    // Escape 关闭抽屉
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      // 通过点击遮罩层触发 MDUI 自身的关闭逻辑
+      const overlay = document.querySelector('.mdui-overlay.mdui-overlay-show');
+      if (overlay) overlay.click();
+      return;
+    }
+
+    // Tab 焦点陷阱：将焦点限制在抽屉内
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(openDrawer.querySelectorAll(FOCUSABLE_SELECTOR));
+    if (focusable.length < 2) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
 
   // ---------- 防抖 MutationObserver 处理 ----------
   let pendingMutations = [];
