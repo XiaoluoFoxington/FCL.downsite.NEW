@@ -1,4 +1,5 @@
 // 每页共用的入口脚本。新增共用 ES Module 请在此处 import。
+import './common/a11y.js';
 import './common/theme.js';
 import './common/drawer.js';
 import './common/verWatermaek.js';

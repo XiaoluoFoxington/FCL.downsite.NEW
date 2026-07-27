@@ -1,3 +1,8 @@
+:focus-visible {
+  outline: 2px solid #ff0 !important;
+  outline-offset: 2px;
+}
+
 .xf-nav-item {
   position: relative;
 }
@@ -120,3 +125,4 @@
       monospace;
   z-index: 5001; /* 刚好比Drawer高1（（（ */
 }
+
