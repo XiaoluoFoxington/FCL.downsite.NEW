@@ -16,6 +16,10 @@
       "key": "/api/releases?owner=FCL-Team&repo=FCLDriverPlugin&versions=20"
     },
     {
+      "mirrorId": 7,
+      "key": "/6.json"
+    },
+    {
       "mirrorId": 9,
       "key": "/api/v2/launchers/FCL_Turnip"
     }

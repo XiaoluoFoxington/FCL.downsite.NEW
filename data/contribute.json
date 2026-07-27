@@ -65,5 +65,24 @@
         "href": "https://space.bilibili.com/3493107991579439"
       }
     ]
+  },
+  {
+    "id": 6,
+    "accentName": "MLFKWMC",
+    "avatar": "https://mcddos.top/logo.jpg",
+    "link": [
+      {
+        "name": "Bilibili",
+        "href": "https://space.bilibili.com/494958603"
+      },
+      {
+        "name": "QQ",
+        "href": "https://qm.qq.com/q/naMuNOEAXC"
+      },
+      {
+        "name": "Homepage",
+        "href": "https://www.mcddos.top"
+      }
+    ]
   }
 ]

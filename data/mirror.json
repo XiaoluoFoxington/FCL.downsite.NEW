@@ -20,6 +20,12 @@
     "contributeId": [3]
   },
   {
+    "id": 7,
+    "name": "线路8",
+    "baseUrl": "/data/mirror/8",
+    "contributeId": [6]
+  },
+  {
     "id": 8,
     "name": "线路9",
     "baseUrl": "https://api.lisongyun.top",

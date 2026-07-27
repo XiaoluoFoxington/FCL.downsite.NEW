@@ -14,6 +14,11 @@
     {
       "mirrorId": 4,
       "key": "/api/releases?owner=aaaapai&repo=android-openjdk-build&versions=20"
+    },
+    {
+      "mirrorId": 7,
+      "key": "/8.json",
+      "notJoinRandom": true
     }
   ],
   "randomSelectMirror": true
