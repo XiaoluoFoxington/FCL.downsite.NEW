@@ -79,5 +79,11 @@
     "icon": "/data/software/11/icon.avif",
     "tagIds": [0, 6],
     "detailUrl": "/data/software/11/detail.json"
+  },
+  {
+    "id": 12,
+    "name": "AMCL",
+    "tagIds": [0, 1],
+    "detailUrl": "/data/software/12/detail.json"
   }
 ]
