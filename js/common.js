@@ -2,7 +2,7 @@
 import './common/a11y.js';
 import './common/theme.js';
 import './common/drawer.js';
-import './common/verWatermaek.js';
+import './common/verWatermark.js';
 
 
 // 共用的第三方非 ES Module 脚本，通过动态创建 <script> 元素加载。

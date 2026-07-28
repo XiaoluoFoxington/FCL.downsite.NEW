@@ -90,7 +90,14 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
         architecture,
         // filter 是数据配置中的 URL 正则白名单；未命中项先隐藏，但允许用户手动展开查看。
         hidden: Array.isArray(filter) && filter.length > 0
-          && !filter.some((pattern) => new RegExp(pattern).test(item.downloadUrl)),
+          && !filter.some((pattern) => {
+            try {
+              return new RegExp(pattern).test(item.downloadUrl);
+            } catch (_) {
+              console.warn('筛选正则表达式无效，已跳过:', pattern);
+              return false;
+            }
+          }),
         values: {
           architecture,
           description: item.description || '',

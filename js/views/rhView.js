@@ -162,14 +162,13 @@ function createSummaryPanel(assets) {
   const tbody = wrapper.querySelector('tbody');
   addTableRow(tbody, '总大小', formatBytes(totalSize));
   addTableRow(tbody, '所有下载URL', allUrls.join('\n'));
-  // TODO: 实际上在文档中这里并没有正确换行。
 
   body.appendChild(wrapper);
   return panelItem;
 }
 
 /** 向表格 tbody 添加一行。label 为文本，value 为纯文本或链接文本，href 可选。
- *  value 中的换行符 `\n` 会被拆分为多个 <p>，避免 HTML 默认不识别换行导致 URL 全部挤在一行。
+ *  value 中的换行符 `\n` 会转为 `<br>`，让多个 URL 在同一段落内换行显示。
  */
 function addTableRow(tbody, label, value, href) {
   const row = document.createElement('tr');
@@ -179,13 +178,13 @@ function addTableRow(tbody, label, value, href) {
   if (href) {
     valueCell.appendChild(createExternalLink(href, value));
   } else {
-    // 按 \n 拆分：每段单独一个 <p>，让多个 URL 各占一行，符合 mdui-typo 排版。
+    const p = document.createElement('p');
     const lines = String(value).split('\n');
-    lines.forEach((line) => {
-      const p = document.createElement('p');
-      p.textContent = line;
-      valueCell.appendChild(p);
+    lines.forEach((line, i) => {
+      if (i > 0) p.appendChild(document.createElement('br'));
+      p.appendChild(document.createTextNode(line));
     });
+    valueCell.appendChild(p);
   }
   row.append(labelCell, valueCell);
   tbody.appendChild(row);

@@ -180,8 +180,13 @@ function renderMirrorInfo(body, downloads, mirrors) {
     const mirror = mirrorMap.get(download.mirrorId);
 
     idCell.textContent = download.mirrorId;
-    nameCell.textContent = mirror.name;
-    urlCell.appendChild(createExternalLink(mirror.baseUrl + download.key));
+    if (mirror) {
+      nameCell.textContent = mirror.name;
+      urlCell.appendChild(createExternalLink(mirror.baseUrl + download.key));
+    } else {
+      nameCell.textContent = '未知线路';
+      urlCell.textContent = '（线路配置缺失）';
+    }
     randomCell.textContent = download.notJoinRandom ? '否' : '是';
     row.append(idCell, nameCell, urlCell, randomCell);
     fragment.appendChild(row);

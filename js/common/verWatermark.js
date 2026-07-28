@@ -7,10 +7,14 @@ import { createBreak } from "../views/uiComponents.js";
  */
 
 document.addEventListener('DOMContentLoaded', async function () {
-  const version = await getCurrentVersion();
-  if (!version) return;
-  const container = createContainer(version);
-  document.body.appendChild(container);
+  try {
+    const version = await getCurrentVersion();
+    if (!version) return;
+    const container = createContainer(version);
+    document.body.appendChild(container);
+  } catch (error) {
+    console.warn('版本水印加载失败', error);
+  }
 });
 
 /**

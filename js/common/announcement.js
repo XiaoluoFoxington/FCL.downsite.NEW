@@ -1,6 +1,7 @@
 import { getText } from '../http/client.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { renderStatus } from '../views/commonView.js';
+import { createSafeContent } from '../security/content.js';
 
 /**
  * 网站公告模块。
@@ -31,7 +32,7 @@ function simpleHash64(str) {
  * @param {string} hash 当前公告校验值
  * @param {boolean} isNew 是否为新公告
  */
-function renderAnnouncement(container, html, hash, isNew) {
+async function renderAnnouncement(container, html, hash, isNew) {
   const header = document.createElement('div');
   header.className = 'mdui-panel-item-header mdui-ripple';
 
@@ -53,10 +54,9 @@ function renderAnnouncement(container, html, hash, isNew) {
 
   const body = document.createElement('div');
   body.className = 'mdui-panel-item-body';
-  // 公告 HTML 来自本站静态数据文件，安全可控，直接解析为 DOM 节点后追加。
-  const temp = document.createElement('div');
-  temp.innerHTML = html;
-  body.append(...Array.from(temp.childNodes));
+  // 公告 HTML 经 DOMPurify 净化后插入，与介绍页/描述等模块保持安全策略一致。
+  const fragment = await createSafeContent(html, { type: 'html' });
+  body.appendChild(fragment);
 
   // 用户展开面板即视为已读，写入校验值并移除 NEW 标记。
   // 经 writePreference 写入，隐私模式或存储被禁用时降级为只记录警告，不让整个公告模块崩溃。
@@ -87,7 +87,7 @@ export async function loadAnnouncement(container) {
     // 经 readPreference 读取，隐私模式下返回 null 视为未读，会显示 NEW 标记但不影响渲染。
     const storedHash = readPreference(STORAGE_KEY);
     const isNew = hash !== storedHash;
-    renderAnnouncement(container, html, hash, isNew);
+    await renderAnnouncement(container, html, hash, isNew);
   } catch (error) {
     console.error('公告加载失败', error);
     renderStatus(container, 'error', { message: error.message, onRetry: () => loadAnnouncement(container) });
