@@ -9,6 +9,7 @@ import { createSafeContent } from '../security/content.js';
  * 并在侧边栏最顶部渲染公告面板。
  *
  * 本模块独立于侧边栏逻辑，侧边栏只需提供一个容器并调用 loadAnnouncement 即可。
+ * checkNewAnnouncement 可在渲染前提前判断是否有新公告，供外部（如 drawer.js）在窄屏下提前弹出提醒。
  */
 
 const STORAGE_KEY = 'fdn-announcement';
@@ -73,6 +74,24 @@ async function renderAnnouncement(container, html, hash, isNew) {
 }
 
 /**
+ * 提前获取公告内容并判断是否为新公告（不渲染）。
+ * 窄屏下抽屉懒加载，外部可在页面加载时调用此函数提前判断，避免 snackbar 等提醒被延迟。
+ *
+ * @returns {Promise<{ html: string, hash: string, isNew: boolean }|null>} 公告信息，加载失败返回 null
+ */
+export async function checkNewAnnouncement() {
+  try {
+    const html = await getText('/data/announcement.html', { cache: true });
+    const hash = simpleHash64(html);
+    const storedHash = readPreference(STORAGE_KEY);
+    return { html, hash, isNew: hash !== storedHash };
+  } catch (error) {
+    console.error('公告检查失败', error);
+    return null;
+  }
+}
+
+/**
  * 加载公告内容并渲染到指定容器中。
  * 使用统一状态机：loading → ready / error。
  * 若公告校验值与本地存储不一致，则视为新公告，会在面板标题上显示醒目提醒。
@@ -82,12 +101,12 @@ async function renderAnnouncement(container, html, hash, isNew) {
 export async function loadAnnouncement(container) {
   renderStatus(container, 'loading', { message: '正在加载公告……' });
   try {
-    const html = await getText('/data/announcement.html', { cache: true });
-    const hash = simpleHash64(html);
-    // 经 readPreference 读取，隐私模式下返回 null 视为未读，会显示 NEW 标记但不影响渲染。
-    const storedHash = readPreference(STORAGE_KEY);
-    const isNew = hash !== storedHash;
-    await renderAnnouncement(container, html, hash, isNew);
+    const result = await checkNewAnnouncement();
+    if (result) {
+      await renderAnnouncement(container, result.html, result.hash, result.isNew);
+    } else {
+      throw new Error('公告数据为空');
+    }
   } catch (error) {
     console.error('公告加载失败', error);
     renderStatus(container, 'error', { message: error.message, onRetry: () => loadAnnouncement(container) });

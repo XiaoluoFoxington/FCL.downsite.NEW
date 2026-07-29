@@ -1,8 +1,8 @@
 import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { renderStatus } from '../views/commonView.js';
 import { isSafeNavigationUrl } from '../security/content.js';
-import { loadAnnouncement } from './announcement.js';
-import { createPanel, createPanelItem, createTypoContainer, createExternalLink } from '../views/uiComponents.js';
+import { loadAnnouncement, checkNewAnnouncement } from './announcement.js';
+import { createPanel, createPanelItem, createTypoContainer, createExternalLink, showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
 
 /**
@@ -146,7 +146,16 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // 宽屏下 MDUI 抽屉默认展开，必须立即创建 DOM；窄屏仍保持懒加载。
-  if (isWideScreen()) ensureDrawer();
+  if (isWideScreen()) {
+    ensureDrawer();
+  } else {
+    // 窄屏下抽屉懒加载，但需提前检查公告是否为新，以便弹出 Snackbar 提醒用户。
+    checkNewAnnouncement().then((result) => {
+      if (result?.isNew) {
+        showSnackbar('有新公告');
+      }
+    });
+  }
 
   button.addEventListener('click', () => {
     const wasCreated = !drawerInstance;
