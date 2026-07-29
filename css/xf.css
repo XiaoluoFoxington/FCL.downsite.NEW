@@ -129,6 +129,6 @@
       "Roboto Mono", "Ubuntu Mono", "DejaVu Sans Mono", "Liberation Mono",
       /* 5. 终极兜底（浏览器强制调用系统默认等宽字体） */
       monospace;
-  z-index: 5001; /* 刚好比Drawer高1（（（ */
+  z-index: 7001; /* 刚好比Snackbar高1（（（ */
 }
 
