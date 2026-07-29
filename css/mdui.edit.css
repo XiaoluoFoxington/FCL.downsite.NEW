@@ -161,3 +161,21 @@
 .mdui-drawer {
   white-space: unset;
 }
+
+/* 明明在文档里小于600px宽度时弹出的右下角Snackbar是铺满整个底部的，但在我这里不知为啥向右偏移了8px。 */
+.mdui-snackbar-bottom,
+.mdui-snackbar-left-bottom,
+.mdui-snackbar-right-bottom {
+  right: 0;
+}
+
+/* 上面规则特定性高了，导致在600px及以上时Snackbar位置被上面规则覆盖，再写一遍强调 */
+@media (min-width:600px) {
+  .mdui-snackbar-right-top.mdui-snackbar-right-top {
+    right: 24px
+  }
+
+  .mdui-snackbar-right-bottom.mdui-snackbar-right-bottom {
+    right: 24px;
+  }
+}
