@@ -24,6 +24,10 @@
       "key": "/12/index.json"
     },
     {
+      "mirrorId": 1,
+      "key": "/api/public/v1/projects/amcl/assets"
+    },
+    {
       "mirrorId": 4,
       "key": "/api/releases?owner=LZZLHY&repo=amcl&versions=20"
     },
