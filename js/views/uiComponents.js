@@ -138,6 +138,14 @@ export function createBreak() {
 }
 
 /**
+ * 创建一个 HR 分隔线。
+ * @returns {HTMLHRElement}
+ */
+export function createHR() {
+  return document.createElement('hr');
+}
+
+/**
  * 弹出右下角 MDUI Snackbar 提示。
  * @param {string} message - 提示文本
  * @param {number} [timeout=5000] - 显示时间（毫秒）

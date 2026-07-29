@@ -2,7 +2,7 @@ import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { renderStatus } from '../views/commonView.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { loadAnnouncement, checkNewAnnouncement } from './announcement.js';
-import { createPanel, createPanelItem, createTypoContainer, createExternalLink, showSnackbar } from '../views/uiComponents.js';
+import { createPanel, createPanelItem, createTypoContainer, createExternalLink, showSnackbar, createHR } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
 
 /**
@@ -117,6 +117,11 @@ function createDrawer() {
   panel.appendChild(createDrawerPanel('网站信息', [
     createTextArticle([
       runtimeParagraph,
+      createParagraph('此网站是完全开源的，GH仓库见下方链接。'),
+      createExternalLink('https://github.com/XiaoluoFoxington/FCL.downsite.NEW'),
+      createParagraph('此网站使用counter.dev统计访问信息，详情见下方链接。'),
+      createExternalLink('https://counter.dev/dashboard.html?user=XiaoluoFoxington&token=Vw6FYI1sViM%3D'),
+      createHR(),
       createParagraph('COPYRIGHT 2026 XIAOLUOFOXINGTON'),
       createExternalLink('https://beian.miit.gov.cn', '新ICP备2024015133号-7')
     ]),

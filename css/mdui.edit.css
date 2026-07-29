@@ -81,7 +81,7 @@
 
 .mdui-typo hr {
   height: 1px;
-  margin-bottom: 1.2rem;
+  margin-bottom: 1.2em;
 }
 
 .mdui-block {
@@ -135,6 +135,14 @@
 .mdui-typo.mdui-typo a {
   color: unset;
   text-decoration: underline;
+  word-break: break-all; /* 允许超长链接换行 */
+  margin: 0 0 1.2em 0;
+}
+
+.mdui-typo.mdui-typo>a:last-child,
+.mdui-typo.mdui-typo p>a,
+.mdui-typo.mdui-typo p>a:last-child {
+  margin: 0;
 }
 
 .mdui-typo a::before,
