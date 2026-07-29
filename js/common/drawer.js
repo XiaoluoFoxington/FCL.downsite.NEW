@@ -2,7 +2,8 @@ import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { renderStatus } from '../views/commonView.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { loadAnnouncement } from './announcement.js';
-import { createPanel, createPanelItem, createTypoContainer } from '../views/uiComponents.js';
+import { createPanel, createPanelItem, createTypoContainer, createExternalLink } from '../views/uiComponents.js';
+import { getRunTime } from '../domain/siteInfo.js';
 
 /**
  * 所有页面共用的右侧抽屉。
@@ -25,12 +26,12 @@ function createNavigationLink(label, href, iconName, target) {
 
 /**
  * 创建文本段落
- * @param {Array} text 文本内容数组，用于分段
+ * @param {Array} content 文本内容数组，用于分段
  * @returns {HTMLElement} 文本段落片段
  */
-function createTextArticle(text) {
+function createTextArticle(content) {
   const div = createTypoContainer();
-  text.forEach((line) => div.appendChild(createParagraph(line)));
+  div.append(...content);
   return div;
 }
 
@@ -99,7 +100,9 @@ function createDrawer() {
     createNavigationLink('硬刷新', 'javascript:location.reload(true)', 'refresh'),
   ]));
   panel.appendChild(createDrawerPanel('回到旧版', [
-    createTextArticle(['旧版网站将不会有任何更新，不建议使用，仅作纪念。']),
+    createTextArticle([
+      createParagraph('旧版网站将不会有任何更新，不建议使用，仅作纪念。')
+    ]),
     createNavigationLink('NEXT版', 'https://next.foldcraftlauncher.cn', 'history', '_blank'),
     createNavigationLink('mdui版', 'https://mdui.foldcraftlauncher.cn', 'history', '_blank'),
     createNavigationLink('初版', 'https://old.foldcraftlauncher.cn', 'history', '_blank'),
@@ -107,9 +110,16 @@ function createDrawer() {
 
   const feedbackContainer = document.createElement('div');
   panel.appendChild(createDrawerPanel('建议反馈', [feedbackContainer]));
+  const runtimeParagraph = createParagraph('等待至多1秒……');
+  setInterval(() => {
+    runtimeParagraph.textContent = '这坨屎山已经非常松弛地运行了' + getRunTime() + '。';
+  }, 1000);
   panel.appendChild(createDrawerPanel('网站信息', [
-    createNavigationLink('2026 XIAOLUOFOXINGTON', '#', 'copyright'),
-    createNavigationLink('新ICP备2024015133号-7', 'https://beian.miit.gov.cn', 'beenhere', '_blank'),
+    createTextArticle([
+      runtimeParagraph,
+      createParagraph('COPYRIGHT 2026 XIAOLUOFOXINGTON'),
+      createExternalLink('https://beian.miit.gov.cn', '新ICP备2024015133号-7')
+    ]),
   ]));
   drawer.appendChild(panel);
   document.body.appendChild(drawer);
