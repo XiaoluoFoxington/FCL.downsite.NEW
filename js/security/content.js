@@ -76,6 +76,7 @@ export async function createSafeContent(rawContent, { type = 'html', baseUrl } =
   // 此处是唯一允许写入 innerHTML 的边界：输入已经经过 DOMPurify 净化。
   template.innerHTML = cleanHtml;
   rewriteUrls(template.content, baseUrl);
+  window?.mdui.mutation();
   return template.content;
 }
 

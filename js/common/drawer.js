@@ -1,138 +1,122 @@
+import { getText } from '../http/client.js';
 import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { renderStatus } from '../views/commonView.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { loadAnnouncement, checkNewAnnouncement } from './announcement.js';
-import { createPanel, createPanelItem, createTypoContainer, createExternalLink, showSnackbar, createHR } from '../views/uiComponents.js';
+import { showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
 
 /**
  * 所有页面共用的右侧抽屉。
  * 本模块只在页面存在 #menu_btn 时工作；窄屏下创建抽屉推迟到首次点击，宽屏则立即创建以适配 MDUI 持久展开。
+ * 抽屉静态结构从 /html/drawer.html 加载，动态内容（公告、反馈、运行时间）在 JS 中注入。
+ *
+ * 点击按钮后立即弹出抽屉容器并显示加载状态，内容异步加载完成后渲染到抽屉内。
  */
-
-/** 创建本站固定导航链接；label 是按钮文案，iconName 是 Material Icons 名称。 */
-function createNavigationLink(label, href, iconName, target) {
-  // 所有抽屉链接通过 DOM API 创建，避免反馈渠道名称进入 HTML 字符串插值。
-  const link = document.createElement('a');
-  link.className = 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple';
-  link.href = href;
-  if (target) link.target = target;
-  const icon = document.createElement('i');
-  icon.className = 'mdui-icon material-icons';
-  icon.textContent = iconName;
-  link.append(icon, document.createTextNode(` ${label}`));
-  return link;
-}
-
-/**
- * 创建文本段落
- * @param {Array} content 文本内容数组，用于分段
- * @returns {HTMLElement} 文本段落片段
- */
-function createTextArticle(content) {
-  const div = createTypoContainer();
-  div.append(...content);
-  return div;
-}
-
-function createParagraph(text) {
-  const p = document.createElement('p');
-  p.textContent = text;
-  return p;
-}
-
-/** 创建一个 MDUI 面板项，content 为已创建好的 DOM 子节点数组。 */
-function createDrawerPanel(title, content, isOpen = true) {
-  const { element, body } = createPanelItem(title, { isOpen });
-  body.append(...content);
-  return element;
-}
 
 /**
  * 将 data/feedback.json 转为外链按钮。
- * 无效 URL 会被过滤；请求失败只替换反馈区域，不影响抽屉的本地导航。
+ * 无效 URL 会被过滤；请求失败时通过统一状态机在 drawer 面板内显示错误。
  */
 async function loadFeedback(container) {
-  // 反馈渠道不是首屏必须内容；抽屉首次打开后才会调用此函数。
   renderStatus(container, 'loading', { message: '正在加载反馈渠道……' });
   try {
     const feedbacks = await getFeedbackChannels();
     const links = feedbacks
-      // 配置数据也必须校验，禁止误填 javascript: 等危险协议。
       .filter((feedback) => isSafeNavigationUrl(feedback.href, { allowRelative: false }))
       .map((feedback) => {
-        const link = createNavigationLink(`通过 ${feedback.name}`, feedback.href, 'feedback');
+        const link = document.createElement('a');
+        link.className = 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple';
+        link.href = feedback.href;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
+        const icon = document.createElement('i');
+        icon.className = 'mdui-icon material-icons';
+        icon.textContent = 'feedback';
+        link.append(icon, document.createTextNode(` 通过 ${feedback.name}`));
         return link;
       });
-    if (links.length) container.replaceChildren(...links);
-    else renderStatus(container, 'empty', { message: '暂无可用的反馈渠道' });
+    if (links.length) {
+      container.replaceChildren(...links);
+    } else {
+      renderStatus(container, 'empty', { message: '暂无可用的反馈渠道' });
+    }
   } catch (error) {
     console.error('反馈渠道加载失败', error);
     renderStatus(container, 'error', { message: error.message, onRetry: () => loadFeedback(container) });
   }
 }
 
-/** 创建、挂载并初始化抽屉，返回 MDUI 的 Drawer 实例供后续 toggle 调用。 */
-function createDrawer() {
-  // 抽屉 DOM 延迟到用户首次点击菜单才创建，普通页面加载不会请求 feedback.json。
+/** 创建抽屉外壳（立即完成），显示加载状态，返回 drawer 元素和 MDUI 实例。 */
+function createDrawerShell() {
   const drawer = document.createElement('aside');
   drawer.className = 'mdui-drawer mdui-drawer-right mdui-container-fluid';
   drawer.setAttribute('aria-label', '网站导航');
-  const panel = createPanel();
 
-  const announcementContainer = document.createElement('div');
-  announcementContainer.className = 'mdui-panel-item';
-  panel.appendChild(announcementContainer);
-  loadAnnouncement(announcementContainer);
+  // 统一状态机：在抽屉容器内显示加载状态
+  renderStatus(drawer, 'loading', { message: '正在加载……' });
 
-  panel.appendChild(createDrawerPanel('网站导航', [
-    createNavigationLink('资源列表', '/html/list.html', 'list'),
-    createNavigationLink('赞助站长', '/html/sponsor.html', 'card_giftcard'),
-    createNavigationLink('关于网站', '/html/about.html', 'people'),
-  ]));
-  panel.appendChild(createDrawerPanel('网站设置', [
-    createNavigationLink('行为设置', '/html/behavior.html', 'settings'),
-    createNavigationLink('主题设置', '/html/theme.html', 'style'),
-  ]));
-  panel.appendChild(createDrawerPanel('页面操作', [
-    createNavigationLink('硬刷新', 'javascript:location.reload(true)', 'refresh'),
-  ]));
-  panel.appendChild(createDrawerPanel('回到旧版', [
-    createTextArticle([
-      createParagraph('旧版网站将不会有任何更新，不建议使用，仅作纪念。')
-    ]),
-    createNavigationLink('NEXT版', 'https://next.foldcraftlauncher.cn', 'history', '_blank'),
-    createNavigationLink('mdui版', 'https://mdui.foldcraftlauncher.cn', 'history', '_blank'),
-    createNavigationLink('初版', 'https://old.foldcraftlauncher.cn', 'history', '_blank'),
-  ], false));
-
-  const feedbackContainer = document.createElement('div');
-  panel.appendChild(createDrawerPanel('建议反馈', [feedbackContainer]));
-  const runtimeParagraph = createParagraph('等待至多1秒……');
-  setInterval(() => {
-    runtimeParagraph.textContent = '这坨屎山已经非常松弛地运行了' + getRunTime() + '。';
-  }, 1000);
-  panel.appendChild(createDrawerPanel('网站信息', [
-    createTextArticle([
-      runtimeParagraph,
-      createParagraph('此网站是完全开源的，GH仓库见下方链接。'),
-      createExternalLink('https://github.com/XiaoluoFoxington/FCL.downsite.NEW'),
-      createParagraph('此网站使用counter.dev统计访问信息，详情见下方链接。'),
-      createExternalLink('https://counter.dev/dashboard.html?user=XiaoluoFoxington&token=Vw6FYI1sViM%3D'),
-      createHR(),
-      createParagraph('COPYRIGHT 2026 XIAOLUOFOXINGTON'),
-      createExternalLink('https://beian.miit.gov.cn', '新ICP备2024015133号-7')
-    ]),
-  ]));
-  drawer.appendChild(panel);
   document.body.appendChild(drawer);
   document.body.classList.add('mdui-drawer-body-right');
   window.mdui.mutation();
-  // 创建外壳后异步填充反馈区；失败不会影响导航、设置等本地链接。
-  loadFeedback(feedbackContainer);
-  return new window.mdui.Drawer(drawer);
+
+  return { drawer, instance: new window.mdui.Drawer(drawer) };
+}
+
+/** 异步加载抽屉内容并渲染到外壳中，注入动态内容。 */
+async function loadDrawerContent(drawer) {
+  try {
+    const rawHtml = await getText('/data/drawer.html', { cache: true });
+    const template = document.createElement('template');
+    template.innerHTML = rawHtml;
+    drawer.replaceChildren(template.content);
+    window.mdui.mutation();
+
+    // 注入动态内容
+    const announcementContainer = drawer.querySelector('#drawer-announcement');
+    if (announcementContainer) loadAnnouncement(announcementContainer);
+
+    const feedbackContainer = drawer.querySelector('#drawer-feedback');
+    if (feedbackContainer) loadFeedback(feedbackContainer);
+
+    const runtimeEl = drawer.querySelector('#drawer-runtime');
+    if (runtimeEl) {
+      let runtimeTimer = null;
+      const updateRuntime = () => {
+        runtimeEl.textContent = '这坨屎山已经非常松弛地运行了' + getRunTime() + '。';
+      };
+      const startRuntime = () => {
+        if (runtimeTimer === null) {
+          updateRuntime();
+          runtimeTimer = setInterval(updateRuntime, 1000);
+        }
+      };
+      const stopRuntime = () => {
+        if (runtimeTimer !== null) {
+          clearInterval(runtimeTimer);
+          runtimeTimer = null;
+        }
+      };
+      // 抽屉打开时启动定时器，关闭时暂停（窄屏模态模式下生效）
+      drawer.addEventListener('open.mdui.drawer', startRuntime);
+      drawer.addEventListener('closed.mdui.drawer', stopRuntime);
+      // 页面切到后台时暂停，回到前台且抽屉可见时恢复
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+          stopRuntime();
+        } else if (drawer.classList.contains('mdui-drawer-open')) {
+          startRuntime();
+        }
+      });
+      // 初始：宽屏持久展开或窄屏已打开时启动
+      if (!document.hidden && drawer.classList.contains('mdui-drawer-open')) {
+        startRuntime();
+      }
+    }
+  } catch (error) {
+    console.error('抽屉内容加载失败', error);
+    renderStatus(drawer, 'error', { message: error.message, onRetry: () => loadDrawerContent(drawer) });
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -142,11 +126,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const MDUI_LG_BREAKPOINT = 1024;
   const isWideScreen = () => window.innerWidth >= MDUI_LG_BREAKPOINT;
 
-  // 保留单例，后续开关不重复创建 DOM 或再次请求反馈数据。
   let drawerInstance = null;
+  let drawerElement = null;
 
   const ensureDrawer = () => {
-    if (!drawerInstance) drawerInstance = createDrawer();
+    if (!drawerInstance) {
+      const shell = createDrawerShell();
+      drawerInstance = shell.instance;
+      drawerElement = shell.drawer;
+      // 异步加载内容，不阻塞抽屉弹出
+      loadDrawerContent(drawerElement);
+    }
     return drawerInstance;
   };
 
@@ -166,10 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const wasCreated = !drawerInstance;
     const instance = ensureDrawer();
     if (wasCreated) {
-      // 首次创建时使用双重 requestAnimationFrame 确保浏览器完成布局后再切换，使动画生效
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => instance.toggle());
-      });
+      // 单帧延迟确保抽屉 DOM 已挂载，然后触发动画
+      requestAnimationFrame(() => instance.toggle());
     } else {
       instance.toggle();
     }
@@ -177,9 +165,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 窄屏 → 宽屏切换时，若抽屉尚未创建则自动创建，避免宽屏下抽屉区域空白。
   let wasWide = isWideScreen();
+  let resizeRafId = null;
   window.addEventListener('resize', () => {
-    const nowWide = isWideScreen();
-    if (!wasWide && nowWide) ensureDrawer();
-    wasWide = nowWide;
+    if (resizeRafId !== null) return;
+    resizeRafId = requestAnimationFrame(() => {
+      resizeRafId = null;
+      const nowWide = isWideScreen();
+      if (!wasWide && nowWide) ensureDrawer();
+      wasWide = nowWide;
+    });
   });
 });
