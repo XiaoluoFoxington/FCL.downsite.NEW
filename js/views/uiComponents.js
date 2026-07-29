@@ -136,3 +136,14 @@ export function createGrid() {
 export function createBreak() {
   return document.createElement('br');
 }
+
+/**
+ * 弹出右下角 MDUI Snackbar 提示。
+ * @param {string} message - 提示文本
+ * @param {number} [timeout=5000] - 显示时间（毫秒）
+ * @param {object} [options] 其它选项
+ * @returns {object}
+ */
+export function showSnackbar(message, timeout = 5000, options = {}) {
+  return window.mdui?.snackbar({ message, timeout, position: 'right-bottom', ...options });
+}

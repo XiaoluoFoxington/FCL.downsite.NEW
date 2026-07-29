@@ -1,5 +1,6 @@
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { applyTheme } from '../domain/theme.js';
+import { showSnackbar } from '../views/uiComponents.js';
 
 /**
  * 主题设置页的页面入口。
@@ -53,6 +54,7 @@ function bindRadioEvent(containerId, name, storageKey) {
     if (e.target.type === 'radio' && e.target.name === name) {
       writePreference(storageKey, e.target.value);
       applyTheme();
+      showSnackbar('主题应用成功');
     }
   });
 }

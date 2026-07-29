@@ -1,5 +1,5 @@
 import { renderStatus } from './commonView.js';
-import { createPanel, createPanelItem } from './uiComponents.js';
+import { createPanel, createPanelItem, showSnackbar } from './uiComponents.js';
 
 /**
  * 行为设置页面 view。
@@ -135,12 +135,12 @@ export function renderBehaviorError(container, error, onRetry) {
  * 显示保存成功的提示。
  */
 export function showSaveSuccess() {
-  // window.mdui?.snackbar({ message: '设置已保存', timeout: 5000, position: 'right-bottom' });
+  showSnackbar('设置保存成功');
 }
 
 /**
  * 显示保存失败的提示。
  */
 export function showSaveError() {
-  window.mdui?.snackbar({ message: '设置保存失败，请重试', timeout: 5000, position: 'right-bottom' });
+  showSnackbar('设置保存失败');
 }
