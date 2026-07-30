@@ -1,5 +1,6 @@
 import { readPreference } from '../domain/preferences.js';
 import { getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
+import { debounce } from '../views/commonView.js';
 import { renderFilterTags, renderListError, renderListLoading, renderSoftwareList, setFilterIndicator } from '../views/listView.js';
 
 /**
@@ -16,15 +17,6 @@ export function createListController(elements) {
   let searchText = '';
   // 读取用户设置的默认打开方式，未设置时默认为详情页。
   let openMethod = readPreference('fdn-default-open-method') || 'detail';
-
-  // 防抖工具（延迟 500ms）
-  let debounceTimer = null;
-  function debounce(fn, delay = 500) {
-    return function (...args) {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => fn.apply(this, args), delay);
-    };
-  }
 
   function applyFilters() {
     // 搜索同时匹配名称和数字 ID；标签按 tagTagRelation 决定与/或，

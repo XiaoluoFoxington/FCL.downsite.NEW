@@ -1,5 +1,6 @@
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { getSettings } from '../repositories/siteRepository.js';
+import { debounce } from '../views/commonView.js';
 import {
   isValidOption,
   isValidSwitchValue,
@@ -17,6 +18,10 @@ import {
  * 设置项的选项与结构完全由 setting.json 驱动，controller 不含硬编码的业务常量。
  */
 export function createBehaviorController(elements) {
+  // Snackbar 提示防抖：连续修改多个设置时只弹一次，避免刷屏。
+  const debouncedShowSaveSuccess = debounce(showSaveSuccess);
+  const debouncedShowSaveError = debounce(showSaveError);
+
   /**
    * 校验值是否合法，按设置项类型分派。
    * @param {object} setting - 设置项配置
@@ -32,22 +37,21 @@ export function createBehaviorController(elements) {
 
   /**
    * 保存用户选择到 localStorage，并校验值合法性。
+   * 写入立即执行（不丢数据），Snackbar 提示走防抖。
    * @param {object} setting - 设置项配置（含 options、storageKey）
    * @param {string} value - 选中的值
    */
   function savePreference(setting, value) {
     if (!isValidValue(setting, value)) {
       console.warn(`尝试保存无效的设置值: ${setting.storageKey}=${value}`);
-      showSaveError();
+      debouncedShowSaveError();
       return;
     }
     writePreference(setting.storageKey, value);
-    showSaveSuccess();
+    debouncedShowSaveSuccess();
   }
 
-  /**
-   * 加载 setting.json 并渲染完整的设置树。
-   */
+  /** 加载 setting.json 并渲染完整的设置树。 */
   async function load() {
     renderBehaviorLoading(elements.container);
 
@@ -57,7 +61,7 @@ export function createBehaviorController(elements) {
         elements.container,
         categories,
         (key) => readPreference(key),
-        (setting, value) => savePreference(setting, value),
+        savePreference,
       );
     } catch (error) {
       console.error('加载行为设置失败', error);

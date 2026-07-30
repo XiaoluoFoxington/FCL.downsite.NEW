@@ -1,5 +1,14 @@
 import { readPreference } from '../domain/preferences.js';
 
+/** 防抖：延迟执行 fn，期间再次调用则重新计时。 */
+export function debounce(fn, delay = 500) {
+  let timer = null;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
 /** 将字节数转为可读字符串。根据用户偏好自动选择 IEC/SI 前缀。 */
 export function formatBytes(bytes) {
   if (typeof bytes !== 'number' || bytes < 0) return '未知';
