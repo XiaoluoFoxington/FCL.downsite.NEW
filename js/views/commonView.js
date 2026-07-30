@@ -3,11 +3,7 @@ export function formatBytes(bytes) {
   if (typeof bytes !== 'number' || bytes < 0) return '未知';
   if (bytes === 0) return '0 B';
 
-  const prefix = (() => {
-    try {
-      return localStorage.getItem('fdn-default-format-prefix');
-    } catch (e) { /* 隐私模式等降级 */ }
-  })();
+  const prefix = readPreference('fdn-default-format-prefix');
 
   if (prefix === 'SI') {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
