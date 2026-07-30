@@ -132,3 +132,6 @@
   z-index: 7001; /* 刚好比Snackbar高1（（（ */
 }
 
+.xf-sponsorRemind {
+  background: linear-gradient(135deg, #40ff8040 0%, #40ffff40 100%);
+}

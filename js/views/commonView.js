@@ -1,3 +1,5 @@
+import { readPreference } from '../domain/preferences.js';
+
 /** 将字节数转为可读字符串。根据用户偏好自动选择 IEC/SI 前缀。 */
 export function formatBytes(bytes) {
   if (typeof bytes !== 'number' || bytes < 0) return '未知';
