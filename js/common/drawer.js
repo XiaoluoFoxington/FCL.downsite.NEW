@@ -157,7 +157,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const instance = ensureDrawer();
     if (wasCreated) {
       // 单帧延迟确保抽屉 DOM 已挂载，然后触发动画
-      requestAnimationFrame(() => instance.toggle());
+      // 单帧不行！还是得双rAF！！
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => instance.toggle());
+      });
     } else {
       instance.toggle();
     }
