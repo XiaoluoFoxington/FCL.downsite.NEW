@@ -23,6 +23,21 @@
               }
             ],
             "storageKey": "fdn-default-format-prefix"
+          },
+          {
+            "id": 2,
+            "name": "永久关闭赞助提醒",
+            "type": "switch",
+            "default": false,
+            "storageKey": "fdn-sponsorRemindPermanentDisabled"
+          },
+          {
+            "id": 3,
+            "name": "赞助提醒计次",
+            "type": "number",
+            "min": 0,
+            "default": 0,
+            "storageKey": "fdn-visitCount"
           }
         ]
       },

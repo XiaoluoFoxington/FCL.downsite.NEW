@@ -2,6 +2,8 @@ import { readPreference, writePreference } from '../domain/preferences.js';
 import { getSettings } from '../repositories/siteRepository.js';
 import {
   isValidOption,
+  isValidSwitchValue,
+  isValidNumberValue,
   getDefaultOptionValue,
   renderSettingsTree,
   renderBehaviorLoading,
@@ -16,12 +18,25 @@ import {
  */
 export function createBehaviorController(elements) {
   /**
+   * 校验值是否合法，按设置项类型分派。
+   * @param {object} setting - 设置项配置
+   * @param {string} value - 待验证值
+   * @returns {boolean}
+   */
+  function isValidValue(setting, value) {
+    if (setting.type === 'select') return isValidOption(setting.options, value);
+    if (setting.type === 'switch') return isValidSwitchValue(value);
+    if (setting.type === 'number') return isValidNumberValue(setting, value);
+    return false;
+  }
+
+  /**
    * 保存用户选择到 localStorage，并校验值合法性。
    * @param {object} setting - 设置项配置（含 options、storageKey）
    * @param {string} value - 选中的值
    */
   function savePreference(setting, value) {
-    if (!isValidOption(setting.options, value)) {
+    if (!isValidValue(setting, value)) {
       console.warn(`尝试保存无效的设置值: ${setting.storageKey}=${value}`);
       showSaveError();
       return;

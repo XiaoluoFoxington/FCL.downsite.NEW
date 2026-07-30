@@ -27,6 +27,40 @@ export function isValidOption(options, value) {
 }
 
 /**
+ * 验证 switch 类型的值是否合法。
+ * @param {string} value - 待验证值
+ * @returns {boolean}
+ */
+export function isValidSwitchValue(value) {
+  return value === 'true' || value === 'false';
+}
+
+/**
+ * 验证 number 类型的值是否合法。
+ * @param {object} setting - 设置项配置（含 min）
+ * @param {string} value - 待验证值
+ * @returns {boolean}
+ */
+export function isValidNumberValue(setting, value) {
+  const num = Number(value);
+  if (Number.isNaN(num)) return false;
+  if (setting.min != null && num < setting.min) return false;
+  return true;
+}
+
+/**
+ * 根据设置项类型返回默认值（字符串形式）。
+ * @param {object} setting - 设置项配置
+ * @returns {string}
+ */
+function getDefaultForSetting(setting) {
+  if (setting.type === 'select') return getDefaultOptionValue(setting.options || []);
+  if (setting.type === 'switch') return String(setting.default ?? false);
+  if (setting.type === 'number') return String(setting.default ?? 0);
+  return '';
+}
+
+/**
  * 渲染 select 类型的设置项。
  * @param {HTMLElement} container - 挂载容器
  * @param {object} setting - 设置项配置
@@ -65,11 +99,81 @@ function renderSelectSetting(container, setting, savedValue, onChange) {
 }
 
 /**
+ * 渲染 switch 类型的设置项。
+ * @param {HTMLElement} container - 挂载容器
+ * @param {object} setting - 设置项配置
+ * @param {string} savedValue - 已保存的偏好值（'true'/'false'）
+ * @param {Function} onChange - 值变更回调 (value) => void
+ */
+function renderSwitchSetting(container, setting, savedValue, onChange) {
+  const row = document.createElement('div');
+  row.className = 'mdui-row';
+
+  const labelCol = document.createElement('div');
+  labelCol.className = 'mdui-col-xs-6';
+  const p = document.createElement('p');
+  p.textContent = setting.name;
+  labelCol.appendChild(p);
+
+  const switchCol = document.createElement('div');
+  switchCol.className = 'mdui-col-xs-6';
+  const toggle = document.createElement('label');
+  toggle.className = 'mdui-switch';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = savedValue === 'true';
+  input.addEventListener('change', () => onChange(String(input.checked)));
+  toggle.appendChild(input);
+  const icon = document.createElement('i');
+  icon.className = 'mdui-switch-icon';
+  toggle.appendChild(icon);
+  switchCol.appendChild(toggle);
+
+  row.append(labelCol, switchCol);
+  container.appendChild(row);
+}
+
+/**
+ * 渲染 number 类型的设置项。
+ * @param {HTMLElement} container - 挂载容器
+ * @param {object} setting - 设置项配置（含 min）
+ * @param {string} savedValue - 已保存的偏好值
+ * @param {Function} onChange - 值变更回调 (value) => void
+ */
+function renderNumberSetting(container, setting, savedValue, onChange) {
+  const row = document.createElement('div');
+  row.className = 'mdui-row';
+
+  const labelCol = document.createElement('div');
+  labelCol.className = 'mdui-col-xs-6';
+  const p = document.createElement('p');
+  p.textContent = setting.name;
+  labelCol.appendChild(p);
+
+  const inputCol = document.createElement('div');
+  inputCol.className = 'mdui-col-xs-6';
+  const input = document.createElement('input');
+  input.className = 'mdui-textfield-input';
+  input.type = 'number';
+  input.value = savedValue;
+  if (setting.min != null) input.min = setting.min;
+  input.addEventListener('change', () => onChange(input.value));
+  inputCol.appendChild(input);
+
+  row.append(labelCol, inputCol);
+  container.appendChild(row);
+}
+
+/**
  * 根据设置项类型分派渲染。
  */
 function renderSettingItem(container, setting, savedValue, onChange) {
   if (setting.type === 'select') {
     renderSelectSetting(container, setting, savedValue, onChange);
+  } else if (setting.type === 'switch') {
+    renderSwitchSetting(container, setting, savedValue, onChange);
+  } else if (setting.type === 'number') {
+    renderNumberSetting(container, setting, savedValue, onChange);
   }
 }
 
@@ -98,7 +202,7 @@ export function renderSettingsTree(container, categories, readPref, onChange) {
 
       (group.children || []).forEach((setting) => {
         const saved = readPref(setting.storageKey);
-        const value = saved || getDefaultOptionValue(setting.options || []);
+        const value = saved ?? getDefaultForSetting(setting);
         renderSettingItem(groupBody, setting, value, (v) => onChange(setting, v));
       });
 
