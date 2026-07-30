@@ -58,7 +58,7 @@ function createDrawerShell() {
 
   document.body.appendChild(drawer);
   document.body.classList.add('mdui-drawer-body-right');
-  window.mdui.mutation();
+  window.mdui?.mutation();
 
   return { drawer, instance: new window.mdui.Drawer(drawer) };
 }
@@ -70,7 +70,7 @@ async function loadDrawerContent(drawer) {
     const template = document.createElement('template');
     template.innerHTML = rawHtml;
     drawer.replaceChildren(template.content);
-    window.mdui.mutation();
+    window.mdui?.mutation();
 
     // 注入动态内容
     const announcementContainer = drawer.querySelector('#drawer-announcement');
