@@ -56,8 +56,13 @@ async function showSponsorRemind(container, visitCount) {
     container.className = 'mdui-panel-item mdui-panel-item-open xf-sponsorRemind';
     const sponsorHtml = await getText('/data/sponsorRemind.html', { cache: true });
     container.replaceChildren(await createSafeContent(sponsorHtml));
-    container.querySelector('#visitCount').textContent = visitCount;
-    container.querySelector('#sponsorRemindCloseBtn').addEventListener('click', () => {
+    const visitCountEl = container.querySelector('#visitCount');
+    const closeBtn = container.querySelector('#sponsorRemindCloseBtn');
+    if (!visitCountEl || !closeBtn) {
+      throw new Error('赞助提醒模板缺少必要的元素（#visitCount 或 #sponsorRemindCloseBtn）');
+    }
+    visitCountEl.textContent = visitCount;
+    closeBtn.addEventListener('click', () => {
       disableSponsorRemind(container);
     });
   } catch (error) {
