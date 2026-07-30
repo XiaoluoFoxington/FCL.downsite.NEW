@@ -104,9 +104,11 @@ function createContentSection(body) {
 async function renderReleaseBody(container, body) {
   try {
     const fragment = await createSafeContent(body || '无发布说明', { type: 'md' });
-    container.replaceChildren(fragment);
+    // 容器可能已被移除（用户关闭/折叠面板或离开页面），避免更新游离 DOM。
+    if (container.isConnected) container.replaceChildren(fragment);
   } catch (error) {
     console.error('Release 正文渲染失败', error);
+    if (!container.isConnected) return;
     renderStatus(container, 'error', {
       message: `正文渲染失败：${error.message}`,
       onRetry: () => renderReleaseBody(container, body),

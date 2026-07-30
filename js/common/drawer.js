@@ -65,6 +65,11 @@ function createDrawerShell() {
 
 /** 异步加载抽屉内容并渲染到外壳中，注入动态内容。 */
 async function loadDrawerContent(drawer) {
+  // 重试时先 abort 上一次的事件监听器，避免重复绑定导致 setInterval 重复执行与内存泄漏。
+  if (drawer._drawerContentAbort) drawer._drawerContentAbort.abort();
+  const ac = new AbortController();
+  drawer._drawerContentAbort = ac;
+
   try {
     const rawHtml = await getText('/data/drawer.html', { cache: true });
     const template = document.createElement('template');
@@ -98,8 +103,8 @@ async function loadDrawerContent(drawer) {
         }
       };
       // 抽屉打开时启动定时器，关闭时暂停（窄屏模态模式下生效）
-      drawer.addEventListener('open.mdui.drawer', startRuntime);
-      drawer.addEventListener('closed.mdui.drawer', stopRuntime);
+      drawer.addEventListener('open.mdui.drawer', startRuntime, { signal: ac.signal });
+      drawer.addEventListener('closed.mdui.drawer', stopRuntime, { signal: ac.signal });
       // 页面切到后台时暂停，回到前台且抽屉可见时恢复
       document.addEventListener('visibilitychange', () => {
         if (document.hidden) {
@@ -107,7 +112,7 @@ async function loadDrawerContent(drawer) {
         } else if (drawer.classList.contains('mdui-drawer-open')) {
           startRuntime();
         }
-      });
+      }, { signal: ac.signal });
       // 初始：宽屏持久展开或窄屏已打开时启动
       if (!document.hidden && drawer.classList.contains('mdui-drawer-open')) {
         startRuntime();

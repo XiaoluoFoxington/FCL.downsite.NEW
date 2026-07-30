@@ -3,7 +3,9 @@ import { renderStatus, setErrorTitle, setSoftwareHeader } from './commonView.js'
 import { isSafeNavigationUrl } from '../security/content.js';
 import { createExternalLink, createGrid } from './uiComponents.js';
 
-let errorToken = 0;
+// 反馈渠道异步请求的取消控制器：renderDetail 成功或再次进入 renderDetailError 时 abort 旧的，
+// 既保护 DOM 不被旧响应写入，也取消进行中的网络请求避免无谓流量。
+let feedbackAbort = null;
 
 /** 将详情表格置为加载状态，仍遵守 tbody 只能包含 tr 的 HTML 结构。 */
 export function renderDetailLoading(elements) {
@@ -15,7 +17,11 @@ export function renderDetailLoading(elements) {
 
 /** 展示详情错误并显示反馈按钮（或反馈渠道加载状态）。 */
 export function renderDetailError(elements, error, onRetry) {
-  const token = ++errorToken;
+  // 取消上一次进行中的反馈渠道请求，避免旧响应覆盖新状态。
+  if (feedbackAbort) feedbackAbort.abort();
+  const ac = new AbortController();
+  feedbackAbort = ac;
+
   setErrorTitle();
   renderTableStatus(elements.body, 2, 'error', error.message, onRetry);
   if (elements.mirrorInfoBody) {
@@ -26,10 +32,10 @@ export function renderDetailError(elements, error, onRetry) {
   elements.operations.replaceChildren();
   renderStatus(elements.operations, 'loading', { message: '加载反馈渠道...' });
 
-  // 异步获取反馈渠道
-  getFeedbackChannels()
+  // 异步获取反馈渠道，signal 让旧请求在新状态进入时被真正取消。
+  getFeedbackChannels({ signal: ac.signal })
     .then((channels) => {
-      if (token !== errorToken) return; // 已被新状态覆盖
+      if (ac.signal.aborted) return; // 已被新状态覆盖
       // 清除加载状态
       elements.operations.replaceChildren();
       if (channels.length > 0) {
@@ -51,7 +57,7 @@ export function renderDetailError(elements, error, onRetry) {
       }
     })
     .catch((err) => {
-      if (token !== errorToken) return;
+      if (ac.signal.aborted || err.kind === 'abort') return; // 被新状态取消，不显示错误
       // 获取渠道失败，显示错误状态并提供重试
       renderStatus(elements.operations, 'error', { message: `反馈渠道加载失败: ${err.message}`, onRetry });
     });
@@ -86,7 +92,8 @@ function renderTableStatus(body, colspan = 2, state, message, onRetry) {
  * mirrors 用于将 detail.download 中的 mirrorId 翻译为线路名称。
  */
 export function renderDetail(elements, id, basic, detail, tags, mirrors) {
-  errorToken++;
+  // 成功渲染时取消任何进行中的反馈渠道请求（若上一状态是错误态）。
+  if (feedbackAbort) feedbackAbort.abort();
   // 重置操作按钮区域，移除所有子元素（包括错误时添加的反馈按钮），重新添加三个操作按钮
   const container = elements.operations;
   const containerGrid = createGrid();

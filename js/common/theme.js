@@ -35,7 +35,9 @@ document.addEventListener('DOMContentLoaded', function () {
 function restoreRadioState(containerId, name, value) {
   const container = document.getElementById(containerId);
   if (!container) return;
-  const radio = container.querySelector(`input[type="radio"][name="${name}"][value="${value}"]`);
+  // 使用属性遍历而非字符串拼接 CSS 选择器，避免 localStorage 被篡改时抛出 SyntaxError。
+  const radio = Array.from(container.querySelectorAll('input[type="radio"]'))
+    .find((input) => input.name === name && input.value === value);
   if (radio) {
     radio.checked = true;
   }
