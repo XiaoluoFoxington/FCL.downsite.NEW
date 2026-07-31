@@ -1,4 +1,5 @@
 import { renderStatus } from './commonView.js';
+import { readPreference } from '../domain/preferences.js';
 
 /** 切换筛选面板标题中“已有筛选条件”图标的显示。 */
 export function setFilterIndicator(element, active) {
@@ -102,6 +103,8 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
   thead.appendChild(headerRow);
   table.appendChild(thead);
 
+  const iconSize = readPreference('fdn-list-icon-size', 64);
+
   const tbody = document.createElement('tbody');
   software.forEach((item) => {
     const row = document.createElement('tr');
@@ -115,8 +118,8 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
     const img = document.createElement('img');
     img.src = item.icon || '/media/img/picMissing.webp';
     img.alt = item.name;
-    img.width = 64;
-    img.height = 64;
+    img.width = iconSize;
+    img.height = iconSize;
     img.loading = 'lazy';
     img.className = 'xf-list-table-icon';
     iconCell.appendChild(img);
