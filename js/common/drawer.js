@@ -88,7 +88,7 @@ async function loadDrawerContent(drawer) {
     if (runtimeEl) {
       let runtimeTimer = null;
       const updateRuntime = () => {
-        runtimeEl.textContent = '这坨屎山已经非常松弛地运行了' + getRunTime() + '。';
+        runtimeEl.textContent = getRunTime();
       };
       const startRuntime = () => {
         if (runtimeTimer === null) {
@@ -114,7 +114,7 @@ async function loadDrawerContent(drawer) {
         }
       }, { signal: ac.signal });
       // 初始：宽屏持久展开或窄屏已打开时启动
-      if (!document.hidden && drawer.classList.contains('mdui-drawer-open')) {
+      if (!document.hidden) {
         startRuntime();
       }
     }
