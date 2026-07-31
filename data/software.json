@@ -82,7 +82,7 @@
   },
   {
     "id": 12,
-    "name": "AMCL",
+    "name": "Axe Minecraft Launcher",
     "icon": "/data/software/12/icon.avif",
     "tagIds": [0, 1],
     "detailUrl": "/data/software/12/detail.json"
