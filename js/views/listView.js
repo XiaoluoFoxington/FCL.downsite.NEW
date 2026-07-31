@@ -97,12 +97,19 @@ const OPEN_METHOD_PAGE_MAP = {
 let sortKey = 'id';
 let sortDirection = 'asc';
 
+/** 缓存当前渲染数据，避免排序时重复传参 */
+let _software = [];
+let _tagMap = new Map();
+let _openMethod = 'detail';
+let _pagePath = '';
+let _container = null;
+
 /**
  * 对软件列表进行排序（不修改原数组）。
  */
-function sortSoftware(software) {
-  if (!sortKey) return software;
-  const sorted = [...software];
+function sortSoftware() {
+  if (!sortKey) return _software;
+  const sorted = [..._software];
   sorted.sort((a, b) => {
     let cmp;
     if (sortKey === 'name') {
@@ -115,21 +122,8 @@ function sortSoftware(software) {
   return sorted;
 }
 
-/**
- * 将 controller 已筛选好的软件目录渲染为表格。
- * tagMap 的键为数值 tag ID，值为标签名；没有标签时保留原 ID 便于发现配置问题。
- * openMethod 控制行点击后的默认跳转页面，来自用户行为设置偏好。
- */
-export function renderSoftwareList(container, software, tagMap, openMethod = 'detail') {
-  if (!software.length) {
-    renderStatus(container, 'empty', { message: '没有符合条件的软件' });
-    return;
-  }
-  const pagePath = OPEN_METHOD_PAGE_MAP[openMethod] || OPEN_METHOD_PAGE_MAP.detail;
-
-  const table = document.createElement('table');
-  table.className = 'mdui-table mdui-table-hoverable';
-
+/** 创建表头（仅首次调用）。 */
+function createThead() {
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   const headers = [
@@ -144,39 +138,41 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
     if (sortable) {
       th.className = 'xf-list-table-th-sortable';
       th.dataset.sortKey = key;
-      if (sortKey === key) {
-        th.classList.add('xf-list-table-th-sorted');
-        th.setAttribute('aria-sort', sortDirection === 'asc' ? 'ascending' : 'descending');
-        const indicator = document.createElement('span');
-        indicator.className = 'xf-list-table-sort-indicator';
-        indicator.textContent = sortDirection === 'asc' ? ' ▲' : ' ▼';
-        th.appendChild(indicator);
-      }
-      th.addEventListener('click', () => {
-        if (sortKey === key) {
-          sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-          sortKey = key;
-          sortDirection = 'asc';
-        }
-        renderSoftwareList(container, software, tagMap, openMethod);
-      });
     }
     headerRow.appendChild(th);
   });
   thead.appendChild(headerRow);
-  table.appendChild(thead);
+  return thead;
+}
 
-  const iconSize = readPreference('fdn-list-icon-size', 64);
+/** 更新表头排序指示符（▲/▼）。 */
+function updateSortIndicators(thead) {
+  thead.querySelectorAll('th[data-sort-key]').forEach((th) => {
+    const isActive = th.dataset.sortKey === sortKey;
+    th.classList.toggle('xf-list-table-th-sorted', isActive);
+    th.setAttribute('aria-sort', isActive ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none');
+    let indicator = th.querySelector('.xf-list-table-sort-indicator');
+    if (isActive) {
+      if (!indicator) {
+        indicator = document.createElement('span');
+        indicator.className = 'xf-list-table-sort-indicator';
+        th.appendChild(indicator);
+      }
+      indicator.textContent = sortDirection === 'asc' ? ' ▲' : ' ▼';
+    } else {
+      indicator?.remove();
+    }
+  });
+}
 
-  // 对已筛选的数据排序
-  const sorted = sortSoftware(software);
-
-  const tbody = document.createElement('tbody');
+/** 渲染 tbody 行（排序后的数据）。 */
+function renderTableBody(tbody, iconSize) {
+  const sorted = sortSoftware();
+  const fragment = document.createDocumentFragment();
   sorted.forEach((item) => {
     const row = document.createElement('tr');
     row.className = 'xf-list-table-row';
-    row.dataset.href = `${pagePath}?id=${item.id}`;
+    row.dataset.href = `${_pagePath}?id=${item.id}`;
     row.tabIndex = 0;
     row.setAttribute('role', 'link');
 
@@ -205,32 +201,79 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
 
     // 标签单元格
     const tagsCell = document.createElement('td');
-    const tagNames = item.tagIds.map((id) => tagMap.get(id) || String(id));
+    const tagNames = item.tagIds.map((id) => _tagMap.get(id) || String(id));
     tagsCell.textContent = tagNames.join(', ');
     row.appendChild(tagsCell);
 
-    tbody.appendChild(row);
+    fragment.appendChild(row);
   });
-  table.appendChild(tbody);
-  container.replaceChildren(table);
+  tbody.replaceChildren(fragment);
+}
 
-  // 事件委托：点击行跳转
-  tbody.addEventListener('click', (event) => {
-    const row = event.target.closest('tr');
-    if (row?.dataset.href) {
+/** 表格点击事件委托：排序（表头）/ 导航（数据行）。 */
+function handleTableClick(event) {
+  const th = event.target.closest('th[data-sort-key]');
+  if (th) {
+    const key = th.dataset.sortKey;
+    if (sortKey === key) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortKey = key;
+      sortDirection = 'asc';
+    }
+    renderSoftwareList(_container, _software, _tagMap, _openMethod);
+    return;
+  }
+  const row = event.target.closest('tr[data-href]');
+  if (row) {
+    window.location.href = row.dataset.href;
+  }
+}
+
+/** 表格键盘事件委托：Enter 导航。 */
+function handleTableKeydown(event) {
+  if (event.key === 'Enter') {
+    const row = event.target.closest('tr[data-href]');
+    if (row) {
       window.location.href = row.dataset.href;
     }
-  });
+  }
+}
 
-  // 键盘支持：Enter 键触发跳转
-  tbody.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      const row = event.target.closest('tr');
-      if (row?.dataset.href) {
-        window.location.href = row.dataset.href;
-      }
-    }
-  });
+/**
+ * 将 controller 已筛选好的软件目录渲染为表格。
+ * 首次渲染创建完整表格，后续排序只更新 tbody 和表头指示符，避免不必要的 DOM 重建。
+ * tagMap 的键为数值 tag ID，值为标签名；没有标签时保留原 ID 便于发现配置问题。
+ * openMethod 控制行点击后的默认跳转页面，来自用户行为设置偏好。
+ */
+export function renderSoftwareList(container, software, tagMap, openMethod = 'detail') {
+  _software = software;
+  _tagMap = tagMap;
+  _openMethod = openMethod;
+  _pagePath = OPEN_METHOD_PAGE_MAP[openMethod] || OPEN_METHOD_PAGE_MAP.detail;
+  _container = container;
+
+  if (!software.length) {
+    renderStatus(container, 'empty', { message: '没有符合条件的软件' });
+    return;
+  }
+
+  let table = container.querySelector('.xf-list-table');
+  if (!table) {
+    // 首次：创建完整表格，事件委托绑定在 table 上，避免重复绑定
+    table = document.createElement('table');
+    table.className = 'mdui-table mdui-table-hoverable xf-list-table';
+    table.appendChild(createThead());
+    table.appendChild(document.createElement('tbody'));
+    container.replaceChildren(table);
+    table.addEventListener('click', handleTableClick);
+    table.addEventListener('keydown', handleTableKeydown);
+  }
+
+  // 后续：只更新表头指示符和 tbody
+  updateSortIndicators(table.querySelector('thead'));
+  const iconSize = readPreference('fdn-list-icon-size', 64);
+  renderTableBody(table.querySelector('tbody'), iconSize);
 }
 
 
