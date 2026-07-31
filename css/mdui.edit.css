@@ -21,6 +21,7 @@
   }
 }
 
+/* 深色下的阴影太浅了。 */
 @media (prefers-color-scheme: dark) {
   body:not(.mdui-theme-layout-light) .mdui-btn-raised {
     -webkit-box-shadow: 0 2px 4px #000;
@@ -44,6 +45,7 @@
 
 }
 
+/* 缩短面板的边距，不然信息密度太低。 */
 .mdui-panel-item-header {
   padding: 0 12px;
 }
@@ -111,6 +113,7 @@
   }
 }
 
+/* 给表格的列也加上边框。 */
 .mdui-table td:first-child,
 .mdui-table th:first-child {
   padding-right: 12px;
@@ -135,7 +138,7 @@
 .mdui-typo.mdui-typo a {
   color: unset;
   text-decoration: underline;
-  word-break: break-all; /* 允许超长链接换行 */
+  word-break: break-all; /* 允许超长链接换行。 */
   margin: 0 0 1.2em 0;
 }
 
@@ -165,7 +168,7 @@
   margin-bottom: 1.2em;
 }
 
-/* 花了一个小时也没有看懂为啥MDUI要在Drawer里强制不换行 */
+/* 花了一个小时也没有看懂为啥MDUI要在Drawer里强制不换行。 */
 .mdui-drawer {
   white-space: unset;
 }
@@ -177,7 +180,7 @@
   right: 0;
 }
 
-/* 上面规则特定性高了，导致在600px及以上时Snackbar位置被上面规则覆盖，再写一遍强调 */
+/* 上面规则特定性高了，导致在600px及以上时Snackbar位置被上面规则覆盖，再写一遍强调。 */
 @media (min-width:600px) {
   .mdui-snackbar-right-top.mdui-snackbar-right-top {
     right: 24px
@@ -185,5 +188,15 @@
 
   .mdui-snackbar-right-bottom.mdui-snackbar-right-bottom {
     right: 24px;
+  }
+}
+
+/* 神秘MDUI的表格悬停颜色是纯色而不是透明色。 */
+.mdui-theme-layout-auto .mdui-table-hoverable tbody tr:hover {
+  background-color: rgba(0, 0, 0, .12);
+}
+@media (prefers-color-scheme: dark) {
+  .mdui-theme-layout-auto .mdui-table-hoverable tbody tr:hover {
+    background-color: rgba(255, 255, 255, .12);
   }
 }

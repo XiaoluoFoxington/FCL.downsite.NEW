@@ -27,27 +27,31 @@
 
 .xf-list-table-icon {
   object-fit: cover;
-  display: block;
+  display: inline-block;
 }
 
 .xf-list-table-col-icon.xf-list-table-col-icon.xf-list-table-col-icon {
   width: 0;
+  height: 0;
   padding: 0;
+  line-height: 0;
+  text-align: center;
 }
 
 .xf-list-table-th-sortable {
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  transition: background-color .28s cubic-bezier(.4, 0, .2, 1);
 }
 
 .xf-list-table-th-sortable:hover {
-  background-color: rgba(0, 0, 0, 0.04);
+  background-color: rgba(0, 0, 0, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
   body:not(.mdui-theme-layout-light) .xf-list-table-th-sortable:hover {
-    background-color: rgba(255, 255, 255, 0.04);
+    background-color: rgba(255, 255, 255, 0.12);
   }
 }
 
