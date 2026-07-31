@@ -35,6 +35,26 @@
   padding: 0;
 }
 
+.xf-list-table-th-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.xf-list-table-th-sortable:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+@media (prefers-color-scheme: dark) {
+  body:not(.mdui-theme-layout-light) .xf-list-table-th-sortable:hover {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
+}
+
+.xf-list-table-sort-indicator {
+  font-size: 0.75em;
+}
+
 #filter-tag {
   overflow-x: auto;
   overflow-y: hidden;

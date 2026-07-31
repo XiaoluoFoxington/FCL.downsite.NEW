@@ -93,6 +93,28 @@ const OPEN_METHOD_PAGE_MAP = {
   history: '/html/rh.html',
 };
 
+/** 排序状态 */
+let sortKey = 'id';
+let sortDirection = 'asc';
+
+/**
+ * 对软件列表进行排序（不修改原数组）。
+ */
+function sortSoftware(software) {
+  if (!sortKey) return software;
+  const sorted = [...software];
+  sorted.sort((a, b) => {
+    let cmp;
+    if (sortKey === 'name') {
+      cmp = a.name.toLocaleLowerCase().localeCompare(b.name.toLocaleLowerCase());
+    } else {
+      cmp = a.id - b.id;
+    }
+    return sortDirection === 'asc' ? cmp : -cmp;
+  });
+  return sorted;
+}
+
 /**
  * 将 controller 已筛选好的软件目录渲染为表格。
  * tagMap 的键为数值 tag ID，值为标签名；没有标签时保留原 ID 便于发现配置问题。
@@ -110,9 +132,36 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
 
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
-  ['图标', '名称', 'ID', '标签'].forEach((text) => {
+  const headers = [
+    { text: '图标', sortable: false, key: null },
+    { text: '名称', sortable: true, key: 'name' },
+    { text: 'ID', sortable: true, key: 'id' },
+    { text: '标签', sortable: false, key: null },
+  ];
+  headers.forEach(({ text, sortable, key }) => {
     const th = document.createElement('th');
     th.textContent = text;
+    if (sortable) {
+      th.className = 'xf-list-table-th-sortable';
+      th.dataset.sortKey = key;
+      if (sortKey === key) {
+        th.classList.add('xf-list-table-th-sorted');
+        th.setAttribute('aria-sort', sortDirection === 'asc' ? 'ascending' : 'descending');
+        const indicator = document.createElement('span');
+        indicator.className = 'xf-list-table-sort-indicator';
+        indicator.textContent = sortDirection === 'asc' ? ' ▲' : ' ▼';
+        th.appendChild(indicator);
+      }
+      th.addEventListener('click', () => {
+        if (sortKey === key) {
+          sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortKey = key;
+          sortDirection = 'asc';
+        }
+        renderSoftwareList(container, software, tagMap, openMethod);
+      });
+    }
     headerRow.appendChild(th);
   });
   thead.appendChild(headerRow);
@@ -120,8 +169,11 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
 
   const iconSize = readPreference('fdn-list-icon-size', 64);
 
+  // 对已筛选的数据排序
+  const sorted = sortSoftware(software);
+
   const tbody = document.createElement('tbody');
-  software.forEach((item) => {
+  sorted.forEach((item) => {
     const row = document.createElement('tr');
     row.className = 'xf-list-table-row';
     row.dataset.href = `${pagePath}?id=${item.id}`;
