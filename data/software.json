@@ -86,5 +86,12 @@
     "icon": "/data/software/12/icon.avif",
     "tagIds": [10, 0, 1],
     "detailUrl": "/data/software/12/detail.json"
+  },
+  {
+    "id": 13,
+    "name": "HMCL",
+    "icon": "/data/software/13/icon.avif",
+    "tagIds": [8, 9, 0, 1],
+    "detailUrl": "/data/software/13/detail.json"
   }
 ]
