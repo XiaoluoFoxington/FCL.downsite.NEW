@@ -1,7 +1,23 @@
 [
   {
+    "id": 7,
+    "name": "Android"
+  },
+  {
+    "id": 8,
+    "name": "Windows"
+  },
+  {
+    "id": 9,
+    "name": "Linux"
+  },
+  {
+    "id": 10,
+    "name": "HarmonyOS"
+  },
+  {
     "id": 0,
-    "name": "MCJE-On-Mobile"
+    "name": "MCJE相关"
   },
   {
     "id": 1,
