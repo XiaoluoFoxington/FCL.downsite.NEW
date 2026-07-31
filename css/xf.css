@@ -35,6 +35,12 @@
   padding: 0;
 }
 
+#filter-tag {
+  overflow-x: auto;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
 .xf-detail-icon {
   max-height: 64px;
   max-width: 64px;

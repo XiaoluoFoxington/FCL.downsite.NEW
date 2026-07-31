@@ -56,6 +56,21 @@ export function renderFilterTags(container, tags, onChange) {
     // 传副本而非内部 Set，防止 controller 意外修改 view 持有的状态。
     onChange(new Set(activeTagIds));
   }, { signal: ac.signal });
+
+  // 垂直滚动时改为水平滚动
+  container.addEventListener('wheel', function (e) {
+    // 如果用户按了 Shift 键，浏览器会原生处理水平滚动，我们就不干预
+    if (e.shiftKey) return;
+
+    // 阻止页面上下滚动
+    e.preventDefault();
+
+    // 把垂直滚动增量 deltaY 转为水平滚动增量
+    container.scrollBy({
+      left: e.deltaY,
+      behavior: 'smooth'
+    });
+  }, { passive: false });
 }
 
 /** 创建单个可访问的 button，不使用无 href 的 a 标签模拟按钮。 */
