@@ -20,6 +20,11 @@
   "releaseHistoryUrl": "https://api.github.com/repos/AngelAuraMC/Amethyst-Android/releases",
   "download": [
     {
+      "mirrorId": 0,
+      "key": "/4/index.json",
+      "notJoinRandom": true
+    },
+    {
       "mirrorId": 4,
       "key": "/api/releases?owner=AngelAuraMC&repo=Amethyst-Android&versions=20"
     },
