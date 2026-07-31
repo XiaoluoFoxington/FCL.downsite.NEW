@@ -78,9 +78,9 @@ const OPEN_METHOD_PAGE_MAP = {
 };
 
 /**
- * 将 controller 已筛选好的软件目录渲染为卡片。
+ * 将 controller 已筛选好的软件目录渲染为表格。
  * tagMap 的键为数值 tag ID，值为标签名；没有标签时保留原 ID 便于发现配置问题。
- * openMethod 控制卡片点击后的默认跳转页面，来自用户行为设置偏好。
+ * openMethod 控制行点击后的默认跳转页面，来自用户行为设置偏好。
  */
 export function renderSoftwareList(container, software, tagMap, openMethod = 'detail') {
   if (!software.length) {
@@ -88,37 +88,79 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
     return;
   }
   const pagePath = OPEN_METHOD_PAGE_MAP[openMethod] || OPEN_METHOD_PAGE_MAP.detail;
-  const fragment = document.createDocumentFragment();
-  software.forEach((item) => {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'xf-list-item';
 
-    const link = document.createElement('a');
-    link.href = `${pagePath}?id=${item.id}`;
-    const card = document.createElement('div');
-    card.className = 'mdui-card mdui-ripple';
-    const image = document.createElement('img');
-    image.src = item.icon || '/media/img/picMissing.webp';
-    image.alt = item.name;
-    image.width = 96;
-    image.height = 96;
-    // 列表扩大后，浏览器只在图片接近视口时下载/解码，宽高同时避免布局跳动。
-    image.loading = 'lazy';
-    card.append(image, createText('mdui-card-primary-title', item.name));
-    card.append(createText('mdui-card-primary-subtitle', `ID: ${item.id}`));
-    const tagNames = item.tagIds.map((id) => tagMap.get(id) || String(id));
-    card.append(createText('mdui-card-primary-subtitle tag-subtitle', `TAG: ${tagNames.join(', ')}`));
-    link.appendChild(card);
-    wrapper.appendChild(link);
-    fragment.appendChild(wrapper);
+  const table = document.createElement('table');
+  table.className = 'mdui-table mdui-table-hoverable';
+
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  ['图标', '名称', 'ID', '标签'].forEach((text) => {
+    const th = document.createElement('th');
+    th.textContent = text;
+    headerRow.appendChild(th);
   });
-  container.replaceChildren(fragment);
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  software.forEach((item) => {
+    const row = document.createElement('tr');
+    row.className = 'xf-list-table-row';
+    row.dataset.href = `${pagePath}?id=${item.id}`;
+    row.tabIndex = 0;
+    row.setAttribute('role', 'link');
+
+    // 图标单元格
+    const iconCell = document.createElement('td');
+    const img = document.createElement('img');
+    img.src = item.icon || '/media/img/picMissing.webp';
+    img.alt = item.name;
+    img.width = 64;
+    img.height = 64;
+    img.loading = 'lazy';
+    img.className = 'xf-list-table-icon';
+    iconCell.appendChild(img);
+    iconCell.classList.add('xf-list-table-col-icon');
+    row.appendChild(iconCell);
+
+    // 名称单元格
+    const nameCell = document.createElement('td');
+    nameCell.textContent = item.name;
+    row.appendChild(nameCell);
+
+    // ID 单元格
+    const idCell = document.createElement('td');
+    idCell.textContent = item.id;
+    row.appendChild(idCell);
+
+    // 标签单元格
+    const tagsCell = document.createElement('td');
+    const tagNames = item.tagIds.map((id) => tagMap.get(id) || String(id));
+    tagsCell.textContent = tagNames.join(', ');
+    row.appendChild(tagsCell);
+
+    tbody.appendChild(row);
+  });
+  table.appendChild(tbody);
+  container.replaceChildren(table);
+
+  // 事件委托：点击行跳转
+  tbody.addEventListener('click', (event) => {
+    const row = event.target.closest('tr');
+    if (row?.dataset.href) {
+      window.location.href = row.dataset.href;
+    }
+  });
+
+  // 键盘支持：Enter 键触发跳转
+  tbody.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      const row = event.target.closest('tr');
+      if (row?.dataset.href) {
+        window.location.href = row.dataset.href;
+      }
+    }
+  });
 }
 
-/** 创建只含文本的 span，避免软件名/标签名进入 HTML 字符串插值。 */
-function createText(className, value) {
-  const element = document.createElement('span');
-  element.className = className;
-  element.textContent = value;
-  return element;
-}
+

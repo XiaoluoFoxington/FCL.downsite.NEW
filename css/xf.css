@@ -20,23 +20,19 @@
   text-decoration: none;
 }
 
-.xf-list-item {
-  width: 100%;
-  margin: 8px 0;
+.xf-list-table-row {
+  cursor: pointer;
+  text-wrap: nowrap;
 }
 
-.xf-list-item img {
+.xf-list-table-icon {
   object-fit: cover;
-  height: 96px;
-  width: 96px;
-  float: left;
-  padding: 0 8px 0 0;
+  display: block;
 }
 
-.xf-list-item .mdui-card-primary-subtitle {
-  line-height: 18px;
-  text-indent: -2.4em;
-  padding-left: 10em;
+.xf-list-table-col-icon.xf-list-table-col-icon.xf-list-table-col-icon {
+  width: 0;
+  padding: 0;
 }
 
 .xf-detail-icon {
