@@ -21,7 +21,7 @@ export function renderRhError(container, error, onRetry) {
  */
 export async function renderReleases(container, basic, releases) {
   setSoftwareHeader(basic, {
-    titlePrefix: '版本历史 - ',
+    titlePrefix: '版本历史',
     detailButton: document.getElementById('detailBtn'),
   });
 

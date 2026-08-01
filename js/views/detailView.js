@@ -109,7 +109,7 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   containerGrid.append(gridDown, gridIntro, gridHistory);
   container.replaceChildren(containerGrid);
 
-  setSoftwareHeader(basic);
+  setSoftwareHeader(basic, { titlePrefix: '资源详情' });
   elements.operations.hidden = false;
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
   // value 可以是字符串，也可以是受本 view 创建的安全 DOM 节点（图标或外链）。

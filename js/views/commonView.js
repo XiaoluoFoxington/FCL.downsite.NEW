@@ -1,5 +1,7 @@
 import { readPreference } from '../domain/preferences.js';
 
+const SITE_NAME = 'FCL 下载站';
+
 /** 防抖：延迟执行 fn，期间再次调用则重新计时。 */
 export function debounce(fn, delay = 500) {
   let timer = null;
@@ -82,13 +84,13 @@ export function setSoftwareHeader(basic, { titlePrefix = '', detailButton } = {}
   // 下载页、介绍页和详情页共用标题栏更新逻辑，减少路径和 alt 文案不一致。
   const icon = document.getElementById('icon');
   const title = document.getElementById('title');
-  const pageTitle = `${titlePrefix}${basic.name}`;
+  const pageTitle = `${titlePrefix} - ${basic.name}`;
   if (icon) {
     icon.src = basic.icon || '/media/img/picMissing.webp';
     icon.alt = basic.name;
   }
   if (title) title.textContent = pageTitle;
-  document.title = pageTitle;
+  document.title = pageTitle + ' - ' + SITE_NAME;
   if (detailButton) detailButton.href = `/html/detail.html?id=${basic.id}`;
 }
 

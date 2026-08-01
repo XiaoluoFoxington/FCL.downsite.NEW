@@ -29,7 +29,7 @@ export function createDownloadController(elements, softwareId) {
         Promise.resolve().then(detectSystemInfo),
       ]);
       setSoftwareHeader(basic, {
-        titlePrefix: '下载 - ',
+        titlePrefix: '下载资源',
         detailButton: elements.detailButton,
       });
       // 通过 ID 建索引，既减少查找复杂度，也能明确检测 detail.json 中的错误 mirrorId。
