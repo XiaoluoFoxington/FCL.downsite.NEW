@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://xiaoluofoxington.github.io/FCL.downsite.NEW/sitemap.xml
