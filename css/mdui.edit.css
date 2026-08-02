@@ -142,7 +142,7 @@
   margin: 0 0 1.2em 0;
 }
 
-.mdui-typo.mdui-typo>a:last-child,
+.mdui-typo.mdui-typo a:last-child,
 .mdui-typo.mdui-typo p>a,
 .mdui-typo.mdui-typo p>a:last-child {
   margin: 0;
