@@ -14,9 +14,9 @@ import {
  */
 export function createAboutController(elements) {
   async function load() {
-    renderAboutLoading(elements.downloadLines);
+    renderAboutLoading(elements.downloadLines, 2);
     renderAboutLoading(elements.contributors);
-    renderAboutLoading(elements.usedProjects);
+    renderAboutLoading(elements.usedProjects, 6);
 
     try {
       const [mirrors, contributors, usedProjects] = await Promise.all([
@@ -31,9 +31,9 @@ export function createAboutController(elements) {
       await renderUsedProjects(elements.usedProjects, usedProjects);
     } catch (error) {
       console.error('关于页面加载失败', error);
-      renderAboutError(elements.downloadLines, error, load);
+      renderAboutError(elements.downloadLines, error, load, 2);
       renderAboutError(elements.contributors, error, load);
-      renderAboutError(elements.usedProjects, error, load);
+      renderAboutError(elements.usedProjects, error, load, 6);
     }
   }
 

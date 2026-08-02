@@ -1,5 +1,5 @@
 import { getFeedbackChannels } from '../repositories/siteRepository.js';
-import { renderStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
+import { renderStatus, renderTableStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { createExternalLink, createGrid } from './uiComponents.js';
 
@@ -69,28 +69,6 @@ export function renderDetailError(elements, error, onRetry) {
       // 获取渠道失败，显示错误状态并提供重试
       renderStatus(elements.operations, 'error', { message: `反馈渠道加载失败: ${err.message}`, onRetry });
     });
-}
-
-/**
- * 渲染表格状态行。
- * @param {HTMLTableElement} body 要插入状态行的 tbody 元素
- * @param {number} colspan 状态内容单元格的 colspan 属性值，包括 label 列
- * @param {string} state 状态类型，'loading'、'error' 或 'success'
- * @param {string} message 状态消息，显示在表格中
- * @param {Function} onRetry 点击重试按钮时调用的回调函数
- */
-function renderTableStatus(body, colspan = 2, state, message, onRetry) {
-  // tbody 只能直接放 tr，不能把通用 div 状态组件直接插入表格。
-  const row = document.createElement('tr');
-  const label = document.createElement('td');
-  const content = document.createElement('td');
-  content.colSpan = colspan - 1; // 减去 label 列
-  label.textContent = state === 'error' ? '错误' : '状态';
-  row.append(label, content);
-  body.replaceChildren(row);
-  // 必须先把 row 挂进文档再渲染状态：renderStatus 内部调用 mdui.mutation()，
-  // 若 content 仍是游离节点，mutation 扫不到 spinner，第二个加载块就不会显示 spinner。
-  renderStatus(content, state, { message, onRetry });
 }
 
 /**

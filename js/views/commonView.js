@@ -35,6 +35,26 @@ export function clearElement(element) {
 }
 
 /**
+ * 渲染表格状态行。
+ * 专为 <tbody> 设计：tbody 只能包含 <tr>，不能直接插入通用 div 状态组件。
+ * @param {HTMLTableSectionElement} body 要插入状态行的 tbody 元素
+ * @param {number} colspan 状态内容单元格的 colspan 属性值（包括 label 列）
+ * @param {string} state 状态类型，'loading'、'error' 或 'empty'
+ * @param {string} message 状态消息
+ * @param {Function} [onRetry] 点击重试按钮时的回调函数
+ */
+export function renderTableStatus(body, colspan = 2, state, message, onRetry) {
+  const row = document.createElement('tr');
+  const label = document.createElement('td');
+  const content = document.createElement('td');
+  content.colSpan = colspan - 1;
+  label.textContent = state === 'error' ? '错误' : '状态';
+  row.append(label, content);
+  body.replaceChildren(row);
+  renderStatus(content, state, { message, onRetry });
+}
+
+/**
  * 渲染统一状态块。
  * state 约定为 idle/loading/ready/empty/error；ready 一般直接由具体 view 渲染内容，
  * 因而本函数主要使用其余四种状态。onRetry 仅在 error 时生效。

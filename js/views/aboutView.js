@@ -1,4 +1,4 @@
-import { renderStatus } from './commonView.js';
+import { renderStatus, renderTableStatus } from './commonView.js';
 import { createPanelItem, createExternalLink } from './uiComponents.js';
 
 /**
@@ -6,14 +6,34 @@ import { createPanelItem, createExternalLink } from './uiComponents.js';
  * 负责渲染下载线路对照表、网站开发贡献者列表、使用的开源项目三个区域。
  */
 
-/** 渲染加载状态。 */
-export function renderAboutLoading(container) {
-  renderStatus(container, 'loading', { message: '正在加载……' });
+/**
+ * 渲染加载状态。
+ * 若容器为 <tbody>，使用 renderTableStatus 正确生成表格行；否则使用通用 renderStatus。
+ * @param {HTMLElement} container 挂载容器
+ * @param {number} [colspan] 当容器为 tbody 时，状态行的 colspan 值
+ */
+export function renderAboutLoading(container, colspan) {
+  if (container.tagName === 'TBODY') {
+    renderTableStatus(container, colspan || 2, 'loading', '正在加载……');
+  } else {
+    renderStatus(container, 'loading', { message: '正在加载……' });
+  }
 }
 
-/** 渲染错误状态。 */
-export function renderAboutError(container, error, onRetry) {
-  renderStatus(container, 'error', { message: error.message, onRetry });
+/**
+ * 渲染错误状态。
+ * 若容器为 <tbody>，使用 renderTableStatus 正确生成表格行；否则使用通用 renderStatus。
+ * @param {HTMLElement} container 挂载容器
+ * @param {Error} error 错误对象
+ * @param {Function} onRetry 重试回调
+ * @param {number} [colspan] 当容器为 tbody 时，状态行的 colspan 值
+ */
+export function renderAboutError(container, error, onRetry, colspan) {
+  if (container.tagName === 'TBODY') {
+    renderTableStatus(container, colspan || 2, 'error', error.message, onRetry);
+  } else {
+    renderStatus(container, 'error', { message: error.message, onRetry });
+  }
 }
 
 /**
