@@ -138,6 +138,8 @@ function createThead() {
     if (sortable) {
       th.className = 'xf-list-table-th-sortable';
       th.dataset.sortKey = key;
+      th.tabIndex = 0;
+      th.setAttribute('aria-label', `按 ${text} 排序`);
     }
     headerRow.appendChild(th);
   });
@@ -230,9 +232,15 @@ function handleTableClick(event) {
   }
 }
 
-/** 表格键盘事件委托：Enter 导航。 */
+/** 表格键盘事件委托：Enter/Space 导航或排序。 */
 function handleTableKeydown(event) {
-  if (event.key === 'Enter') {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    const th = event.target.closest('th[data-sort-key]');
+    if (th) {
+      th.click();
+      return;
+    }
     const row = event.target.closest('tr[data-href]');
     if (row) {
       window.location.href = row.dataset.href;

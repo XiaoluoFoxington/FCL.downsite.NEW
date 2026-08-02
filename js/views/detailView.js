@@ -126,6 +126,7 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   elements.download.href = `/html/down.html?id=${id}`;
   elements.intro.href = `/html/intro.html?id=${id}`;
   elements.history.href = `/html/rh.html?id=${id}`;
+  // MDUI阴差阳错处理了<a>的禁用。
   elements.download.removeAttribute('disabled');
   elements.intro.removeAttribute('disabled');
   elements.history.removeAttribute('disabled');
