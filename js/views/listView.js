@@ -70,7 +70,7 @@ export function renderFilterTags(container, tags, onChange) {
       left: e.deltaY,
       behavior: 'smooth'
     });
-  }, { passive: false });
+  }, { passive: false, signal: ac.signal });
 }
 
 /** 创建单个可访问的 button，不使用无 href 的 a 标签模拟按钮。 */
