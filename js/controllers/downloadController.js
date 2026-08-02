@@ -2,18 +2,7 @@ import { detectSystemInfo } from '../domain/systemInfo.js';
 import { getMirrors, getSoftware } from '../repositories/siteRepository.js';
 import { createDownloadSelectorController } from './downloadSelectorController.js';
 import { renderStatus, setErrorTitle, setSoftwareHeader } from '../views/commonView.js';
-
-/**
- * 拼接镜像基础 URL 与资源路径。
- * 自动处理 baseUrl 和 key 首尾的斜杠，避免双斜杠或路径截断。
- * @param {string} baseUrl 镜像基础 URL
- * @param {string} key 资源路径 key
- * @returns {string} 拼接后的完整 URL
- */
-function joinUrl(baseUrl, key) {
-  // 镜像配置的 baseUrl 与资源 key 可能各自带 /，统一处理避免出现双斜杠或路径被 URL 构造器截断。
-  return `${String(baseUrl).replace(/\/$/, '')}/${String(key).replace(/^\//, '')}`;
-}
+import { joinUrl } from '../security/content.js';
 
 /**
  * 下载页 controller。

@@ -125,6 +125,16 @@ function makeAbsoluteUrl(value, baseUrl) {
 }
 
 /**
+ * 拼接基础 URL 与资源路径，自动处理首尾斜杠，避免双斜杠或路径截断。
+ * @param {string} baseUrl 基础 URL
+ * @param {string} key 资源路径 key
+ * @returns {string} 拼接后的完整 URL
+ */
+export function joinUrl(baseUrl, key) {
+  return `${String(baseUrl).replace(/\/$/, '')}/${String(key).replace(/^\//, '')}`;
+}
+
+/**
  * 判断动态 href/downloadUrl 是否可用。
  * @param {unknown} value 待验证地址
  * @param {{allowRelative?: boolean}} options 是否接受以 / 开头的本站地址

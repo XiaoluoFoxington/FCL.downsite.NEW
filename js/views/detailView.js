@@ -1,6 +1,6 @@
 import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { renderStatus, renderTableStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
-import { isSafeNavigationUrl } from '../security/content.js';
+import { isSafeNavigationUrl, joinUrl } from '../security/content.js';
 import { createExternalLink, createGrid } from './uiComponents.js';
 
 // 反馈渠道异步请求的取消控制器：renderDetail 成功或再次进入 renderDetailError 时 abort 旧的，
@@ -183,7 +183,7 @@ function renderMirrorInfo(body, downloads, mirrors) {
     idCell.textContent = download.mirrorId;
     if (mirror) {
       nameCell.textContent = mirror.name;
-      urlCell.appendChild(createExternalLink(mirror.baseUrl + download.key));
+      urlCell.appendChild(createExternalLink(joinUrl(mirror.baseUrl, download.key)));
     } else {
       nameCell.textContent = '未知线路';
       urlCell.textContent = '（线路配置缺失）';
