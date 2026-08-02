@@ -24,9 +24,11 @@ const ADAPTERS = new Map([
 ]);
 
 /**
+ * 路由到指定 apiVer 的 adapter，转换上游响应为统一下载节点。
  * @param {unknown} payload 上游 API 已解析的 JSON
  * @param {string|undefined} apiVersion data/mirror.json 中的 apiVer
  * @param {{source?: string, baseUrl?: string, latestVersion?: string|null, notJoinRandom?: boolean}} context adapter 共享上下文
+ * @returns {Array<object>} 统一下载节点数组
  */
 export function adaptDownloadData(payload, apiVersion, context = {}) {
   // 为所有 adapter 补齐同一份上下文，未登记协议自动退回兼容性的 plain adapter。

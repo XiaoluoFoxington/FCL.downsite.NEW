@@ -19,8 +19,8 @@ export function renderAboutError(container, error, onRetry) {
 /**
  * 渲染下载线路对照表。
  * @param {HTMLElement} container tbody 容器
- * @param {Array} mirrors 线路数据，来自 mirror.json
- * @param {Array} contributors 贡献者数据，来自 contribute.json
+ * @param {Array<object>} mirrors 线路数据，来自 mirror.json
+ * @param {Array<object>} contributors 贡献者数据，来自 contribute.json
  */
 export function renderDownloadLines(container, mirrors, contributors) {
   const contributorMap = new Map();
@@ -58,7 +58,8 @@ export function renderDownloadLines(container, mirrors, contributors) {
 /**
  * 渲染网站开发贡献者列表。
  * @param {HTMLElement} container MDUI 面板容器
- * @param {Array} contributors 贡献者数据
+ * @param {Array<object>} contributors 贡献者数据
+ * @param {Array<object>} mirrors 线路数据
  */
 export async function renderContributors(container, contributors, mirrors) {
   const fragment = document.createDocumentFragment();
@@ -169,7 +170,7 @@ export async function renderContributors(container, contributors, mirrors) {
 /**
  * 渲染使用的开源项目表格。
  * @param {HTMLElement} container tbody 容器
- * @param {Array} projects 开源项目数据，来自 usedProj.json
+ * @param {Array<object>} projects 开源项目数据，来自 usedProj.json
  */
 export async function renderUsedProjects(container, projects) {
   const fragment = document.createDocumentFragment();

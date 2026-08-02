@@ -125,19 +125,29 @@ async function request(url, responseType, options = {}) {
   return requestPromise;
 }
 
-/** 获取 JSON 数据，适用于本站目录、标签、镜像配置及外部镜像 API。 */
+/**
+ * 获取 JSON 数据，适用于本站目录、标签、镜像配置及外部镜像 API。
+ * @param {string} url 请求 URL
+ * @param {{signal?: AbortSignal, timeoutMs?: number, cache?: boolean}} options 请求控制项
+ * @returns {Promise<object|Array>} 已解析的 JSON 数据
+ */
 export function getJSON(url, options) {
   return request(url, 'json', options);
 }
 
-/** 获取纯文本，适用于介绍 Markdown、HTML 和线路描述。 */
+/**
+ * 获取纯文本，适用于介绍 Markdown、HTML 和线路描述。
+ * @param {string} url 请求 URL
+ * @param {{signal?: AbortSignal, timeoutMs?: number, cache?: boolean}} options 请求控制项
+ * @returns {Promise<string>} 响应文本
+ */
 export function getText(url, options) {
   return request(url, 'text', options);
 }
 
 /**
  * 清理内存请求缓存。
- * @param {string|undefined} url 指定资源；省略时清理当前页面的全部缓存
+ * @param {string} [url] 指定资源；省略时清理当前页面的全部缓存
  */
 export function clearResponseCache(url) {
   // url 为空时清空本页全部缓存；传入 URL 时只失效该资源的 JSON/文本两个变体。

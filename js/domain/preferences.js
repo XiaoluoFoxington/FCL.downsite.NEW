@@ -1,8 +1,14 @@
 /**
  * 浏览器偏好存储的小型封装。
+ * 封装 localStorage 的读写，兼容隐私模式或存储被禁用的场景。
  */
 
-/** 读取主题等非关键偏好；隐私模式或存储被禁用时降级为 null，不阻断页面。 */
+/**
+ * 读取偏好值；隐私模式或存储被禁用时降级为 defaultValue，不阻断页面。
+ * @param {string} key 存储键
+ * @param {string|null} [defaultValue=null] 默认值
+ * @returns {string|null} 存储的值或默认值
+ */
 export function readPreference(key, defaultValue = null) {
   try {
     return localStorage.getItem(key) || defaultValue;
@@ -12,7 +18,11 @@ export function readPreference(key, defaultValue = null) {
   }
 }
 
-/** 写入偏好失败仅记录警告，主题仍会在当前页面生效。 */
+/**
+ * 写入偏好值；写入失败仅记录警告，不影响当前页面。
+ * @param {string} key 存储键
+ * @param {string} value 存储值
+ */
 export function writePreference(key, value) {
   try {
     localStorage.setItem(key, value);

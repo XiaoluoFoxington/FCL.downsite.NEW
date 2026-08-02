@@ -27,10 +27,10 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 /**
- * 恢复单选框选中状态
- * @param {string} containerId - 单选框容器 ID
- * @param {string} name - 单选框名称
- * @param {string} value - 单选框值
+ * 恢复单选框选中状态。
+ * @param {string} containerId 单选框容器 ID
+ * @param {string} name 单选框名称
+ * @param {string} value 单选框值
  */
 function restoreRadioState(containerId, name, value) {
   const container = document.getElementById(containerId);
@@ -44,10 +44,10 @@ function restoreRadioState(containerId, name, value) {
 }
 
 /**
- * 绑定单选框 change 事件
- * @param {string} containerId - 单选框容器 ID
- * @param {string} name - 单选框名称
- * @param {string} storageKey - 本地存储键
+ * 绑定单选框 change 事件。
+ * @param {string} containerId 单选框容器 ID
+ * @param {string} name 单选框名称
+ * @param {string} storageKey 本地存储键
  */
 function bindRadioEvent(containerId, name, storageKey) {
   const container = document.getElementById(containerId);

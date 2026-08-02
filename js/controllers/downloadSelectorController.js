@@ -3,6 +3,12 @@ import { loadDescription, loadDownloadNodes } from '../repositories/downloadRepo
 import { createSafeContent } from '../security/content.js';
 import { createSelectorView } from '../views/selectorView.js';
 
+/**
+ * 判断节点数组是否已到达叶子层级。
+ * 只要还有 children、items 或 nextUrl，就应继续渲染下一级选择框。
+ * @param {Array<object>} items 待判断的节点数组
+ * @returns {boolean} 是否为最终下载表格层级
+ */
 function isBottomLevel(items) {
   // 只要还有 children、items 或 nextUrl，就应继续渲染下一级选择框；否则进入最终下载表格。
   return !items.some((item) =>
@@ -33,6 +39,15 @@ export function createDownloadSelectorController(options) {
     return sequence === requestSequence && !activeController?.signal.aborted;
   }
 
+/**
+ * 渲染选择器选项的描述区域。
+ * 支持纯文本和 HTML 富文本两种格式，通过净化后安全插入 DOM。
+ * @param {object} item 当前选中项
+ * @param {HTMLElement} container 描述容器
+ * @param {AbortSignal} signal 取消信号
+ * @param {number} sequence 请求序号，用于防止过期响应回写
+ * @returns {Promise<void>}
+ */
   async function renderDescription(item, container, signal, sequence) {
     if (!item.description && !item.descriptionUrl) {
       container.replaceChildren();
@@ -56,6 +71,12 @@ export function createDownloadSelectorController(options) {
     }
   }
 
+/**
+ * 内联 children 归一化处理。
+ * 若声明了 apiVersion 则通过适配器转换，随机标记时随机选择默认项。
+ * @param {object} item 含 children/items 的节点
+ * @returns {Array<object>} 归一化后的子节点
+ */
   function normalizeInlineChildren(item) {
     // 内联 children 常用于本站配置；仍可声明 apiVersion 以复用某条线路的纯适配器。
     let children = item.children || item.items || [];
@@ -65,6 +86,16 @@ export function createDownloadSelectorController(options) {
     return item.random ? randomlySelectDefault(children) : children;
   }
 
+/**
+ * 解析选择项并获取下一级节点。
+ * 根据 item 的类型决定是请求外部 API、使用内联 children，还是直接作为叶子节点。
+ * @param {object} item 当前选中项
+ * @param {number} nextLevel 下一级层级索引
+ * @param {Array<string>} inheritedFilter 继承的 URL 正则白名单
+ * @param {AbortSignal} signal 取消信号
+ * @param {number} sequence 请求序号
+ * @returns {Promise<void>}
+ */
   async function resolveSelection(item, nextLevel, inheritedFilter, signal, sequence) {
     // 子级未声明 filter 时继承父级，子级声明后覆盖父级规则。
     const nextFilter = item.filter !== undefined ? item.filter : inheritedFilter;
@@ -92,6 +123,15 @@ export function createDownloadSelectorController(options) {
     renderNodes(nodes, nextLevel, nextFilter);
   }
 
+/**
+ * 处理用户选择项，加载描述和下一级节点。
+ * 每次选择都会取消旧请求链，防止快速切换时出现竞态。
+ * @param {object} item 选中的选项
+ * @param {number} level 当前层级索引
+ * @param {HTMLElement} description 描述显示容器
+ * @param {Array<string>} inheritedFilter 继承的 URL 正则白名单
+ * @returns {Promise<void>}
+ */
   async function selectItem(item, level, description, inheritedFilter) {
     options.container.querySelector('.xf-cancel-notice')?.remove();
     // 新选择立即取消旧选择链，防止快速切换镜像时出现竞态与无用流量。
@@ -120,6 +160,12 @@ export function createDownloadSelectorController(options) {
     }
   }
 
+/**
+ * 根据节点类型决定渲染选择框或下载表格。
+ * @param {Array<object>} nodes 已归一化的节点数组
+ * @param {number} level 当前层级索引
+ * @param {Array<string>} inheritedFilter 继承的 URL 正则白名单
+ */
   function renderNodes(items, level, inheritedFilter) {
     if (!Array.isArray(items)) {
       view.renderError(level, new Error('镜像数据格式不正确：应为数组'));

@@ -17,11 +17,11 @@ export function createPanel() {
 
 /**
  * 创建 MDUI 面板项。
- * @param {string} title - 面板标题文本
+ * @param {string} title 面板标题文本
  * @param {object} [options]
- * @param {boolean} [options.isOpen=false] - 是否默认展开
- * @param {string|string[]} [options.summary] - 标题旁的摘要文本
- * @param {string} [options.bodyClass] - 面板内容区额外类名（如 'mdui-typo'）
+ * @param {boolean} [options.isOpen=false] 是否默认展开
+ * @param {string|string[]} [options.summary] 标题旁的摘要文本
+ * @param {string} [options.bodyClass] 面板内容区额外类名（如 'mdui-typo'）
  * @returns {{ element: HTMLDivElement, header: HTMLDivElement, body: HTMLDivElement }}
  */
 export function createPanelItem(title, { isOpen = false, summary, bodyClass } = {}) {
@@ -60,10 +60,10 @@ export function createPanelItem(title, { isOpen = false, summary, bodyClass } = 
 
 /**
  * 创建外部链接（新窗口打开，安全隔离 opener）。
- * @param {string} href - 链接地址
- * @param {string} [text] - 链接文本，缺省时使用 href
+ * @param {string} href 链接地址
+ * @param {string} [text] 链接文本，缺省时使用 href
  * @param {object} [options]
- * @param {string} [options.className] - 额外类名
+ * @param {string} [options.className] 额外类名
  * @returns {HTMLAnchorElement}
  */
 export function createExternalLink(href, text, { className } = {}) {
@@ -103,11 +103,11 @@ export function createFluidTable() {
 
 /**
  * 创建 MDUI 凸起按钮。
- * @param {string} text - 按钮文本
+ * @param {string} text 按钮文本
  * @param {object} [options]
- * @param {boolean} [options.block=false] - 是否为块级按钮
- * @param {string} [options.className] - 额外类名
- * @param {Function} [options.onClick] - 点击回调
+ * @param {boolean} [options.block=false] 是否为块级按钮
+ * @param {string} [options.className] 额外类名
+ * @param {Function} [options.onClick] 点击回调
  * @returns {HTMLButtonElement}
  */
 export function createRaisedButton(text, { block = false, className, onClick } = {}) {
@@ -147,8 +147,8 @@ export function createHR() {
 
 /**
  * 弹出右下角 MDUI Snackbar 提示。
- * @param {string} message - 提示文本
- * @param {number} [timeout=5000] - 显示时间（毫秒）
+ * @param {string} message 提示文本
+ * @param {number} [timeout=5000] 显示时间（毫秒）
  * @param {object} [options] 其它选项
  * @returns {object}
  */

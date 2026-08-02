@@ -10,6 +10,11 @@ import {
   renderIntroPanels,
 } from '../views/introView.js';
 
+/**
+ * 拼接介绍文档的完整 URL。
+ * @param {{url?: string, file?: string}} item 文档配置项
+ * @returns {string} 完整文档 URL
+ */
 function documentUrl(item) {
   // 数据文件习惯将 url 与 file 分开保存；手工拼接可保留 url 中可能存在的路径前缀。
   return `${String(item.url || '').replace(/\/$/, '')}/${String(item.file || '').replace(/^\//, '')}`;

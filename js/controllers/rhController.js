@@ -38,7 +38,11 @@ export function createRhController(container, softwareId) {
   return { load };
 }
 
-/** 将网络错误转译为用户可读的消息。 */
+/**
+ * 将网络错误转译为用户可读的消息。
+ * @param {Error} error 网络或解析错误
+ * @returns {string} 用户可读的错误消息
+ */
 function translateError(error) {
   const msg = error.message;
 

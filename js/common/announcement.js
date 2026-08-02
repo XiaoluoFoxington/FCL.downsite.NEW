@@ -14,7 +14,11 @@ import { createSafeContent } from '../security/content.js';
 
 const STORAGE_KEY = 'fdn-announcement';
 
-/** 简单 64 位字符串哈希，用于生成公告内容校验值。 */
+/**
+ * 简单 64 位字符串哈希，用于生成公告内容校验值。
+ * @param {string} str 输入字符串
+ * @returns {string} 16 进制哈希值
+ */
 function simpleHash64(str) {
   let h1 = 114514, h2 = 1919810;
   for (let i = 0; i < str.length; i++) {

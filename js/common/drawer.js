@@ -17,6 +17,8 @@ import { getRunTime } from '../domain/siteInfo.js';
 /**
  * 将 data/feedback.json 转为外链按钮。
  * 无效 URL 会被过滤；请求失败时通过统一状态机在 drawer 面板内显示错误。
+ * @param {HTMLElement} container 反馈容器
+ * @returns {Promise<void>}
  */
 async function loadFeedback(container) {
   renderStatus(container, 'loading', { message: '正在加载反馈渠道……' });
@@ -47,7 +49,10 @@ async function loadFeedback(container) {
   }
 }
 
-/** 创建抽屉外壳（立即完成），显示加载状态，返回 drawer 元素和 MDUI 实例。 */
+/**
+ * 创建抽屉外壳（立即完成），显示加载状态，返回 drawer 元素和 MDUI 实例。
+ * @returns {{drawer: HTMLElement, instance: object}} 抽屉元素和 MDUI Drawer 实例
+ */
 function createDrawerShell() {
   const drawer = document.createElement('aside');
   drawer.className = 'mdui-drawer mdui-drawer-right mdui-container-fluid';
@@ -63,7 +68,11 @@ function createDrawerShell() {
   return { drawer, instance: new window.mdui.Drawer(drawer) };
 }
 
-/** 异步加载抽屉内容并渲染到外壳中，注入动态内容。 */
+/**
+ * 异步加载抽屉内容并渲染到外壳中，注入动态内容。
+ * @param {HTMLElement} drawer 抽屉外壳元素
+ * @returns {Promise<void>}
+ */
 async function loadDrawerContent(drawer) {
   // 重试时先 abort 上一次的事件监听器，避免重复绑定导致 setInterval 重复执行与内存泄漏。
   if (drawer._drawerContentAbort) drawer._drawerContentAbort.abort();

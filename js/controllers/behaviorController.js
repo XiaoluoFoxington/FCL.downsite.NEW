@@ -24,8 +24,8 @@ export function createBehaviorController(elements) {
 
   /**
    * 校验值是否合法，按设置项类型分派。
-   * @param {object} setting - 设置项配置
-   * @param {string} value - 待验证值
+   * @param {object} setting 设置项配置
+   * @param {string} value 待验证值
    * @returns {boolean}
    */
   function isValidValue(setting, value) {
@@ -38,8 +38,8 @@ export function createBehaviorController(elements) {
   /**
    * 保存用户选择到 localStorage，并校验值合法性。
    * 写入立即执行（不丢数据），Snackbar 提示走防抖。
-   * @param {object} setting - 设置项配置（含 options、storageKey）
-   * @param {string} value - 选中的值
+   * @param {object} setting 设置项配置（含 options、storageKey）
+   * @param {string} value 选中的值
    */
   function savePreference(setting, value) {
     if (!isValidValue(setting, value)) {

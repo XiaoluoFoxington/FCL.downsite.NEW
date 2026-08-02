@@ -1,4 +1,7 @@
-// a11y.js
+/**
+ * MDUI 组件的可访问性增强模块。
+ * 为面板（Panel）、下拉选择器（Select）和抽屉（Drawer）添加键盘导航、ARIA 属性和焦点管理。
+ */
 (function () {
   'use strict';
 
@@ -6,8 +9,14 @@
   if (window.__MDUI_PANEL_A11Y_INITED) return;
   window.__MDUI_PANEL_A11Y_INITED = true;
 
-  // ---------- 工具：为面板项生成唯一 ID ----------
+  /** 面板项 ID 计数器。 */
   let idCounter = 0;
+
+  /**
+   * 为面板项生成唯一 ID。
+   * @param {string} [prefix='panel-body'] ID 前缀
+   * @returns {string} 唯一 ID 字符串
+   */
   function generateId(prefix = 'panel-body') {
     return `${prefix}-${Date.now()}-${++idCounter}`;
   }
@@ -15,7 +24,10 @@
   // 可聚焦元素选择器（面板焦点跳转 / 抽屉焦点管理共用）
   const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-  // ---------- 同步单个面板项的 aria 状态 ----------
+  /**
+   * 同步单个面板项的 ARIA 展开状态。
+   * @param {HTMLElement} item 面板项元素
+   */
   function syncPanelState(item) {
     const header = item.querySelector('.mdui-panel-item-header');
     const body = item.querySelector('.mdui-panel-item-body');
@@ -25,7 +37,11 @@
     body.toggleAttribute('inert', !isOpen);
   }
 
-  // ---------- 核心：初始化单个面板项 ----------
+  /**
+   * 初始化单个面板项的可访问性属性。
+   * 补齐 header 的 role、tabindex、aria-controls，并通过 MutationObserver 监听状态变化。
+   * @param {HTMLElement} item 面板项元素
+   */
   function initPanelItem(item) {
     const header = item.querySelector('.mdui-panel-item-header');
     const body = item.querySelector('.mdui-panel-item-body');
@@ -51,7 +67,10 @@
     item.dataset.a11yInited = 'true';
   }
 
-  // ---------- 批量扫描并初始化 ----------
+  /**
+   * 批量扫描并初始化容器内所有未处理的面板项。
+   * @param {HTMLElement|Document} [container=document] 扫描容器
+   */
   function initAllPanels(container = document) {
     container.querySelectorAll('.mdui-panel-item:not([data-a11y-inited])').forEach(initPanelItem);
   }
@@ -98,20 +117,40 @@
   document.addEventListener('closed.mdui.panel', e => syncPanelState(e.target), true);
 
   // ---------- MDUI Select 键盘可访问性增强 ----------
+
+  /**
+   * 获取 MDUI Select 菜单的所有选项。
+   * @param {HTMLElement} selectDiv MDUI Select 容器
+   * @returns {HTMLElement[]} 菜单项数组
+   */
   function getSelectMenuItems(selectDiv) {
     return Array.from(selectDiv.querySelectorAll('.mdui-select-menu-item'));
   }
 
+  /**
+   * 高亮指定索引的菜单项，并滚动到可视区域。
+   * @param {HTMLElement[]} items 菜单项数组
+   * @param {number} index 目标索引
+   */
   function setSelectHighlight(items, index) {
     items.forEach((item, i) => item.classList.toggle('xf-select-highlighted', i === index));
     const highlighted = items[index];
     if (highlighted) highlighted.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 
+  /**
+   * 移除所有菜单项的高亮样式。
+   * @param {HTMLElement} selectDiv MDUI Select 容器
+   */
   function resetSelectHighlight(selectDiv) {
     getSelectMenuItems(selectDiv).forEach(item => item.classList.remove('xf-select-highlighted'));
   }
 
+  /**
+   * 为单个 MDUI Select 添加键盘导航支持。
+   * 支持 Enter/Space 打开与选中、上下箭头导航、Home/End 跳转、Esc 关闭。
+   * @param {HTMLElement} selectDiv MDUI Select 容器
+   */
   function enhanceSelect(selectDiv) {
     if (selectDiv.dataset.a11ySelectEnhanced) return;
     selectDiv.dataset.a11ySelectEnhanced = 'true';
@@ -130,6 +169,7 @@
 
     let highlightedIndex = -1;
 
+    /** 同步 Select 的 aria-expanded 状态并在关闭时重置高亮。 */
     function syncExpanded() {
       const isOpen = selectDiv.classList.contains('mdui-select-open');
       selectDiv.setAttribute('aria-expanded', String(isOpen));
@@ -211,6 +251,10 @@
     });
   }
 
+  /**
+   * 批量增强容器内所有未处理的 MDUI Select。
+   * @param {HTMLElement|Document} container 扫描容器
+   */
   function enhanceAllSelects(container) {
     container.querySelectorAll('div.mdui-select:not([data-a11y-select-enhanced])').forEach(enhanceSelect);
   }
@@ -280,6 +324,9 @@
   let pendingMutations = [];
   let rafId = null;
 
+  /**
+   * 处理累积的 DOM 变更，自动初始化新增的面板项和 Select。
+   */
   function processMutations() {
     const addedNodes = new Set();
     for (const mutation of pendingMutations) {
@@ -310,6 +357,10 @@
   }
 
   // ---------- 启动初始化 ----------
+
+  /**
+   * 启动可访问性增强：初始化所有面板和 Select，并监听后续动态加载。
+   */
   function bootstrap() {
     initAllPanels(document);
     enhanceAllSelects(document);

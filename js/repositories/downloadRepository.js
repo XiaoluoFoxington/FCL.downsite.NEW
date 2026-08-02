@@ -15,6 +15,10 @@ const GITHUB_REPOSITORIES = {
 
 /**
  * 获取旧协议的最新版本标记。
+ * @param {string} apiVersion 线路协议版本
+ * @param {string} softwareName 软件名称（用于 GitHub 仓库映射）
+ * @param {object} payload 上游镜像 API 返回的 payload
+ * @param {AbortSignal} signal 取消信号
  * @returns {Promise<string|null>} 无法取得时返回镜像 payload 自带的 latest，非异常降级
  */
 async function getLatestVersion(apiVersion, softwareName, payload, signal) {
@@ -74,7 +78,12 @@ export async function loadDownloadNodes({
   return random ? randomlySelectDefault(nodes) : nodes;
 }
 
-/** 读取线路配置的远程说明文本；是否富文本由上层配置决定。 */
+/**
+ * 读取线路配置的远程说明文本；是否富文本由上层配置决定。
+ * @param {string} url 说明文本 URL
+ * @param {AbortSignal} [signal] 取消信号
+ * @returns {Promise<string>} 文本内容
+ */
 export function loadDescription(url, signal) {
   // 描述默认按纯文本消费；是否允许 HTML 由 controller 中的 descriptionFormat 明确决定。
   return getText(url, { signal, timeoutMs: 15000 });

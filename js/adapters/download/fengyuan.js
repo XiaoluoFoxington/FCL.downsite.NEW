@@ -1,7 +1,12 @@
 import { compareVersionsDescending, normalizeDownloadItem } from './common.js';
 
 /**
- * 枫源 API 将文件平铺在 data.assets 中。本适配器按版本重新组成选择器树：
+ * 枫源线路适配器。
+ * API 将文件平铺在 data.assets 中，本适配器按版本重新组成选择器树。
+ */
+
+/**
+ * 适配枫源 API 响应。
  * 版本节点 -> 统一下载项，最高版本自动成为默认版本。
  * @param {object} payload 枫源返回的 { data: { assets: [] } }
  * @param {{source: string, baseUrl: string}} context 线路显示名与 API 所在域名

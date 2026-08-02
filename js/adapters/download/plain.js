@@ -1,10 +1,14 @@
+/**
+ * 通用兼容适配器。
+ * 用于未登记 apiVer 的旧线路，保留已有 children 层级，并将含下载 URL 的项转为统一下载项。
+ */
 import { normalizeDownloadItem } from './common.js';
 
 /**
- * 未登记 apiVer 的兼容入口。它保留已有 children 层级，
- * 并仅在发现下载 URL 时转换为统一下载项，方便逐步迁移旧线路。
+ * 适配通用/未登记协议的响应。
  * @param {object|Array<object>} payload 兼容的数组、items 或 children 结构
  * @param {{source: string}} context 线路显示名
+ * @returns {Array<object>} 统一节点数组（分组节点或下载叶子）
  */
 export function adaptPlain(payload, context) {
   const items = Array.isArray(payload) ? payload : payload?.items || payload?.children || [];

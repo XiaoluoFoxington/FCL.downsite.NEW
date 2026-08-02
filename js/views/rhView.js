@@ -17,7 +17,7 @@ export function renderRhError(container, error, onRetry) {
  * 渲染所有 Release 折叠面板。
  * @param {HTMLElement} container 挂载容器
  * @param {object} basic 软件目录项
- * @param {Array} releases GitHub API 返回的 Release 数组
+ * @param {Array<object>} releases GitHub API 返回的 Release 数组
  */
 export async function renderReleases(container, basic, releases) {
   setSoftwareHeader(basic, {
@@ -159,7 +159,8 @@ function createAssetPanel(asset) {
 
 /**
  * 创建合计面板项，内容以表格展示。
- * @param {Array} assets - 资源列表
+ * @param {Array<object>} assets 资源列表
+ * @returns {HTMLDivElement} 面板项元素
  */
 function createSummaryPanel(assets) {
   const totalSize = assets.reduce((sum, asset) => sum + (asset.size || 0), 0);

@@ -7,7 +7,10 @@ import { createExternalLink, createGrid } from './uiComponents.js';
 // 既保护 DOM 不被旧响应写入，也取消进行中的网络请求避免无谓流量。
 let feedbackAbort = null;
 
-/** 将详情表格置为加载状态，仍遵守 tbody 只能包含 tr 的 HTML 结构。 */
+/**
+ * 将详情表格置为加载状态，仍遵守 tbody 只能包含 tr 的 HTML 结构。
+ * @param {HTMLTableElement} elements tbody 元素
+ */
 export function renderDetailLoading(elements) {
   renderTableStatus(elements.body, 2, 'loading', '正在加载软件详情……');
   if (elements.mirrorInfoBody) {
@@ -15,7 +18,12 @@ export function renderDetailLoading(elements) {
   }
 }
 
-/** 展示详情错误并显示反馈按钮（或反馈渠道加载状态）。 */
+/**
+ * 展示详情错误并显示反馈按钮（或反馈渠道加载状态）。
+ * @param {HTMLElement} elements 挂载容器
+ * @param {Error} error 错误对象
+ * @param {Function} onRetry 重试回调
+ */
 export function renderDetailError(elements, error, onRetry) {
   // 取消上一次进行中的反馈渠道请求，避免旧响应覆盖新状态。
   if (feedbackAbort) feedbackAbort.abort();
@@ -65,11 +73,11 @@ export function renderDetailError(elements, error, onRetry) {
 
 /**
  * 渲染表格状态行。
- * @param {HTMLTableElement} body - 要插入状态行的 tbody 元素。
- * @param {number} colspan - 状态内容单元格的 colspan 属性值，包括 label 列。
- * @param {string} state - 状态类型，'loading'、'error' 或'success'。
- * @param {string} message - 状态消息，显示在表格中。
- * @param {function} onRetry - 点击重试按钮时调用的回调函数。
+ * @param {HTMLTableElement} body 要插入状态行的 tbody 元素
+ * @param {number} colspan 状态内容单元格的 colspan 属性值，包括 label 列
+ * @param {string} state 状态类型，'loading'、'error' 或 'success'
+ * @param {string} message 状态消息，显示在表格中
+ * @param {Function} onRetry 点击重试按钮时调用的回调函数
  */
 function renderTableStatus(body, colspan = 2, state, message, onRetry) {
   // tbody 只能直接放 tr，不能把通用 div 状态组件直接插入表格。
@@ -145,7 +153,11 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   elements.history.removeAttribute('disabled');
 }
 
-/** 创建详情内的惰性图标节点；尺寸固定可减少表格首次渲染的布局变化。 */
+/**
+ * 创建详情内的惰性图标节点；尺寸固定可减少表格首次渲染的布局变化。
+ * @param {object} basic 软件基础信息（含 icon、name）
+ * @returns {HTMLImageElement} 图标元素
+ */
 function createIcon(basic) {
   const image = document.createElement('img');
   image.src = basic.icon || '/media/img/picMissing.webp';
@@ -157,7 +169,11 @@ function createIcon(basic) {
   return image;
 }
 
-/** 将 detail.info 的一项转为纯文本或安全外链节点。 */
+/**
+ * 将 detail.info 的一项转为纯文本或安全外链节点。
+ * @param {{text?: string, href?: string}} item 信息项
+ * @returns {string|HTMLAnchorElement} 文本或外链节点
+ */
 function createInfoValue(item) {
   // 外部信息链接经过协议校验，并明确隔离新窗口的 opener。
   if (!item.href || !isSafeNavigationUrl(item.href)) return item.text || item.href || '';
