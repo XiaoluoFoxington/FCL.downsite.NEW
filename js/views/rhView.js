@@ -145,15 +145,22 @@ function createAssetPanel(asset) {
   const { element: panelItem, body } = createPanelItem(asset.name, { bodyClass: 'mdui-typo' });
 
   const { wrapper } = createFluidTable();
+  wrapper.classList.add('xf-asset-table');
   const tbody = wrapper.querySelector('tbody');
-  addTableRow(tbody, '大小', formatBytes(asset.size));
-  addTableRow(tbody, 'GH下载URL', asset.browser_download_url, asset.browser_download_url);
+  addTableRow(tbody, '大小', formatBytes(asset.size) || '');
+  addTableRow(tbody, '内容类型', asset.content_type || '');
+  addTableRow(tbody, '校验', asset.digest || '');
+  addTableRow(tbody, 'GH下载计次', asset.download_count || '');
+  addTableRow(tbody, 'GH下载URL', asset.browser_download_url || '', asset.browser_download_url || '');
 
   body.appendChild(wrapper);
   return panelItem;
 }
 
-/** 创建合计面板项，内容以表格展示。 */
+/**
+ * 创建合计面板项，内容以表格展示。
+ * @param {Array} assets - 资源列表
+ */
 function createSummaryPanel(assets) {
   const totalSize = assets.reduce((sum, asset) => sum + (asset.size || 0), 0);
   const allUrls = assets.map((asset) => asset.browser_download_url).filter(Boolean);
@@ -161,6 +168,7 @@ function createSummaryPanel(assets) {
   const { element: panelItem, body } = createPanelItem('合计');
 
   const { wrapper } = createFluidTable();
+  wrapper.classList.add('xf-asset-table');
   const tbody = wrapper.querySelector('tbody');
   addTableRow(tbody, '总大小', formatBytes(totalSize));
   addTableRow(tbody, '所有下载URL', allUrls.join('\n'));
