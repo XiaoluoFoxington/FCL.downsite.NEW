@@ -60,7 +60,7 @@
  * 与白色文字对比度 >= 9.0，远超 WCAG AAA 标准（7.0）
  * 注：blue-grey, brown, deep-purple, grey, indigo, purple, teal 原始亮度已低于 0.06，
  * 无需单独定义 950，暗色模式直接引用 900 */
- 
+
 body.mdui-theme-primary-amber {
   --mdui-bg: var(--mdui-color-amber-100);
   --mdui-bg-dark: var(--mdui-color-amber-950);
@@ -166,4 +166,11 @@ body.mdui-theme-layout-dark[class*="mdui-theme-primary-"] {
 }
 body.mdui-theme-layout-dark .mdui-panel-item {
   background-color: #00000040;
+}
+
+/* 应用栏透明模糊背景 */
+.mdui-appbar>[class*=mdui-color-][class*=mdui-color-]:not(.mdui-color-transparent) {
+  color: unset !important;
+  background-color: unset !important;
+  backdrop-filter: blur(16px);
 }
