@@ -1,3 +1,14 @@
+/*
+ * 浅色的情况有：
+ * - 系统偏好为浅色且MDUI主题为自动
+ * - 系统偏好为浅色且MDUI主题为浅色
+ * - 系统偏好为深色且MDUI主题为浅色
+ * 深色的情况有：
+ * - 系统偏好为深色且MDUI主题为自动
+ * - 系统偏好为深色且MDUI主题为深色
+ * - 系统偏好为浅色且MDUI主题为深色
+*/
+
 @media (min-width:1024px) {
   .mdui-drawer-body-left {
     padding-left: 320px
@@ -12,12 +23,13 @@
   }
 
   .mdui-drawer-close {
-    -webkit-transform:translateX(-330px);
-    transform:translateX(-330px)
+    -webkit-transform: translateX(-330px);
+    transform: translateX(-330px)
   }
+
   .mdui-drawer-close.mdui-drawer-right {
-    -webkit-transform:translateX(330px);
-    transform:translateX(330px)
+    -webkit-transform: translateX(330px);
+    transform: translateX(330px)
   }
 }
 
@@ -42,8 +54,28 @@
     -webkit-box-shadow: 0 2px 4px #000;
     box-shadow: 0 2px 4px #000;
   }
-
 }
+
+body.mdui-theme-layout-dark .mdui-btn-raised {
+  -webkit-box-shadow: 0 2px 4px #000;
+  box-shadow: 0 2px 4px #000;
+}
+
+body.mdui-theme-layout-dark .mdui-btn-raised:hover {
+  -webkit-box-shadow: 0 2px 8px #000;
+  box-shadow: 0 2px 8px #000;
+}
+
+body.mdui-theme-layout-dark .mdui-btn-raised:active {
+  -webkit-box-shadow: 0 2px 16px #000;
+  box-shadow: 0 2px 16px #000;
+}
+
+body.mdui-theme-layout-dark .mdui-panel-item {
+  -webkit-box-shadow: 0 2px 4px #000;
+  box-shadow: 0 2px 4px #000;
+}
+
 
 /* 缩短面板的边距，不然信息密度太低。 */
 .mdui-panel-item-header {
@@ -64,7 +96,7 @@
   right: 12px;
 }
 
-.mdui-panel-item-open>.mdui-panel-item-body{
+.mdui-panel-item-open>.mdui-panel-item-body {
   overflow: unset;
 }
 
@@ -72,7 +104,7 @@
   padding: 0 12px;
 }
 
-.mdui-panel-item-title{
+.mdui-panel-item-title {
   width: unset;
 }
 
@@ -107,10 +139,21 @@
   body:not(.mdui-theme-layout-light) .mdui-table td {
     border-right: 1px solid rgba(255, 255, 255, .12);
   }
+
   body:not(.mdui-theme-layout-light) .mdui-table th:last-child,
   body:not(.mdui-theme-layout-light) .mdui-table td:last-child {
     border-right: unset;
   }
+}
+
+body.mdui-theme-layout-dark .mdui-table th,
+body.mdui-theme-layout-dark .mdui-table td {
+  border-right: 1px solid rgba(255, 255, 255, .12);
+}
+
+body.mdui-theme-layout-dark .mdui-table th:last-child,
+body.mdui-theme-layout-dark .mdui-table td:last-child {
+  border-right: unset;
 }
 
 /* 给表格的列也加上边框。 */
@@ -138,7 +181,8 @@
 .mdui-typo.mdui-typo a {
   color: unset;
   text-decoration: underline;
-  word-break: break-all; /* 允许超长链接换行。 */
+  word-break: break-all;
+  /* 允许超长链接换行。 */
   margin: 0 0 1.2em 0;
 }
 
@@ -195,8 +239,13 @@
 .mdui-theme-layout-auto .mdui-table-hoverable tbody tr:hover {
   background-color: rgba(0, 0, 0, .12);
 }
+
 @media (prefers-color-scheme: dark) {
-  .mdui-theme-layout-auto .mdui-table-hoverable tbody tr:hover {
+  body:not(.mdui-theme-layout-light) .mdui-table-hoverable tbody tr:hover {
     background-color: rgba(255, 255, 255, .12);
   }
+}
+
+body.mdui-theme-layout-light .mdui-table-hoverable tbody tr:hover {
+  background-color: rgba(0, 0, 0, .12);
 }

@@ -217,6 +217,82 @@ body.mdui-theme-primary-yellow {
   
 }
 
+body.mdui-theme-layout-dark.mdui-theme-primary-amber {
+  background-color: var(--mdui-color-amber-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-blue {
+  background-color: var(--mdui-color-blue-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-blue-grey {
+  background-color: var(--mdui-color-blue-grey-900) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-brown {
+  background-color: var(--mdui-color-brown-900) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-cyan {
+  background-color: var(--mdui-color-cyan-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-deep-orange {
+  background-color: var(--mdui-color-deep-orange-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-deep-purple {
+  background-color: var(--mdui-color-deep-purple-900) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-green {
+  background-color: var(--mdui-color-green-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-grey {
+  background-color: var(--mdui-color-grey-900) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-indigo {
+  background-color: var(--mdui-color-indigo-900) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-light-blue {
+  background-color: var(--mdui-color-light-blue-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-light-green {
+  background-color: var(--mdui-color-light-green-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-lime {
+  background-color: var(--mdui-color-lime-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-orange {
+  background-color: var(--mdui-color-orange-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-pink {
+  background-color: var(--mdui-color-pink-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-purple {
+  background-color: var(--mdui-color-purple-900) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-red {
+  background-color: var(--mdui-color-red-950) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-teal {
+  background-color: var(--mdui-color-teal-900) !important;
+}
+
+body.mdui-theme-layout-dark.mdui-theme-primary-yellow {
+  background-color: var(--mdui-color-yellow-950) !important;
+}
+
 /* 让面板的背景颜色透明 */
 .mdui-panel-item {
   background-color: #ffffff40;
@@ -226,5 +302,11 @@ body.mdui-theme-primary-yellow {
     .mdui-panel-item.mdui-panel-item {
       background-color: #00000040;
     }
+  }
+}
+
+body.mdui-theme-layout-dark {
+  .mdui-panel-item.mdui-panel-item {
+    background-color: #00000040;
   }
 }
