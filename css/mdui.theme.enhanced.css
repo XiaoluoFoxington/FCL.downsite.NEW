@@ -1,0 +1,212 @@
+:root {
+  --mdui-color-amber-100: #FFECB3;
+  --mdui-color-amber-900: #FF6F00;
+  --mdui-color-blue-100: #BBDEFB;
+  --mdui-color-blue-900: #0D47A1;
+  --mdui-color-blue-grey-100: #CFD8DC;
+  --mdui-color-blue-grey-900: #263238;
+  --mdui-color-brown-100: #D7CCC8;
+  --mdui-color-brown-900: #3E2723;
+  --mdui-color-cyan-100: #B2EBF2;
+  --mdui-color-cyan-900: #006064;
+  --mdui-color-deep-orange-100: #FFCCBC;
+  --mdui-color-deep-orange-900: #BF360C;
+  --mdui-color-deep-purple-100: #D1C4E9;
+  --mdui-color-deep-purple-900: #311B92;
+  --mdui-color-green-100: #C8E6C9;
+  --mdui-color-green-900: #1B5E20;
+  --mdui-color-grey-100: #F5F5F5;
+  --mdui-color-grey-900: #212121;
+  --mdui-color-indigo-100: #C5CAE9;
+  --mdui-color-indigo-900: #1A237E;
+  --mdui-color-light-blue-100: #B3E5FC;
+  --mdui-color-light-blue-900: #01579B;
+  --mdui-color-light-green-100: #DCEDC8;
+  --mdui-color-light-green-900: #33691E;
+  --mdui-color-lime-100: #F0F4C3;
+  --mdui-color-lime-900: #827717;
+  --mdui-color-orange-100: #FFE0B2;
+  --mdui-color-orange-900: #E65100;
+  --mdui-color-pink-100: #F8BBD0;
+  --mdui-color-pink-900: #880E4F;
+  --mdui-color-purple-100: #E1BEE7;
+  --mdui-color-purple-900: #4A148C;
+  --mdui-color-red-100: #FFCDD2;
+  --mdui-color-red-900: #B71C1C;
+  --mdui-color-teal-100: #B2DFDB;
+  --mdui-color-teal-900: #004D40;
+  --mdui-color-yellow-100: #FFF9C4;
+  --mdui-color-yellow-900: #F57F17;
+
+}
+
+/* TODO: 即使是900还是太亮了，半夜刺眼，需要调整一下 */
+
+/* 浅色 */
+body.mdui-theme-primary-amber {
+  background-color: var(--mdui-color-amber-100) !important;
+}
+
+body.mdui-theme-primary-blue {
+  background-color: var(--mdui-color-blue-100) !important;
+}
+
+body.mdui-theme-primary-blue-grey {
+  background-color: var(--mdui-color-blue-grey-100) !important;
+}
+
+body.mdui-theme-primary-brown {
+  background-color: var(--mdui-color-brown-100) !important;
+}
+
+body.mdui-theme-primary-cyan {
+  background-color: var(--mdui-color-cyan-100) !important;
+}
+
+body.mdui-theme-primary-deep-orange {
+  background-color: var(--mdui-color-deep-orange-100) !important;
+}
+
+body.mdui-theme-primary-deep-purple {
+  background-color: var(--mdui-color-deep-purple-100) !important;
+}
+
+body.mdui-theme-primary-green {
+  background-color: var(--mdui-color-green-100) !important;
+}
+
+body.mdui-theme-primary-grey {
+  background-color: var(--mdui-color-grey-100) !important;
+}
+
+body.mdui-theme-primary-indigo {
+  background-color: var(--mdui-color-indigo-100) !important;
+}
+
+body.mdui-theme-primary-light-blue {
+  background-color: var(--mdui-color-light-blue-100) !important;
+}
+
+body.mdui-theme-primary-light-green {
+  background-color: var(--mdui-color-light-green-100) !important;
+}
+
+body.mdui-theme-primary-lime {
+  background-color: var(--mdui-color-lime-100) !important;
+}
+
+body.mdui-theme-primary-orange {
+  background-color: var(--mdui-color-orange-100) !important;
+}
+
+body.mdui-theme-primary-pink {
+  background-color: var(--mdui-color-pink-100) !important;
+}
+
+body.mdui-theme-primary-purple {
+  background-color: var(--mdui-color-purple-100) !important;
+}
+
+body.mdui-theme-primary-red {
+  background-color: var(--mdui-color-red-100) !important;
+}
+
+body.mdui-theme-primary-teal {
+  background-color: var(--mdui-color-teal-100) !important;
+}
+
+body.mdui-theme-primary-yellow {
+  background-color: var(--mdui-color-yellow-100) !important;
+}
+
+/* 深色 */
+@media (prefers-color-scheme: dark) {
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-amber {
+    background-color: var(--mdui-color-amber-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-blue {
+    background-color: var(--mdui-color-blue-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-blue-grey {
+    background-color: var(--mdui-color-blue-grey-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-brown {
+    background-color: var(--mdui-color-brown-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-cyan {
+    background-color: var(--mdui-color-cyan-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-deep-orange {
+    background-color: var(--mdui-color-deep-orange-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-deep-purple {
+    background-color: var(--mdui-color-deep-purple-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-green {
+    background-color: var(--mdui-color-green-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-grey {
+    background-color: var(--mdui-color-grey-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-indigo {
+    background-color: var(--mdui-color-indigo-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-light-blue {
+    background-color: var(--mdui-color-light-blue-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-light-green {
+    background-color: var(--mdui-color-light-green-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-lime {
+    background-color: var(--mdui-color-lime-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-orange {
+    background-color: var(--mdui-color-orange-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-pink {
+    background-color: var(--mdui-color-pink-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-purple {
+    background-color: var(--mdui-color-purple-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-red {
+    background-color: var(--mdui-color-red-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-teal {
+    background-color: var(--mdui-color-teal-900) !important;
+  }
+  
+  body:not(.mdui-theme-layout-light).mdui-theme-primary-yellow {
+    background-color: var(--mdui-color-yellow-900) !important;
+  }
+  
+}
+
+/* 让面板的背景颜色透明 */
+.mdui-panel-item {
+  background-color: #ffffff40;
+}
+@media (prefers-color-scheme: dark) {
+  body:not(.mdui-theme-layout-light) {
+    .mdui-panel-item.mdui-panel-item {
+      background-color: #00000040;
+    }
+  }
+}
