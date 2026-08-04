@@ -5,13 +5,22 @@ import './common/drawer.js';
 import './common/verWatermark.js';
 import './common/sponsorRemind.js';
 
-
 // 共用的第三方非 ES Module 脚本，通过动态创建 <script> 元素加载。
-// counter.dev 统计：独立运行，不影响站点功能，无需前置加载。
+// 统计脚本：独立运行，不影响站点功能，无需前置加载。
 (function () {
   const script = document.createElement('script');
-  script.src = 'https://cdn.counter.dev/script.js';
-  script.dataset.id = 'e767f9af-c08e-48c9-a440-666584514259';
-  script.dataset.utcoffset = '8';
+  script.id = 'LA_COLLECT';
+  script.src = '//sdk.51.la/js-sdk-pro.min.js';
+  script.charset = 'UTF-8';
   document.head.appendChild(script);
+  script.onload = function () {
+    if (typeof LA !== 'undefined' && typeof LA.init === 'function') {
+      LA.init({ id: '3Qf548Mk9X7m1VlP', ck: '3Qf548Mk9X7m1VlP' });
+    } else {
+      console.warn('统计脚本加载成功，但 LA 对象未定义');
+    }
+  };
+  script.onerror = function () {
+    console.warn('统计脚本加载失败');
+  };
 })();
