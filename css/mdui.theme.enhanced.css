@@ -53,260 +53,117 @@
   --mdui-color-yellow-950: #6E3605;
 }
 
+/* 每个主题色定义浅色/深色背景变量 */
 /* 暗夜模式背景色：实际变暗的色号使用 950 值，其余直接引用 900
  * 生成方法：基于 MDUI 原始 900 色值，通过 HSL 色彩空间降低明度(Lightness)，
  * 保持色相(Hue)和饱和度(Saturation)不变，使相对亮度降至约 0.06，
  * 与白色文字对比度 >= 9.0，远超 WCAG AAA 标准（7.0）
  * 注：blue-grey, brown, deep-purple, grey, indigo, purple, teal 原始亮度已低于 0.06，
  * 无需单独定义 950，暗色模式直接引用 900 */
-
-/* 浅色 */
+ 
 body.mdui-theme-primary-amber {
-  background-color: var(--mdui-color-amber-100) !important;
+  --mdui-bg: var(--mdui-color-amber-100);
+  --mdui-bg-dark: var(--mdui-color-amber-950);
 }
-
 body.mdui-theme-primary-blue {
-  background-color: var(--mdui-color-blue-100) !important;
+  --mdui-bg: var(--mdui-color-blue-100);
+  --mdui-bg-dark: var(--mdui-color-blue-950);
 }
-
 body.mdui-theme-primary-blue-grey {
-  background-color: var(--mdui-color-blue-grey-100) !important;
+  --mdui-bg: var(--mdui-color-blue-grey-100);
+  --mdui-bg-dark: var(--mdui-color-blue-grey-900);
 }
-
 body.mdui-theme-primary-brown {
-  background-color: var(--mdui-color-brown-100) !important;
+  --mdui-bg: var(--mdui-color-brown-100);
+  --mdui-bg-dark: var(--mdui-color-brown-900);
 }
-
 body.mdui-theme-primary-cyan {
-  background-color: var(--mdui-color-cyan-100) !important;
+  --mdui-bg: var(--mdui-color-cyan-100);
+  --mdui-bg-dark: var(--mdui-color-cyan-950);
 }
-
 body.mdui-theme-primary-deep-orange {
-  background-color: var(--mdui-color-deep-orange-100) !important;
+  --mdui-bg: var(--mdui-color-deep-orange-100);
+  --mdui-bg-dark: var(--mdui-color-deep-orange-950);
 }
-
 body.mdui-theme-primary-deep-purple {
-  background-color: var(--mdui-color-deep-purple-100) !important;
+  --mdui-bg: var(--mdui-color-deep-purple-100);
+  --mdui-bg-dark: var(--mdui-color-deep-purple-900);
 }
-
 body.mdui-theme-primary-green {
-  background-color: var(--mdui-color-green-100) !important;
+  --mdui-bg: var(--mdui-color-green-100);
+  --mdui-bg-dark: var(--mdui-color-green-950);
 }
-
 body.mdui-theme-primary-grey {
-  background-color: var(--mdui-color-grey-100) !important;
+  --mdui-bg: var(--mdui-color-grey-100);
+  --mdui-bg-dark: var(--mdui-color-grey-900);
 }
-
 body.mdui-theme-primary-indigo {
-  background-color: var(--mdui-color-indigo-100) !important;
+  --mdui-bg: var(--mdui-color-indigo-100);
+  --mdui-bg-dark: var(--mdui-color-indigo-900);
 }
-
 body.mdui-theme-primary-light-blue {
-  background-color: var(--mdui-color-light-blue-100) !important;
+  --mdui-bg: var(--mdui-color-light-blue-100);
+  --mdui-bg-dark: var(--mdui-color-light-blue-950);
 }
-
 body.mdui-theme-primary-light-green {
-  background-color: var(--mdui-color-light-green-100) !important;
+  --mdui-bg: var(--mdui-color-light-green-100);
+  --mdui-bg-dark: var(--mdui-color-light-green-950);
 }
-
 body.mdui-theme-primary-lime {
-  background-color: var(--mdui-color-lime-100) !important;
+  --mdui-bg: var(--mdui-color-lime-100);
+  --mdui-bg-dark: var(--mdui-color-lime-950);
 }
-
 body.mdui-theme-primary-orange {
-  background-color: var(--mdui-color-orange-100) !important;
+  --mdui-bg: var(--mdui-color-orange-100);
+  --mdui-bg-dark: var(--mdui-color-orange-950);
 }
-
 body.mdui-theme-primary-pink {
-  background-color: var(--mdui-color-pink-100) !important;
+  --mdui-bg: var(--mdui-color-pink-100);
+  --mdui-bg-dark: var(--mdui-color-pink-950);
 }
-
 body.mdui-theme-primary-purple {
-  background-color: var(--mdui-color-purple-100) !important;
+  --mdui-bg: var(--mdui-color-purple-100);
+  --mdui-bg-dark: var(--mdui-color-purple-900);
 }
-
 body.mdui-theme-primary-red {
-  background-color: var(--mdui-color-red-100) !important;
+  --mdui-bg: var(--mdui-color-red-100);
+  --mdui-bg-dark: var(--mdui-color-red-950);
 }
-
 body.mdui-theme-primary-teal {
-  background-color: var(--mdui-color-teal-100) !important;
+  --mdui-bg: var(--mdui-color-teal-100);
+  --mdui-bg-dark: var(--mdui-color-teal-900);
 }
-
 body.mdui-theme-primary-yellow {
-  background-color: var(--mdui-color-yellow-100) !important;
+  --mdui-bg: var(--mdui-color-yellow-100);
+  --mdui-bg-dark: var(--mdui-color-yellow-950);
 }
 
-/* 深色 */
+/* 浅色模式 - 统一应用背景色 */
+body[class*="mdui-theme-primary-"] {
+  background-color: var(--mdui-bg) !important;
+}
+
+/* 深色模式 - 跟随系统 */
 @media (prefers-color-scheme: dark) {
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-amber {
-    background-color: var(--mdui-color-amber-950) !important;
+  body:not(.mdui-theme-layout-light)[class*="mdui-theme-primary-"] {
+    background-color: var(--mdui-bg-dark) !important;
   }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-blue {
-    background-color: var(--mdui-color-blue-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-blue-grey {
-    background-color: var(--mdui-color-blue-grey-900) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-brown {
-    background-color: var(--mdui-color-brown-900) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-cyan {
-    background-color: var(--mdui-color-cyan-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-deep-orange {
-    background-color: var(--mdui-color-deep-orange-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-deep-purple {
-    background-color: var(--mdui-color-deep-purple-900) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-green {
-    background-color: var(--mdui-color-green-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-grey {
-    background-color: var(--mdui-color-grey-900) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-indigo {
-    background-color: var(--mdui-color-indigo-900) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-light-blue {
-    background-color: var(--mdui-color-light-blue-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-light-green {
-    background-color: var(--mdui-color-light-green-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-lime {
-    background-color: var(--mdui-color-lime-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-orange {
-    background-color: var(--mdui-color-orange-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-pink {
-    background-color: var(--mdui-color-pink-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-purple {
-    background-color: var(--mdui-color-purple-900) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-red {
-    background-color: var(--mdui-color-red-950) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-teal {
-    background-color: var(--mdui-color-teal-900) !important;
-  }
-  
-  body:not(.mdui-theme-layout-light).mdui-theme-primary-yellow {
-    background-color: var(--mdui-color-yellow-950) !important;
-  }
-  
 }
 
-body.mdui-theme-layout-dark.mdui-theme-primary-amber {
-  background-color: var(--mdui-color-amber-950) !important;
+/* 深色模式 - 手动切换 */
+body.mdui-theme-layout-dark[class*="mdui-theme-primary-"] {
+  background-color: var(--mdui-bg-dark) !important;
 }
 
-body.mdui-theme-layout-dark.mdui-theme-primary-blue {
-  background-color: var(--mdui-color-blue-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-blue-grey {
-  background-color: var(--mdui-color-blue-grey-900) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-brown {
-  background-color: var(--mdui-color-brown-900) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-cyan {
-  background-color: var(--mdui-color-cyan-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-deep-orange {
-  background-color: var(--mdui-color-deep-orange-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-deep-purple {
-  background-color: var(--mdui-color-deep-purple-900) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-green {
-  background-color: var(--mdui-color-green-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-grey {
-  background-color: var(--mdui-color-grey-900) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-indigo {
-  background-color: var(--mdui-color-indigo-900) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-light-blue {
-  background-color: var(--mdui-color-light-blue-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-light-green {
-  background-color: var(--mdui-color-light-green-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-lime {
-  background-color: var(--mdui-color-lime-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-orange {
-  background-color: var(--mdui-color-orange-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-pink {
-  background-color: var(--mdui-color-pink-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-purple {
-  background-color: var(--mdui-color-purple-900) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-red {
-  background-color: var(--mdui-color-red-950) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-teal {
-  background-color: var(--mdui-color-teal-900) !important;
-}
-
-body.mdui-theme-layout-dark.mdui-theme-primary-yellow {
-  background-color: var(--mdui-color-yellow-950) !important;
-}
-
-/* 让面板的背景颜色透明 */
+/* 面板透明背景 */
 .mdui-panel-item {
   background-color: #ffffff40;
 }
 @media (prefers-color-scheme: dark) {
-  body:not(.mdui-theme-layout-light) {
-    .mdui-panel-item.mdui-panel-item {
-      background-color: #00000040;
-    }
-  }
-}
-
-body.mdui-theme-layout-dark {
-  .mdui-panel-item.mdui-panel-item {
+  body:not(.mdui-theme-layout-light) .mdui-panel-item {
     background-color: #00000040;
   }
+}
+body.mdui-theme-layout-dark .mdui-panel-item {
+  background-color: #00000040;
 }
