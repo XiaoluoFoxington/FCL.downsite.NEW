@@ -38,9 +38,27 @@
   --mdui-color-yellow-100: #FFF9C4;
   --mdui-color-yellow-900: #F57F17;
 
+  /* 950 暗夜色值 - 基于 MDUI 900 通过 HSL 降低明度生成，目标亮度 ~0.06 */
+  --mdui-color-amber-950: #743200;
+  --mdui-color-blue-950: #0C4194;
+  --mdui-color-cyan-950: #004E51;
+  --mdui-color-deep-orange-950: #822508;
+  --mdui-color-green-950: #17501B;
+  --mdui-color-light-blue-950: #01477E;
+  --mdui-color-light-green-950: #264F17;
+  --mdui-color-lime-950: #4C460D;
+  --mdui-color-orange-950: #7C2C00;
+  --mdui-color-pink-950: #860E4E;
+  --mdui-color-red-950: #891515;
+  --mdui-color-yellow-950: #6E3605;
 }
 
-/* TODO: 即使是900还是太亮了，半夜刺眼，需要调整一下 */
+/* 暗夜模式背景色：实际变暗的色号使用 950 值，其余直接引用 900
+ * 生成方法：基于 MDUI 原始 900 色值，通过 HSL 色彩空间降低明度(Lightness)，
+ * 保持色相(Hue)和饱和度(Saturation)不变，使相对亮度降至约 0.06，
+ * 与白色文字对比度 >= 9.0，远超 WCAG AAA 标准（7.0）
+ * 注：blue-grey, brown, deep-purple, grey, indigo, purple, teal 原始亮度已低于 0.06，
+ * 无需单独定义 950，暗色模式直接引用 900 */
 
 /* 浅色 */
 body.mdui-theme-primary-amber {
@@ -122,11 +140,11 @@ body.mdui-theme-primary-yellow {
 /* 深色 */
 @media (prefers-color-scheme: dark) {
   body:not(.mdui-theme-layout-light).mdui-theme-primary-amber {
-    background-color: var(--mdui-color-amber-900) !important;
+    background-color: var(--mdui-color-amber-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-blue {
-    background-color: var(--mdui-color-blue-900) !important;
+    background-color: var(--mdui-color-blue-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-blue-grey {
@@ -138,11 +156,11 @@ body.mdui-theme-primary-yellow {
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-cyan {
-    background-color: var(--mdui-color-cyan-900) !important;
+    background-color: var(--mdui-color-cyan-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-deep-orange {
-    background-color: var(--mdui-color-deep-orange-900) !important;
+    background-color: var(--mdui-color-deep-orange-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-deep-purple {
@@ -150,7 +168,7 @@ body.mdui-theme-primary-yellow {
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-green {
-    background-color: var(--mdui-color-green-900) !important;
+    background-color: var(--mdui-color-green-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-grey {
@@ -162,23 +180,23 @@ body.mdui-theme-primary-yellow {
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-light-blue {
-    background-color: var(--mdui-color-light-blue-900) !important;
+    background-color: var(--mdui-color-light-blue-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-light-green {
-    background-color: var(--mdui-color-light-green-900) !important;
+    background-color: var(--mdui-color-light-green-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-lime {
-    background-color: var(--mdui-color-lime-900) !important;
+    background-color: var(--mdui-color-lime-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-orange {
-    background-color: var(--mdui-color-orange-900) !important;
+    background-color: var(--mdui-color-orange-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-pink {
-    background-color: var(--mdui-color-pink-900) !important;
+    background-color: var(--mdui-color-pink-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-purple {
@@ -186,7 +204,7 @@ body.mdui-theme-primary-yellow {
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-red {
-    background-color: var(--mdui-color-red-900) !important;
+    background-color: var(--mdui-color-red-950) !important;
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-teal {
@@ -194,7 +212,7 @@ body.mdui-theme-primary-yellow {
   }
   
   body:not(.mdui-theme-layout-light).mdui-theme-primary-yellow {
-    background-color: var(--mdui-color-yellow-900) !important;
+    background-color: var(--mdui-color-yellow-950) !important;
   }
   
 }
