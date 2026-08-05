@@ -124,6 +124,14 @@ body.mdui-theme-layout-dark .mdui-panel-item {
   width: 100%;
 }
 
+div>.mdui-block:first-child {
+  margin-top: 0;
+}
+
+div>.mdui-block:last-child {
+  margin-bottom: 0;
+}
+
 .mdui-table {
   border-left: none;
 }

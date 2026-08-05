@@ -181,3 +181,8 @@ body.mdui-theme-layout-dark .mdui-panel-item {
   background-color: unset;
   backdrop-filter: blur(16px);
 }
+
+/* 下拉选择框透明背景 */
+.mdui-select.mdui-select.mdui-select {
+  background-color: unset;
+}
