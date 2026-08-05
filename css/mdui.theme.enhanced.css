@@ -61,78 +61,97 @@
  * 注：blue-grey, brown, deep-purple, grey, indigo, purple, teal 原始亮度已低于 0.06，
  * 无需单独定义 950，暗色模式直接引用 900 */
 
+body.mdui-theme-primary-amber .mdui-drawer,
 body.mdui-theme-primary-amber {
   --mdui-bg: var(--mdui-color-amber-100);
   --mdui-bg-dark: var(--mdui-color-amber-950);
 }
+body.mdui-theme-primary-blue .mdui-drawer,
 body.mdui-theme-primary-blue {
   --mdui-bg: var(--mdui-color-blue-100);
   --mdui-bg-dark: var(--mdui-color-blue-950);
 }
+body.mdui-theme-primary-blue-grey .mdui-drawer,
 body.mdui-theme-primary-blue-grey {
   --mdui-bg: var(--mdui-color-blue-grey-100);
   --mdui-bg-dark: var(--mdui-color-blue-grey-900);
 }
+body.mdui-theme-primary-brown .mdui-drawer,
 body.mdui-theme-primary-brown {
   --mdui-bg: var(--mdui-color-brown-100);
   --mdui-bg-dark: var(--mdui-color-brown-900);
 }
+body.mdui-theme-primary-cyan .mdui-drawer,
 body.mdui-theme-primary-cyan {
   --mdui-bg: var(--mdui-color-cyan-100);
   --mdui-bg-dark: var(--mdui-color-cyan-950);
 }
+body.mdui-theme-primary-deep-orange .mdui-drawer,
 body.mdui-theme-primary-deep-orange {
   --mdui-bg: var(--mdui-color-deep-orange-100);
   --mdui-bg-dark: var(--mdui-color-deep-orange-950);
 }
+body.mdui-theme-primary-deep-purple .mdui-drawer,
 body.mdui-theme-primary-deep-purple {
   --mdui-bg: var(--mdui-color-deep-purple-100);
   --mdui-bg-dark: var(--mdui-color-deep-purple-900);
 }
+body.mdui-theme-primary-green .mdui-drawer,
 body.mdui-theme-primary-green {
   --mdui-bg: var(--mdui-color-green-100);
   --mdui-bg-dark: var(--mdui-color-green-950);
 }
+body.mdui-theme-primary-grey .mdui-drawer,
 body.mdui-theme-primary-grey {
   --mdui-bg: var(--mdui-color-grey-100);
   --mdui-bg-dark: var(--mdui-color-grey-900);
 }
+body.mdui-theme-primary-indigo .mdui-drawer,
 body.mdui-theme-primary-indigo {
   --mdui-bg: var(--mdui-color-indigo-100);
   --mdui-bg-dark: var(--mdui-color-indigo-900);
 }
+body.mdui-theme-primary-light-blue .mdui-drawer,
 body.mdui-theme-primary-light-blue {
   --mdui-bg: var(--mdui-color-light-blue-100);
   --mdui-bg-dark: var(--mdui-color-light-blue-950);
 }
+body.mdui-theme-primary-light-green .mdui-drawer,
 body.mdui-theme-primary-light-green {
   --mdui-bg: var(--mdui-color-light-green-100);
   --mdui-bg-dark: var(--mdui-color-light-green-950);
 }
+body.mdui-theme-primary-lime .mdui-drawer,
 body.mdui-theme-primary-lime {
   --mdui-bg: var(--mdui-color-lime-100);
   --mdui-bg-dark: var(--mdui-color-lime-950);
 }
+body.mdui-theme-primary-orange .mdui-drawer,
 body.mdui-theme-primary-orange {
   --mdui-bg: var(--mdui-color-orange-100);
   --mdui-bg-dark: var(--mdui-color-orange-950);
 }
+body.mdui-theme-primary-pink .mdui-drawer,
 body.mdui-theme-primary-pink {
   --mdui-bg: var(--mdui-color-pink-100);
   --mdui-bg-dark: var(--mdui-color-pink-950);
 }
+body.mdui-theme-primary-purple .mdui-drawer,
 body.mdui-theme-primary-purple {
   --mdui-bg: var(--mdui-color-purple-100);
   --mdui-bg-dark: var(--mdui-color-purple-900);
 }
+body.mdui-theme-primary-red .mdui-drawer,
 body.mdui-theme-primary-red {
   --mdui-bg: var(--mdui-color-red-100);
   --mdui-bg-dark: var(--mdui-color-red-950);
 }
+body.mdui-theme-primary-teal .mdui-drawer,
 body.mdui-theme-primary-teal {
   --mdui-bg: var(--mdui-color-teal-100);
   --mdui-bg-dark: var(--mdui-color-teal-900);
 }
+body.mdui-theme-primary-yellow .mdui-drawer,
 body.mdui-theme-primary-yellow {
   --mdui-bg: var(--mdui-color-yellow-100);
   --mdui-bg-dark: var(--mdui-color-yellow-950);
@@ -185,4 +204,16 @@ body.mdui-theme-layout-dark .mdui-panel-item {
 /* 下拉选择框透明背景 */
 .mdui-select.mdui-select.mdui-select {
   background-color: unset;
+}
+
+.mdui-drawer {
+  background-color: var(--mdui-bg) !important;
+}
+@media (prefers-color-scheme: dark) {
+  body:not(.mdui-theme-layout-light) .mdui-drawer {
+    background-color: var(--mdui-bg-dark) !important;
+  }
+}
+body.mdui-theme-layout-dark .mdui-drawer {
+  background-color: var(--mdui-bg-dark) !important;
 }
