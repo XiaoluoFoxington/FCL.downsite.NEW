@@ -11,7 +11,7 @@
  */
 export function readPreference(key, defaultValue = null) {
   try {
-    return localStorage.getItem(key) || defaultValue;
+    return localStorage.getItem(key) ?? defaultValue;
   } catch (error) {
     console.warn(`无法读取设置 ${key}`, error);
     return defaultValue;
