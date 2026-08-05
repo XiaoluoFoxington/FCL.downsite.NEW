@@ -37,7 +37,6 @@ export function renderDetailError(elements, error, onRetry) {
   }
 
   // 清空操作区，先显示加载状态
-  elements.operations.replaceChildren();
   renderStatus(elements.operations, 'loading', { message: '加载反馈渠道...' });
 
   // 异步获取反馈渠道，signal 让旧请求在新状态进入时被真正取消。
