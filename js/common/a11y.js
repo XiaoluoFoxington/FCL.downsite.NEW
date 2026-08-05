@@ -369,8 +369,9 @@
     if (!document.querySelectorAll('div.mdui-select').length) {
       let attempts = 0;
       (function retrySelects() {
-        enhanceAllSelects(document);
-        if (++attempts < 60 && !document.querySelectorAll('div.mdui-select').length) {
+        if (document.querySelectorAll('div.mdui-select').length) {
+          enhanceAllSelects(document);
+        } else if (++attempts < 60) {
           requestAnimationFrame(retrySelects);
         }
       })();
