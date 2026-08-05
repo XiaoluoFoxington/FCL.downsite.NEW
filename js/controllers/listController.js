@@ -21,7 +21,7 @@ export function createListController(elements) {
   function applyFilters() {
     // 搜索同时匹配名称和数字 ID；标签按 tagTagRelation 决定与/或，
     // 搜索词与标签按 searchTagRelation 决定与/或/非。仅一侧生效时关系不参与组合。
-    const normalizedSearch = searchText.trim().toLocaleLowerCase();
+    const normalizedSearch = searchText.trim().toLowerCase();
     const searchActive = !!normalizedSearch;
     const tagsActive = !!activeTagIds.size;
     const tagTagRelation = elements.tagTagRelation?.value || 'and';
@@ -30,7 +30,7 @@ export function createListController(elements) {
     const visible = catalog.filter((item) => {
       // tagIds 在目录中是数字，按钮 dataset 始终是字符串，所以比较前统一转字符串。
       const matchesSearch = !searchActive
-        || item.name.toLocaleLowerCase().includes(normalizedSearch)
+        || item.name.toLowerCase().includes(normalizedSearch)
         || String(item.id).includes(normalizedSearch);
       const matchesTags = !tagsActive
         || (tagTagRelation === 'or'

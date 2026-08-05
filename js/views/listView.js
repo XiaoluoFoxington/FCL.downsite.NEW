@@ -113,7 +113,7 @@ function sortSoftware() {
   sorted.sort((a, b) => {
     let cmp;
     if (sortKey === 'name') {
-      cmp = a.name.toLocaleLowerCase().localeCompare(b.name.toLocaleLowerCase());
+      cmp = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
     } else {
       cmp = a.id - b.id;
     }
