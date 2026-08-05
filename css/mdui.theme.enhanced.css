@@ -177,7 +177,7 @@ body.mdui-theme-layout-dark[class*="mdui-theme-primary-"] {
 /* 面板透明背景 */
 .mdui-panel-item {
   background-color: #ffffff40;
-  backdrop-filter: blur(16px);
+  /* backdrop-filter: blur(16px); */
 }
 @media (prefers-color-scheme: dark) {
   body:not(.mdui-theme-layout-light) .mdui-panel-item {
@@ -198,7 +198,7 @@ body.mdui-theme-layout-dark .mdui-panel-item {
 /* 表格透明模糊背景 */
 .mdui-table.mdui-table {
   background-color: unset;
-  backdrop-filter: blur(16px);
+  /* backdrop-filter: blur(16px); */
 }
 
 /* 下拉选择框透明背景 */
