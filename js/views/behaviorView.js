@@ -80,8 +80,8 @@ function renderSelectSetting(container, setting, savedValue, onChange) {
   const selectCol = document.createElement('div');
   selectCol.className = 'mdui-col-xs-6';
   const select = document.createElement('select');
-  select.className = 'mdui-select';
-  select.setAttribute('mdui-select', '');
+  select.className = 'mdui-select mdui-block';
+  // select.setAttribute('mdui-select', '');
   select.dataset.storageKey = setting.storageKey;
 
   setting.options.forEach((opt) => {

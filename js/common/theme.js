@@ -1,6 +1,19 @@
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { applyTheme } from '../domain/theme.js';
 import { showSnackbar } from '../views/uiComponents.js';
+import { debounce } from '../views/commonView.js';
+
+// 立即应用本地保存的主题：脚本位于 body 末尾，body 已就绪，
+// 不必等 DOMContentLoaded，可避免深色模式下首帧闪白。
+applyTheme();
+
+// auto 模式下系统主题变化时要实时跟随。
+const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+if (darkMedia.addEventListener) {
+  darkMedia.addEventListener('change', () => applyTheme());
+} else {
+  darkMedia.addListener(() => applyTheme());
+}
 
 /**
  * 主题设置页的页面入口。
@@ -50,13 +63,21 @@ function restoreRadioState(containerId, name, value) {
  * @param {string} storageKey 本地存储键
  */
 function bindRadioEvent(containerId, name, storageKey) {
+  const debouncedShowSaveSuccess = debounce(showSaveSuccess);
   const container = document.getElementById(containerId);
   if (!container) return;
   container.addEventListener('change', function (e) {
     if (e.target.type === 'radio' && e.target.name === name) {
       writePreference(storageKey, e.target.value);
       applyTheme();
-      showSnackbar('主题应用成功');
+      debouncedShowSaveSuccess();
     }
   });
+}
+
+/**
+ * 显示保存成功的提示。
+ */
+export function showSaveSuccess() {
+  showSnackbar('主题应用成功');
 }

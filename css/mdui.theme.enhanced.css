@@ -1,0 +1,202 @@
+:root {
+  --mdui-color-amber-100: #FFECB3;
+  --mdui-color-amber-900: #FF6F00;
+  --mdui-color-blue-100: #BBDEFB;
+  --mdui-color-blue-900: #0D47A1;
+  --mdui-color-blue-grey-100: #CFD8DC;
+  --mdui-color-blue-grey-900: #263238;
+  --mdui-color-brown-100: #D7CCC8;
+  --mdui-color-brown-900: #3E2723;
+  --mdui-color-cyan-100: #B2EBF2;
+  --mdui-color-cyan-900: #006064;
+  --mdui-color-deep-orange-100: #FFCCBC;
+  --mdui-color-deep-orange-900: #BF360C;
+  --mdui-color-deep-purple-100: #D1C4E9;
+  --mdui-color-deep-purple-900: #311B92;
+  --mdui-color-green-100: #C8E6C9;
+  --mdui-color-green-900: #1B5E20;
+  --mdui-color-grey-100: #F5F5F5;
+  --mdui-color-grey-900: #212121;
+  --mdui-color-indigo-100: #C5CAE9;
+  --mdui-color-indigo-900: #1A237E;
+  --mdui-color-light-blue-100: #B3E5FC;
+  --mdui-color-light-blue-900: #01579B;
+  --mdui-color-light-green-100: #DCEDC8;
+  --mdui-color-light-green-900: #33691E;
+  --mdui-color-lime-100: #F0F4C3;
+  --mdui-color-lime-900: #827717;
+  --mdui-color-orange-100: #FFE0B2;
+  --mdui-color-orange-900: #E65100;
+  --mdui-color-pink-100: #F8BBD0;
+  --mdui-color-pink-900: #880E4F;
+  --mdui-color-purple-100: #E1BEE7;
+  --mdui-color-purple-900: #4A148C;
+  --mdui-color-red-100: #FFCDD2;
+  --mdui-color-red-900: #B71C1C;
+  --mdui-color-teal-100: #B2DFDB;
+  --mdui-color-teal-900: #004D40;
+  --mdui-color-yellow-100: #FFF9C4;
+  --mdui-color-yellow-900: #F57F17;
+
+  /* 950 暗夜色值 - 基于 MDUI 900 通过 HSL 降低明度生成，目标亮度 ~0.06 */
+  --mdui-color-amber-950: #743200;
+  --mdui-color-blue-950: #0C4194;
+  --mdui-color-cyan-950: #004E51;
+  --mdui-color-deep-orange-950: #822508;
+  --mdui-color-green-950: #17501B;
+  --mdui-color-light-blue-950: #01477E;
+  --mdui-color-light-green-950: #264F17;
+  --mdui-color-lime-950: #4C460D;
+  --mdui-color-orange-950: #7C2C00;
+  --mdui-color-pink-950: #860E4E;
+  --mdui-color-red-950: #891515;
+  --mdui-color-yellow-950: #6E3605;
+}
+
+/* 每个主题色定义浅色/深色背景变量 */
+/* 暗夜模式背景色：实际变暗的色号使用 950 值，其余直接引用 900
+ * 生成方法：基于 MDUI 原始 900 色值，通过 HSL 色彩空间降低明度(Lightness)，
+ * 保持色相(Hue)和饱和度(Saturation)不变，使相对亮度降至约 0.06，
+ * 与白色文字对比度 >= 9.0，远超 WCAG AAA 标准（7.0）
+ * 注：blue-grey, brown, deep-purple, grey, indigo, purple, teal 原始亮度已低于 0.06，
+ * 无需单独定义 950，暗色模式直接引用 900 */
+
+body.mdui-theme-primary-amber .mdui-drawer,
+body.mdui-theme-primary-amber {
+  --mdui-bg: var(--mdui-color-amber-100);
+  --mdui-bg-dark: var(--mdui-color-amber-950);
+}
+body.mdui-theme-primary-blue .mdui-drawer,
+body.mdui-theme-primary-blue {
+  --mdui-bg: var(--mdui-color-blue-100);
+  --mdui-bg-dark: var(--mdui-color-blue-950);
+}
+body.mdui-theme-primary-blue-grey .mdui-drawer,
+body.mdui-theme-primary-blue-grey {
+  --mdui-bg: var(--mdui-color-blue-grey-100);
+  --mdui-bg-dark: var(--mdui-color-blue-grey-900);
+}
+body.mdui-theme-primary-brown .mdui-drawer,
+body.mdui-theme-primary-brown {
+  --mdui-bg: var(--mdui-color-brown-100);
+  --mdui-bg-dark: var(--mdui-color-brown-900);
+}
+body.mdui-theme-primary-cyan .mdui-drawer,
+body.mdui-theme-primary-cyan {
+  --mdui-bg: var(--mdui-color-cyan-100);
+  --mdui-bg-dark: var(--mdui-color-cyan-950);
+}
+body.mdui-theme-primary-deep-orange .mdui-drawer,
+body.mdui-theme-primary-deep-orange {
+  --mdui-bg: var(--mdui-color-deep-orange-100);
+  --mdui-bg-dark: var(--mdui-color-deep-orange-950);
+}
+body.mdui-theme-primary-deep-purple .mdui-drawer,
+body.mdui-theme-primary-deep-purple {
+  --mdui-bg: var(--mdui-color-deep-purple-100);
+  --mdui-bg-dark: var(--mdui-color-deep-purple-900);
+}
+body.mdui-theme-primary-green .mdui-drawer,
+body.mdui-theme-primary-green {
+  --mdui-bg: var(--mdui-color-green-100);
+  --mdui-bg-dark: var(--mdui-color-green-950);
+}
+body.mdui-theme-primary-grey .mdui-drawer,
+body.mdui-theme-primary-grey {
+  --mdui-bg: var(--mdui-color-grey-100);
+  --mdui-bg-dark: var(--mdui-color-grey-900);
+}
+body.mdui-theme-primary-indigo .mdui-drawer,
+body.mdui-theme-primary-indigo {
+  --mdui-bg: var(--mdui-color-indigo-100);
+  --mdui-bg-dark: var(--mdui-color-indigo-900);
+}
+body.mdui-theme-primary-light-blue .mdui-drawer,
+body.mdui-theme-primary-light-blue {
+  --mdui-bg: var(--mdui-color-light-blue-100);
+  --mdui-bg-dark: var(--mdui-color-light-blue-950);
+}
+body.mdui-theme-primary-light-green .mdui-drawer,
+body.mdui-theme-primary-light-green {
+  --mdui-bg: var(--mdui-color-light-green-100);
+  --mdui-bg-dark: var(--mdui-color-light-green-950);
+}
+body.mdui-theme-primary-lime .mdui-drawer,
+body.mdui-theme-primary-lime {
+  --mdui-bg: var(--mdui-color-lime-100);
+  --mdui-bg-dark: var(--mdui-color-lime-950);
+}
+body.mdui-theme-primary-orange .mdui-drawer,
+body.mdui-theme-primary-orange {
+  --mdui-bg: var(--mdui-color-orange-100);
+  --mdui-bg-dark: var(--mdui-color-orange-950);
+}
+body.mdui-theme-primary-pink .mdui-drawer,
+body.mdui-theme-primary-pink {
+  --mdui-bg: var(--mdui-color-pink-100);
+  --mdui-bg-dark: var(--mdui-color-pink-950);
+}
+body.mdui-theme-primary-purple .mdui-drawer,
+body.mdui-theme-primary-purple {
+  --mdui-bg: var(--mdui-color-purple-100);
+  --mdui-bg-dark: var(--mdui-color-purple-900);
+}
+body.mdui-theme-primary-red .mdui-drawer,
+body.mdui-theme-primary-red {
+  --mdui-bg: var(--mdui-color-red-100);
+  --mdui-bg-dark: var(--mdui-color-red-950);
+}
+body.mdui-theme-primary-teal .mdui-drawer,
+body.mdui-theme-primary-teal {
+  --mdui-bg: var(--mdui-color-teal-100);
+  --mdui-bg-dark: var(--mdui-color-teal-900);
+}
+body.mdui-theme-primary-yellow .mdui-drawer,
+body.mdui-theme-primary-yellow {
+  --mdui-bg: var(--mdui-color-yellow-100);
+  --mdui-bg-dark: var(--mdui-color-yellow-950);
+}
+
+/* 浅色模式 - 统一应用背景色 */
+body[class*="mdui-theme-primary-"] {
+  background-color: var(--mdui-bg) !important;
+}
+
+/* 深色模式 - 最终主题由 JS 计算并写入 <html data-xf-theme> */
+html[data-xf-theme="dark"] body[class*="mdui-theme-primary-"] {
+  background-color: var(--mdui-bg-dark) !important;
+}
+
+/* 面板透明背景 */
+.mdui-panel-item {
+  background-color: #ffffff40;
+  /* backdrop-filter: blur(16px); */
+}
+html[data-xf-theme="dark"] .mdui-panel-item {
+  background-color: #00000040;
+}
+
+/* 应用栏透明模糊背景 */
+.mdui-appbar>[class*=mdui-color-][class*=mdui-color-]:not(.mdui-color-transparent) {
+  color: unset !important;
+  background-color: unset !important;
+  backdrop-filter: blur(16px);
+}
+
+/* 表格透明模糊背景 */
+.mdui-table.mdui-table {
+  background-color: unset;
+  /* backdrop-filter: blur(16px); */
+}
+
+/* 下拉选择框透明背景 */
+.mdui-select.mdui-select.mdui-select {
+  background-color: unset;
+}
+
+.mdui-drawer {
+  background-color: var(--mdui-bg) !important;
+}
+html[data-xf-theme="dark"] .mdui-drawer {
+  background-color: var(--mdui-bg-dark) !important;
+}

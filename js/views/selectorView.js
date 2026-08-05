@@ -50,7 +50,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     const section = createLevel(container, level);
     const select = document.createElement('select');
     select.className = 'mdui-select mdui-block';
-    select.setAttribute('mdui-select', '');
+    // select.setAttribute('mdui-select', '');
     select.setAttribute('aria-label', `下载选项第 ${level + 1} 级`);
     items.forEach((item, index) => {
       const option = document.createElement('option');

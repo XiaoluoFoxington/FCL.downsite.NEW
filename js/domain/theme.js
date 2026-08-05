@@ -1,5 +1,8 @@
 import { readPreference, writePreference } from './preferences.js';
 
+// 系统深色偏好；auto 模式据此解析出最终主题。
+const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+
 /**
  * MDUI 主题领域逻辑。
  * theme/primary/accent 是 MDUI 类名中使用的值，不在这里校验枚举，
@@ -20,8 +23,21 @@ export function applyTheme(theme, primary, accent) {
   body.classList.add(`mdui-theme-primary-${primaryValue}`);
   body.classList.add(`mdui-theme-accent-${accentValue}`);
 
+  // 把最终主题写到 <html>，本站 CSS 直接按它取深浅色样式。
+  syncResolvedTheme(themeValue);
+
   // 只补齐缺省值，绝不覆盖用户已经保存的选择。
   if (!readPreference('fdn-theme')) writePreference('fdn-theme', 'auto');
   if (!readPreference('fdn-theme-primary')) writePreference('fdn-theme-primary', 'teal');
   if (!readPreference('fdn-theme-accent')) writePreference('fdn-theme-accent', 'green');
+}
+
+/**
+ * 计算最终主题并写入 <html data-xf-theme>，取值为 'light' | 'dark'。
+ * 本站 CSS 只需按这一个属性判断深浅色，无需再写 media query 与 layout 类的各种组合。
+ * @param {string} themeValue 'auto' | 'light' | 'dark'
+ */
+function syncResolvedTheme(themeValue) {
+  const isDark = themeValue === 'dark' || (themeValue === 'auto' && darkMedia.matches);
+  document.documentElement.dataset.xfTheme = isDark ? 'dark' : 'light';
 }
