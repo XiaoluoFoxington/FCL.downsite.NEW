@@ -59,10 +59,8 @@ body {
   background-color: rgba(0, 0, 0, 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
-  body:not(.mdui-theme-layout-light) .xf-list-table-th-sortable:hover {
-    background-color: rgba(255, 255, 255, 0.12);
-  }
+html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
+  background-color: rgba(255, 255, 255, 0.12);
 }
 
 .xf-list-table-sort-indicator {

@@ -3,6 +3,18 @@ import { applyTheme } from '../domain/theme.js';
 import { showSnackbar } from '../views/uiComponents.js';
 import { debounce } from '../views/commonView.js';
 
+// 立即应用本地保存的主题：脚本位于 body 末尾，body 已就绪，
+// 不必等 DOMContentLoaded，可避免深色模式下首帧闪白。
+applyTheme();
+
+// auto 模式下系统主题变化时要实时跟随。
+const darkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+if (darkMedia.addEventListener) {
+  darkMedia.addEventListener('change', () => applyTheme());
+} else {
+  darkMedia.addListener(() => applyTheme());
+}
+
 /**
  * 主题设置页的页面入口。
  * 同一个模块会在所有页面加载：没有对应 radio 容器时不会绑定事件，

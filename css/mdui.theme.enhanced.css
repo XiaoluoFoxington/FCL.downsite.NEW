@@ -162,15 +162,8 @@ body[class*="mdui-theme-primary-"] {
   background-color: var(--mdui-bg) !important;
 }
 
-/* 深色模式 - 跟随系统 */
-@media (prefers-color-scheme: dark) {
-  body:not(.mdui-theme-layout-light)[class*="mdui-theme-primary-"] {
-    background-color: var(--mdui-bg-dark) !important;
-  }
-}
-
-/* 深色模式 - 手动切换 */
-body.mdui-theme-layout-dark[class*="mdui-theme-primary-"] {
+/* 深色模式 - 最终主题由 JS 计算并写入 <html data-xf-theme> */
+html[data-xf-theme="dark"] body[class*="mdui-theme-primary-"] {
   background-color: var(--mdui-bg-dark) !important;
 }
 
@@ -179,12 +172,7 @@ body.mdui-theme-layout-dark[class*="mdui-theme-primary-"] {
   background-color: #ffffff40;
   /* backdrop-filter: blur(16px); */
 }
-@media (prefers-color-scheme: dark) {
-  body:not(.mdui-theme-layout-light) .mdui-panel-item {
-    background-color: #00000040;
-  }
-}
-body.mdui-theme-layout-dark .mdui-panel-item {
+html[data-xf-theme="dark"] .mdui-panel-item {
   background-color: #00000040;
 }
 
@@ -209,11 +197,6 @@ body.mdui-theme-layout-dark .mdui-panel-item {
 .mdui-drawer {
   background-color: var(--mdui-bg) !important;
 }
-@media (prefers-color-scheme: dark) {
-  body:not(.mdui-theme-layout-light) .mdui-drawer {
-    background-color: var(--mdui-bg-dark) !important;
-  }
-}
-body.mdui-theme-layout-dark .mdui-drawer {
+html[data-xf-theme="dark"] .mdui-drawer {
   background-color: var(--mdui-bg-dark) !important;
 }
