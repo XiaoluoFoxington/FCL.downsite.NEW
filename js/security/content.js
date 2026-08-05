@@ -120,8 +120,8 @@ function makeAbsoluteUrl(value, baseUrl) {
   // 注意：javascript: 必须被过滤掉，不能在此处保留——虽然 DOMPurify 上游已删除危险脚本，
   // 但本函数若保留 javascript: 会让 rewriteUrls 的 href 走原样回写分支，逻辑冗余且不安全。
   if (/^(https?:|data:|mailto:|#|\/\/)/i.test(value)) return value;
-  if (value.startsWith('./')) value = value.replace('./', '/');
-  return baseUrl + value;
+  if (value.startsWith('./')) value = value.replace('./', '');
+  return joinUrl(baseUrl, value);
 }
 
 /**
