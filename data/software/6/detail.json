@@ -24,5 +24,10 @@
       "key": "/api/v2/launchers/FCL_Turnip"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true
 }

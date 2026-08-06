@@ -56,5 +56,11 @@
       "key": "/api/v1/FCL/"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android",
+      "osVersion": "7"
+    }
+  ],
   "randomSelectMirror": true
 }

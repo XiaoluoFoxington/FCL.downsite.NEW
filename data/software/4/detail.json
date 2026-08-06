@@ -33,5 +33,10 @@
       "key": "/api/v2/launchers/aamc"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true
 }

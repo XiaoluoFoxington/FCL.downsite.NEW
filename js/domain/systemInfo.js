@@ -20,19 +20,17 @@ const ARCHITECTURES = [
 
 /**
  * 从 UAParser 读取系统、浏览器和 CPU 信息。
- * @returns {{osName: string, browserName: string, cpuArchitecture: string, matchedArchitecture: string|null}}
+ * @returns {{fullResult: object, matchedArchitecture: string|null}}
  */
 export function detectSystemInfo() {
   // UAParser 是下载页专属的可选 CDN 依赖。加载失败时仍允许用户手动选择架构。
   if (typeof window.UAParser !== 'function') {
-    return { osName: '', browserName: '', cpuArchitecture: '', matchedArchitecture: null };
+    return { fullResult: {}, matchedArchitecture: null };
   }
   const result = new window.UAParser().getResult();
   const cpuArchitecture = result.cpu.architecture || navigator.platform || '';
   return {
-    osName: result.os.name || '',
-    browserName: result.browser.name || '',
-    cpuArchitecture,
+    fullResult: result,
     matchedArchitecture: ARCHITECTURES.find(({ pattern }) => pattern.test(cpuArchitecture))?.name || null,
   };
 }
@@ -49,4 +47,114 @@ export function inferArchitecture(item) {
   if (matched) return matched.name;
   if (source.includes('ZalithLauncher')) return 'all';
   return '';
+}
+
+/**
+ * 比较两个版本号。返回负数表示 a < b，0 表示相等，正数表示 a > b。
+ * @param {string} a 版本号 A，如 "7"、"8.0"
+ * @param {string} b 版本号 B
+ * @returns {number}
+ */
+function compareVersion(a, b) {
+  const aParts = String(a).split('.').map(Number);
+  const bParts = String(b).split('.').map(Number);
+  const len = Math.max(aParts.length, bParts.length);
+  for (let i = 0; i < len; i++) {
+    const av = aParts[i] || 0;
+    const bv = bParts[i] || 0;
+    if (av !== bv) return av - bv;
+  }
+  return 0;
+}
+
+/**
+ * 根据 OSRequest 检查当前系统是否满足要求，返回警告消息数组。
+ * @param {Array<{osName: string, osVersion: string}>} osRequests OS 需求列表
+ * @param {{fullResult: object}} system detectSystemInfo 的返回值
+ * @returns {Array<{type: string, text: string}>} 警告消息数组
+ */
+export function checkOSRequirement(osRequests, system) {
+  const messages = [];
+  if (!Array.isArray(osRequests) || osRequests.length === 0) return messages;
+
+  const osName = system?.fullResult?.os?.name;
+  const osVersion = system?.fullResult?.os?.version;
+
+  if (!osName) {
+    messages.push({ type: 'warning', text: '无法检测当前系统名称。' });
+    return messages;
+  }
+
+  const matched = osRequests.find(
+    (req) => req.osName?.toLowerCase() === osName.toLowerCase()
+  );
+
+  if (!matched) {
+    const supportedNames = osRequests.map((r) => r.osName).join('、');
+    messages.push({
+      type: 'warning',
+      text: `要求 ${supportedNames}，当前系统（${osName}）可能无法正常运行。（仅供参考，不一定准）`,
+    });
+    return messages;
+  }
+
+  if (matched.osVersion && osVersion) {
+    if (compareVersion(osVersion, matched.osVersion) < 0) {
+      messages.push({
+        type: 'warning',
+        text: `要求 ${matched.osName} ${matched.osVersion} 及以上，当前系统（${osName} ${osVersion}）可能无法正常运行。（仅供参考，不一定准）`,
+      });
+    }
+  }
+
+  return messages;
+}
+
+/**
+ * 将 UAParser 结果转为消息数组，用于下载页展示系统与浏览器信息。
+ * @param {{fullResult: object, matchedArchitecture: string|null}} system detectSystemInfo 的返回值
+ * @returns {Array<{type: string, text: string}>} 消息数组
+ */
+export function buildSystemMessages(system) {
+  const messages = [];
+  const result = system?.fullResult;
+  if (!result || typeof result !== 'object') return messages;
+
+  const parts = [];
+
+  if (result.os?.name) {
+    const osText = result.os.version
+      ? `${result.os.name} ${result.os.version}`
+      : result.os.name;
+    parts.push(osText);
+  }
+
+  if (result.browser?.name) {
+    const browserText = result.browser.version
+      ? `${result.browser.name} ${result.browser.version}`
+      : result.browser.name;
+    parts.push(browserText);
+  }
+
+  if (result.device?.type && result.device.type !== 'desktop') {
+    const deviceParts = [];
+    if (result.device.vendor) deviceParts.push(result.device.vendor);
+    if (result.device.model) deviceParts.push(result.device.model);
+    if (result.device.type) deviceParts.push(result.device.type);
+    parts.push(deviceParts.join(' '));
+  }
+
+  if (result.cpu?.architecture) {
+    parts.push(`CPU ${result.cpu.architecture}`);
+  }
+
+  if (parts.length > 0) {
+    messages.push({ type: 'info', text: parts.join(' · ') });
+  }
+
+  if (system?.matchedArchitecture) {
+    messages.push({ type: 'success', text: `已为您匹配推荐架构：${system.matchedArchitecture}` });
+  }
+
+  return messages;
 }

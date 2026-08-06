@@ -36,5 +36,10 @@
       "key": "/9.json"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true
 }

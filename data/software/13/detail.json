@@ -36,5 +36,13 @@
       "key": "/api/v1/HMCL/"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Windows"
+    },
+    {
+      "osName": "Linux"
+    }
+  ],
   "randomSelectMirror": true
 }

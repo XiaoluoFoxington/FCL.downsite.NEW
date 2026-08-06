@@ -34,5 +34,10 @@
       "text": "已停止更新，建议转到新项目：Amethyst。"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true
 }

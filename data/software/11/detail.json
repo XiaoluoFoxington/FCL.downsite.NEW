@@ -33,5 +33,10 @@
       "type": "info",
       "text": "从FCL 1.2.7.1版本开始，此工具已集成，基于easytier，可与支持easytier的启动器一起联机。不再推荐额外下载此工具。"
     }
+  ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
   ]
 }

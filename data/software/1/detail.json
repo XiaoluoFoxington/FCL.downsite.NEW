@@ -45,5 +45,10 @@
       "key": "/api/v2/launchers/MG"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true
 }

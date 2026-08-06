@@ -32,5 +32,10 @@
       "key": "/api/v2/launchers/zl"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true
 }

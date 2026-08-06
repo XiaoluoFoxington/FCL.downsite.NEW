@@ -34,5 +34,10 @@
       "text": "已停止更新，建议转到新项目：Fold Craft Launcher。"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true
 }

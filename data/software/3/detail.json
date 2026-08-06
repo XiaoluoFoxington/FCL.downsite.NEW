@@ -50,6 +50,11 @@
       "key": "/api/v1/ZL2/"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true,
   "filter": [".apk"]
 }

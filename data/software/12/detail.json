@@ -36,5 +36,10 @@
       "key": "/api/v2/launchers/amcl"
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "HarmonyOS"
+    }
+  ],
   "randomSelectMirror": true
 }

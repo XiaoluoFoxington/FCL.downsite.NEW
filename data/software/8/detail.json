@@ -21,5 +21,10 @@
       "notJoinRandom": true
     }
   ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ],
   "randomSelectMirror": true
 }

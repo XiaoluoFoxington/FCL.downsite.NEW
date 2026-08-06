@@ -1,4 +1,4 @@
-import { detectSystemInfo } from '../domain/systemInfo.js';
+import { detectSystemInfo, checkOSRequirement } from '../domain/systemInfo.js';
 import { getMirrors, getSoftware } from '../repositories/siteRepository.js';
 import { createDownloadSelectorController } from './downloadSelectorController.js';
 import { renderStatus, renderMessages, setErrorTitle, setSoftwareHeader } from '../views/commonView.js';
@@ -29,7 +29,10 @@ export function createDownloadController(elements, softwareId) {
         titlePrefix: '下载资源',
         detailButton: elements.detailButton,
       });
-      renderMessages(elements.messageWrapper, elements.messageContainer, detail.message);
+      renderMessages(elements.messageWrapper, elements.messageContainer, [
+        ...(detail.message || []),
+        ...checkOSRequirement(detail.OSRequest, system),
+      ]);
       // 通过 ID 建索引，既减少查找复杂度，也能明确检测 detail.json 中的错误 mirrorId。
       const mirrorMap = new Map(mirrors.map((mirror) => [mirror.id, mirror]));
       // detail.download 项结构为 { mirrorId, key }：mirrorId 查配置，key 拼接到镜像 baseUrl 后请求。
