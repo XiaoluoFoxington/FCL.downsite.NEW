@@ -109,7 +109,8 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
     ['图标', createIcon(basic)],
     ['ID', String(id)],
     ['TAG', basic.tagIds.map((tagId) => tagMap.get(tagId) || String(tagId)).join(', ')],
-  ];
+    detail.OSRequest?.length ? ['系统需求', formatOSRequest(detail.OSRequest)] : null,
+  ].filter(Boolean);
   (detail.info || []).forEach((item) => rows.push([item.name, createInfoValue(item)]));
 
   const fragment = document.createDocumentFragment();
@@ -152,6 +153,17 @@ function createIcon(basic) {
   image.height = 64;
   image.loading = 'lazy';
   return image;
+}
+
+/**
+ * 将 OSRequest 数组格式为 "系统 版本, 系统 版本, …" 文本。
+ * @param {Array<{osName: string, osVersion?: string}>} requests
+ * @returns {string}
+ */
+function formatOSRequest(requests) {
+  return requests
+    .map((r) => (r.osVersion ? `${r.osName} ${r.osVersion}` : r.osName))
+    .join(', ');
 }
 
 /**
