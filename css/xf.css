@@ -26,8 +26,9 @@ body {
 
 }
 
+/* 旧的列表页（卡片样式）为了防止卡片中出现下划线所以禁用了。现在新的列表页（表格样式）已经没必要了。 */
 #list-content a {
-  text-decoration: none;
+  /* text-decoration: none; */
 }
 
 .xf-list-table-row {
@@ -197,4 +198,13 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
 
 .xf-message-success {
   background-color: #00FF0040 !important;
+}
+
+.xf-bookmark-link {
+  cursor: pointer;
+}
+
+.xf-bookmark-icon {
+  vertical-align: middle;
+  border-radius: 50%;
 }

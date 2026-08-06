@@ -5,6 +5,7 @@ import { isSafeNavigationUrl } from '../security/content.js';
 import { loadAnnouncement, checkNewAnnouncement } from './announcement.js';
 import { showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
+import { mountBookmarkList } from '../views/bookmarkView.js';
 
 /**
  * 所有页面共用的右侧抽屉。
@@ -86,6 +87,20 @@ async function loadDrawerContent(drawer) {
     drawer.replaceChildren(template.content);
     window.mdui?.mutation();
 
+    // 在"网站导航"下方插入收藏资源面板
+    const navPanel = Array.from(drawer.querySelectorAll('.mdui-panel-item')).find(
+      (item) => item.querySelector('.mdui-panel-item-title')?.textContent === '网站导航'
+    );
+    if (navPanel) {
+      const bookmarkPanel = createBookmarkPanel();
+      navPanel.after(bookmarkPanel);
+      const bookmarkBody = bookmarkPanel.querySelector('.mdui-panel-item-body');
+      if (bookmarkBody) {
+        mountBookmarkList(bookmarkBody);
+        window.mdui?.mutation();
+      }
+    }
+
     // 注入动态内容
     const announcementContainer = drawer.querySelector('#drawer-announcement');
     if (announcementContainer) loadAnnouncement(announcementContainer);
@@ -131,6 +146,31 @@ async function loadDrawerContent(drawer) {
     console.error('抽屉内容加载失败', error);
     renderStatus(drawer, 'error', { message: error.message, onRetry: () => loadDrawerContent(drawer) });
   }
+}
+
+/**
+ * 创建收藏资源面板项。
+ * @returns {HTMLDivElement}
+ */
+function createBookmarkPanel() {
+  const item = document.createElement('div');
+  item.className = 'mdui-panel-item mdui-panel-item-open';
+
+  const header = document.createElement('div');
+  header.className = 'mdui-panel-item-header mdui-ripple';
+  const title = document.createElement('div');
+  title.className = 'mdui-panel-item-title';
+  title.textContent = '资源收藏';
+  const arrow = document.createElement('i');
+  arrow.className = 'mdui-panel-item-arrow mdui-icon material-icons';
+  arrow.textContent = 'keyboard_arrow_down';
+  header.append(title, arrow);
+
+  const body = document.createElement('div');
+  body.className = 'mdui-panel-item-body';
+
+  item.append(header, body);
+  return item;
 }
 
 document.addEventListener('DOMContentLoaded', () => {

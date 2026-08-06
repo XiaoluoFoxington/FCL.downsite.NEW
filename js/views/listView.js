@@ -1,5 +1,6 @@
 import { renderStatus } from './commonView.js';
 import { readPreference } from '../domain/preferences.js';
+import { isBookmarked, toggleBookmark } from '../domain/bookmarks.js';
 
 /** 切换筛选面板标题中“已有筛选条件”图标的显示。 */
 export function setFilterIndicator(element, active) {
@@ -131,6 +132,7 @@ function createThead() {
     { text: '名称', sortable: true, key: 'name' },
     { text: 'ID', sortable: true, key: 'id' },
     { text: '标签', sortable: false, key: null },
+    { text: '收藏', sortable: false, key: null },
   ];
   headers.forEach(({ text, sortable, key }) => {
     const th = document.createElement('th');
@@ -207,13 +209,37 @@ function renderTableBody(tbody, iconSize) {
     tagsCell.textContent = tagNames.join(', ');
     row.appendChild(tagsCell);
 
+    // 收藏单元格
+    const bookmarkCell = document.createElement('td');
+    bookmarkCell.dataset.bookmarkId = item.id;
+    bookmarkCell.classList.add('mdui-typo');
+    const bookmarkLink = document.createElement('a');
+    bookmarkLink.className = 'xf-bookmark-link';
+    bookmarkLink.href = 'javascript:void(0)';
+    bookmarkLink.textContent = isBookmarked(item.id) ? '是' : '否';
+    bookmarkCell.appendChild(bookmarkLink);
+    row.appendChild(bookmarkCell);
+
     fragment.appendChild(row);
   });
   tbody.replaceChildren(fragment);
 }
 
-/** 表格点击事件委托：排序（表头）/ 导航（数据行）。 */
+/** 表格点击事件委托：排序（表头）/ 导航（数据行）/ 收藏（切换）。 */
 function handleTableClick(event) {
+  const bookmarkLink = event.target.closest('.xf-bookmark-link');
+  if (bookmarkLink) {
+    event.stopPropagation();
+    const cell = bookmarkLink.closest('[data-bookmark-id]');
+    const id = Number(cell.dataset.bookmarkId);
+    const item = _software.find((s) => s.id === id);
+    if (item) {
+      const nowBookmarked = toggleBookmark({ id: item.id, name: item.name, icon: item.icon });
+      bookmarkLink.textContent = nowBookmarked ? '是' : '否';
+    }
+    return;
+  }
+
   const th = event.target.closest('th[data-sort-key]');
   if (th) {
     const key = th.dataset.sortKey;

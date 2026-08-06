@@ -1,7 +1,8 @@
 import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { renderStatus, renderMessages, renderTableStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
 import { isSafeNavigationUrl, joinUrl } from '../security/content.js';
-import { createExternalLink, createGrid } from './uiComponents.js';
+import { createExternalLink, createGrid, createMaterialIcon } from './uiComponents.js';
+import { isBookmarked, toggleBookmark, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
 
 // 反馈渠道异步请求的取消控制器：renderDetail 成功或再次进入 renderDetailError 时 abort 旧的，
 // 既保护 DOM 不被旧响应写入，也取消进行中的网络请求避免无谓流量。
@@ -85,20 +86,33 @@ export function renderDetailError(elements, error, onRetry) {
 export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   // 成功渲染时取消任何进行中的反馈渠道请求（若上一状态是错误态）。
   if (feedbackAbort) feedbackAbort.abort();
-  // 重置操作按钮区域，移除所有子元素（包括错误时添加的反馈按钮），重新添加三个操作按钮
+  // 重置操作按钮区域，移除所有子元素（包括错误时添加的反馈按钮），重新添加四个操作按钮
   const container = elements.operations;
   const containerGrid = createGrid();
+  const gridColClass = 'mdui-col-xs-12 mdui-col-sm-3';
   const gridDown = document.createElement('div');
-  gridDown.className = 'mdui-col-xs-12 mdui-col-sm-4';
+  gridDown.className = gridColClass;
   gridDown.appendChild(elements.download);
   const gridIntro = document.createElement('div');
-  gridIntro.className = 'mdui-col-xs-12 mdui-col-sm-4';
+  gridIntro.className = gridColClass;
   gridIntro.appendChild(elements.intro);
   const gridHistory = document.createElement('div');
-  gridHistory.className = 'mdui-col-xs-12 mdui-col-sm-4';
+  gridHistory.className = gridColClass;
   gridHistory.appendChild(elements.history);
-  containerGrid.append(gridDown, gridIntro, gridHistory);
+  const gridBookmark = document.createElement('div');
+  gridBookmark.className = gridColClass;
+  const bookmarkBtn = createBookmarkButton(basic);
+  gridBookmark.appendChild(bookmarkBtn);
+  containerGrid.append(gridDown, gridIntro, gridHistory, gridBookmark);
   container.replaceChildren(containerGrid);
+
+  // 收藏变更时同步按钮状态
+  if (container._bookmarkSync) container._bookmarkSync();
+  const syncHandler = () => {
+    syncBookmarkButton(bookmarkBtn, basic);
+  };
+  onBookmarkChange(syncHandler);
+  container._bookmarkSync = () => offBookmarkChange(syncHandler);
 
   setSoftwareHeader(basic, { titlePrefix: '资源详情' });
   elements.operations.hidden = false;
@@ -164,6 +178,40 @@ function formatOSRequest(requests) {
   return requests
     .map((r) => (r.osVersion ? `${r.osName} ${r.osVersion}` : r.osName))
     .join(', ');
+}
+
+/**
+ * 创建收藏按钮。
+ * @param {{id: number, name: string, icon?: string}} basic
+ * @returns {HTMLAnchorElement}
+ */
+function createBookmarkButton(basic) {
+  const btn = document.createElement('a');
+  btn.className = 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple';
+  btn.href = 'javascript:void(0)';
+  syncBookmarkButton(btn, basic);
+  btn.addEventListener('click', () => {
+    const nowBookmarked = toggleBookmark({ id: basic.id, name: basic.name, icon: basic.icon });
+    syncBookmarkButton(btn, basic, nowBookmarked);
+  });
+  return btn;
+}
+
+/**
+ * 同步按钮状态（图标 + 文本）。
+ * @param {HTMLAnchorElement} btn
+ * @param {{id: number, name: string, icon?: string}} basic
+ * @param {boolean} [forcedState] 强制状态，不传则自动读取
+ */
+function syncBookmarkButton(btn, basic, forcedState) {
+  const bookmarked = forcedState !== undefined ? forcedState : isBookmarked(basic.id);
+  const icon = btn.querySelector('.mdui-icon') || document.createElement('i');
+  icon.className = 'mdui-icon material-icons';
+  icon.textContent = bookmarked ? 'bookmark' : 'bookmark_border';
+  if (!btn.contains(icon)) btn.prepend(icon);
+  btn.textContent = ''; // 清空后重新构建
+  btn.appendChild(icon);
+  btn.appendChild(document.createTextNode(bookmarked ? ' 取消收藏' : ' 加入收藏'));
 }
 
 /**
