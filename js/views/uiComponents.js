@@ -20,16 +20,20 @@ export function createPanel() {
  * @param {string} title 面板标题文本
  * @param {object} [options]
  * @param {boolean} [options.isOpen=false] 是否默认展开
+ * @param {string} [options.icon] 面板标题图标
+ * @param {string} [options.iconClass] 图标的额外类名
  * @param {string|string[]} [options.summary] 标题旁的摘要文本
  * @param {string} [options.bodyClass] 面板内容区额外类名（如 'mdui-typo'）
  * @returns {{ element: HTMLDivElement, header: HTMLDivElement, body: HTMLDivElement }}
  */
-export function createPanelItem(title, { isOpen = false, summary, bodyClass } = {}) {
+export function createPanelItem(title, { isOpen = false, icon, iconClass, summary, bodyClass } = {}) {
   const item = document.createElement('div');
   item.className = `mdui-panel-item${isOpen ? ' mdui-panel-item-open' : ''}`;
 
   const header = document.createElement('div');
   header.className = 'mdui-panel-item-header mdui-ripple';
+
+  if (icon) header.appendChild(createMaterialIcon(icon, { className: iconClass }));
 
   const titleDiv = document.createElement('div');
   titleDiv.className = 'mdui-panel-item-title';
@@ -46,9 +50,7 @@ export function createPanelItem(title, { isOpen = false, summary, bodyClass } = 
     });
   }
 
-  const arrow = document.createElement('i');
-  arrow.className = 'mdui-panel-item-arrow mdui-icon material-icons';
-  arrow.textContent = 'keyboard_arrow_down';
+  const arrow = createMaterialIcon('keyboard_arrow_down', { className: 'mdui-panel-item-arrow mdui-icon' });
   header.appendChild(arrow);
 
   const body = document.createElement('div');
@@ -56,6 +58,21 @@ export function createPanelItem(title, { isOpen = false, summary, bodyClass } = 
 
   item.append(header, body);
   return { element: item, header, body };
+}
+
+/**
+ * 创建material icon
+ * @param {string} icon 图标
+ * @param {object} [options]
+ * @param {string} [options.className] 额外类名
+ * @returns {HTMLIconElement}
+ */
+export function createMaterialIcon(icon, { className } = {}) {
+  const i = document.createElement('i');
+  if (className) i.className = className;
+  i.classList.add('material-icons');
+  i.textContent = icon;
+  return i;
 }
 
 /**

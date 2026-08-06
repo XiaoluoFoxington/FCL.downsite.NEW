@@ -1,5 +1,5 @@
 import { readPreference } from '../domain/preferences.js';
-import { createPanel, createPanelItem } from './uiComponents.js';
+import { createPanel, createPanelItem, createMaterialIcon } from './uiComponents.js';
 
 const SITE_NAME = 'FCL 下载站';
 
@@ -56,7 +56,27 @@ export function renderMessages(wrapper, container, messages) {
   const panel = createPanel();
   list.forEach((msg) => {
     const type = msg.type || 'message';
-    const { element, body } = createPanelItem(type, { isOpen: true });
+    let icon = null
+    switch (msg.type) {
+      case 'info':
+        icon = 'info';
+        break;
+      case 'error':
+        icon = 'error';
+        break;
+      case 'danger':
+        icon = 'report';
+        break;
+      case 'warning':
+        icon = 'warning';
+        break;
+      case 'success':
+        icon = 'check';
+        break;
+      default:
+        break;
+    }
+    const { element, body } = createPanelItem(type, { isOpen: msg.panelOpen || true, icon, iconClass: 'mdui-icon' });
     element.classList.add('xf-message');
     if (msg.type) {
       element.classList.add(`xf-message-${msg.type}`);

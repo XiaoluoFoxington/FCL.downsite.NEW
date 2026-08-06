@@ -183,6 +183,7 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   margin-bottom: 0;
 }
 
+.xf-message-error,
 .xf-message-danger {
   background-color: #FF000040 !important;
 }
