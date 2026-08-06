@@ -2,9 +2,8 @@ name: 更新 verInfo.json
 
 on:
   push:
-    # 可指定分支，如 main，留空则所有分支均触发
-    # branches:
-    #   - main
+    branches:
+      - main
 
 permissions:
   contents: write   # 授予推送权限
