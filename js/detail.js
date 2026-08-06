@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
     download: document.getElementById('btn-download'),
     intro: document.getElementById('btn-intro'),
     history: document.getElementById('btn-history'),
+    messageWrapper: document.getElementById('messageWrapper'),
+    messageContainer: document.getElementById('messageContainer'),
   };
   const softwareId = getSoftwareId();
   // 入口处提前拒绝无效参数，避免 repository 访问不存在的 /data/software/NaN。

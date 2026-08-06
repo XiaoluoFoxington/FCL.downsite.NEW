@@ -25,5 +25,10 @@
     }
   ],
   "randomSelectMirror": true,
-  "description": "Krypton Wrapper 在 0.4.5 版本中更改了应用签名，在安装新版本前需卸载旧版本。"
+  "message": [
+    {
+      "type": "warning",
+      "text": "Krypton Wrapper 在 0.4.5 版本中更改了应用签名，在安装新版本前需卸载旧版本。"
+    }
+  ]
 }

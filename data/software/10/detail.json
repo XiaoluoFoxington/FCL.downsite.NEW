@@ -1,10 +1,6 @@
 {
   "info": [
     {
-      "name": "状态",
-      "text": "停止更新，仓库已存档。"
-    },
-    {
       "name": "developer",
       "href": "https://github.com/HMCL-dev"
     },
@@ -32,6 +28,11 @@
       "key": "/api/releases?owner=HMCL-dev&repo=HMCL-PE&versions=20"
     }
   ],
-  "description": "已停更，建议转到新项目：Fold Craft Launcher。",
+  "message": [
+    {
+      "type": "danger",
+      "text": "已停止更新，建议转到新项目：Fold Craft Launcher。"
+    }
+  ],
   "randomSelectMirror": true
 }

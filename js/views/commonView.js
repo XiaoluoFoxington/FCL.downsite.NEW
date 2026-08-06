@@ -1,4 +1,5 @@
 import { readPreference } from '../domain/preferences.js';
+import { createPanel, createPanelItem } from './uiComponents.js';
 
 const SITE_NAME = 'FCL 下载站';
 
@@ -32,6 +33,42 @@ export function formatBytes(bytes) {
 /** 清空可选容器；主要给没有复杂状态的 view 使用。 */
 export function clearElement(element) {
   element?.replaceChildren();
+}
+
+/**
+ * 渲染消息面板。消息数组为空或不存在时隐藏外层容器。
+ * 每条消息渲染为独立面板项，面板头标题为消息的 type 字段。
+ * @param {HTMLElement} wrapper 外层容器（消息面板外套）
+ * @param {HTMLElement} container 消息列表容器
+ * @param {Array} messages 消息数组，每项 { type, text }
+ */
+export function renderMessages(wrapper, container, messages) {
+  if (!wrapper || !container) return;
+
+  const list = Array.isArray(messages) ? messages : [];
+  if (list.length === 0) {
+    wrapper.hidden = true;
+    return;
+  }
+
+  wrapper.hidden = false;
+  const fragment = document.createDocumentFragment();
+  const panel = createPanel();
+  list.forEach((msg) => {
+    const type = msg.type || 'message';
+    const { element, body } = createPanelItem(type, { isOpen: true });
+    element.classList.add('xf-message');
+    if (msg.type) {
+      element.classList.add(`xf-message-${msg.type}`);
+    }
+    const textSpan = document.createElement('span');
+    textSpan.textContent = msg.text || '';
+    body.appendChild(textSpan);
+    fragment.appendChild(element);
+  });
+  panel.replaceChildren(fragment);
+  container.appendChild(panel);
+  window.mdui?.mutation();
 }
 
 /**

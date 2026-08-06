@@ -1,7 +1,7 @@
 import { detectSystemInfo } from '../domain/systemInfo.js';
 import { getMirrors, getSoftware } from '../repositories/siteRepository.js';
 import { createDownloadSelectorController } from './downloadSelectorController.js';
-import { renderStatus, setErrorTitle, setSoftwareHeader } from '../views/commonView.js';
+import { renderStatus, renderMessages, setErrorTitle, setSoftwareHeader } from '../views/commonView.js';
 import { joinUrl } from '../security/content.js';
 
 /**
@@ -17,6 +17,7 @@ export function createDownloadController(elements, softwareId) {
     // 点击重试前先终止旧选择器，避免旧请求在新页面状态完成后回写 DOM。
     selectorController?.abort();
     renderStatus(elements.container, 'loading', { message: '正在加载下载线路……' });
+    if (elements.messageWrapper) elements.messageWrapper.hidden = true;
     try {
       // 本站静态元数据与 UA 识别互不依赖，应并行完成以缩短下载页首屏时间。
       const [{ basic, detail }, mirrors, system] = await Promise.all([
@@ -28,6 +29,7 @@ export function createDownloadController(elements, softwareId) {
         titlePrefix: '下载资源',
         detailButton: elements.detailButton,
       });
+      renderMessages(elements.messageWrapper, elements.messageContainer, detail.message);
       // 通过 ID 建索引，既减少查找复杂度，也能明确检测 detail.json 中的错误 mirrorId。
       const mirrorMap = new Map(mirrors.map((mirror) => [mirror.id, mirror]));
       // detail.download 项结构为 { mirrorId, key }：mirrorId 查配置，key 拼接到镜像 baseUrl 后请求。
@@ -59,6 +61,7 @@ export function createDownloadController(elements, softwareId) {
     } catch (error) {
       console.error('下载页初始化失败', error);
       setErrorTitle();
+      if (elements.messageWrapper) elements.messageWrapper.hidden = true;
       renderStatus(elements.container, 'error', { message: error.message, onRetry: load });
     }
   }

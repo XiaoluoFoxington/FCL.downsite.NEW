@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     container: document.getElementById('selectors'),
     stopButton: document.getElementById('forceStopLoadBtn'),
     detailButton: document.getElementById('detailBtn'),
+    messageWrapper: document.getElementById('messageWrapper'),
+    messageContainer: document.getElementById('messageContainer'),
   };
   const softwareId = getSoftwareId();
   // 无效 ID 时保留页面框架并显示可读错误，而非让模块初始化异常中断。

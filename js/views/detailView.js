@@ -1,5 +1,5 @@
 import { getFeedbackChannels } from '../repositories/siteRepository.js';
-import { renderStatus, renderTableStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
+import { renderStatus, renderMessages, renderTableStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
 import { isSafeNavigationUrl, joinUrl } from '../security/content.js';
 import { createExternalLink, createGrid } from './uiComponents.js';
 
@@ -15,6 +15,9 @@ export function renderDetailLoading(elements) {
   renderTableStatus(elements.body, 2, 'loading', '正在加载软件详情……');
   if (elements.mirrorInfoBody) {
     renderTableStatus(elements.mirrorInfoBody, 4, 'loading', '正在加载线路预览……');
+  }
+  if (elements.messageWrapper) {
+    elements.messageWrapper.hidden = true;
   }
 }
 
@@ -34,6 +37,9 @@ export function renderDetailError(elements, error, onRetry) {
   renderTableStatus(elements.body, 2, 'error', error.message, onRetry);
   if (elements.mirrorInfoBody) {
     renderTableStatus(elements.mirrorInfoBody, 4, 'error', error.message, onRetry);
+  }
+  if (elements.messageWrapper) {
+    elements.messageWrapper.hidden = true;
   }
 
   // 清空操作区，先显示加载状态
@@ -120,6 +126,7 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   elements.body.replaceChildren(fragment);
 
   elements.isRandomSelect.textContent = detail.randomSelectMirror ? '是' : '否';
+  renderMessages(elements.messageWrapper, elements.messageContainer, detail.message);
   renderMirrorInfo(elements.mirrorInfoBody, detail.download, mirrors);
 
   elements.download.href = `/html/down.html?id=${id}`;

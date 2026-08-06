@@ -174,3 +174,26 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
 .xf-asset-table {
   white-space: nowrap;
 }
+
+.xf-message:first-child {
+  margin-top: 0;
+}
+
+.xf-message:last-child {
+  margin-bottom: 0;
+}
+
+.xf-message-danger {
+  background-color: #FF000040 !important;
+}
+
+.xf-message-warning {
+  background-color: #ffFF0040 !important;
+}
+
+.xf-message-info {
+}
+
+.xf-message-success {
+  background-color: #00FF0040 !important;
+}
