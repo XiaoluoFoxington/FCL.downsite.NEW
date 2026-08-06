@@ -198,3 +198,8 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
 .xf-message-success {
   background-color: #00FF0040 !important;
 }
+
+/* 语言切换按钮 */
+.xf-lang-btn {
+  margin: 4px 0;
+}

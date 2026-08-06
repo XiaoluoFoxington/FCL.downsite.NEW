@@ -4,6 +4,15 @@ import './common/theme.js';
 import './common/drawer.js';
 import './common/verWatermark.js';
 import './common/sponsorRemind.js';
+import { initI18n, setLanguage, getCurrentLang, getSupportedLangs } from './i18n.js';
+
+// 初始化 i18n
+document.addEventListener('DOMContentLoaded', () => {
+  initI18n();
+});
+
+// 将 i18n API 暴露到全局，供 HTML 内联事件等使用
+window.__i18n = { setLanguage, getCurrentLang, getSupportedLangs };
 
 // 共用的第三方非 ES Module 脚本，通过动态创建 <script> 元素加载。
 // 统计脚本：独立运行，不影响站点功能，无需前置加载。

@@ -5,6 +5,7 @@ import { isSafeNavigationUrl } from '../security/content.js';
 import { loadAnnouncement, checkNewAnnouncement } from './announcement.js';
 import { showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
+import { translatePage } from '../i18n.js';
 
 /**
  * 所有页面共用的右侧抽屉。
@@ -127,6 +128,19 @@ async function loadDrawerContent(drawer) {
         startRuntime();
       }
     }
+
+    // 语言切换按钮事件绑定
+    drawer.querySelectorAll('.xf-lang-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const lang = btn.getAttribute('data-lang');
+        const { setLanguage } = await import('../i18n.js');
+        await setLanguage(lang);
+      });
+    });
+
+    // 对动态加载的内容重新执行翻译
+    translatePage();
+
   } catch (error) {
     console.error('抽屉内容加载失败', error);
     renderStatus(drawer, 'error', { message: error.message, onRetry: () => loadDrawerContent(drawer) });

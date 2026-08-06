@@ -7,59 +7,77 @@
   <!-- 网站导航 -->
   <div class="mdui-panel-item mdui-panel-item-open">
     <div class="mdui-panel-item-header mdui-ripple">
-      <div class="mdui-panel-item-title">网站导航</div>
+      <div class="mdui-panel-item-title" data-i18n="nav.title">网站导航</div>
       <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
     </div>
     <div class="mdui-panel-item-body">
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/list.html"><i class="mdui-icon material-icons">list</i> 资源列表</a>
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/sponsor.html"><i class="mdui-icon material-icons">card_giftcard</i> 赞助站长</a>
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/about.html"><i class="mdui-icon material-icons">people</i> 关于网站</a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/list.html"><i class="mdui-icon material-icons">list</i> <span data-i18n="nav.list">资源列表</span></a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/sponsor.html"><i class="mdui-icon material-icons">card_giftcard</i> <span data-i18n="nav.sponsor">赞助站长</span></a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/about.html"><i class="mdui-icon material-icons">people</i> <span data-i18n="nav.about">关于网站</span></a>
     </div>
   </div>
 
   <!-- 网站设置 -->
   <div class="mdui-panel-item mdui-panel-item-open">
     <div class="mdui-panel-item-header mdui-ripple">
-      <div class="mdui-panel-item-title">网站设置</div>
+      <div class="mdui-panel-item-title" data-i18n="nav.settings">网站设置</div>
       <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
     </div>
     <div class="mdui-panel-item-body">
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/behavior.html"><i class="mdui-icon material-icons">settings</i> 行为设置</a>
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/theme.html"><i class="mdui-icon material-icons">style</i> 主题设置</a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/behavior.html"><i class="mdui-icon material-icons">settings</i> <span data-i18n="nav.behavior">行为设置</span></a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/theme.html"><i class="mdui-icon material-icons">style</i> <span data-i18n="nav.theme">主题设置</span></a>
     </div>
   </div>
 
   <!-- 页面操作 -->
   <div class="mdui-panel-item mdui-panel-item-open">
     <div class="mdui-panel-item-header mdui-ripple">
-      <div class="mdui-panel-item-title">页面操作</div>
+      <div class="mdui-panel-item-title" data-i18n="nav.pageOps">页面操作</div>
       <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
     </div>
     <div class="mdui-panel-item-body">
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="javascript:location.reload(true)"><i class="mdui-icon material-icons">refresh</i> 硬刷新</a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="javascript:location.reload(true)"><i class="mdui-icon material-icons">refresh</i> <span data-i18n="nav.hardRefresh">硬刷新</span></a>
+    </div>
+  </div>
+
+  <!-- 语言切换 -->
+  <div class="mdui-panel-item mdui-panel-item-open">
+    <div class="mdui-panel-item-header mdui-ripple">
+      <div class="mdui-panel-item-title" data-i18n="i18n.switchLang">语言</div>
+      <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+    </div>
+    <div class="mdui-panel-item-body">
+      <div class="mdui-row-xs-2">
+        <div class="mdui-col">
+          <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple xf-lang-btn" data-lang="zh-CN" href="javascript:void(0)"><span data-i18n="i18n.langZh">中文</span></a>
+        </div>
+        <div class="mdui-col">
+          <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple xf-lang-btn" data-lang="en-US" href="javascript:void(0)"><span data-i18n="i18n.langEn">English</span></a>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- 回到旧版 -->
   <div class="mdui-panel-item">
     <div class="mdui-panel-item-header mdui-ripple">
-      <div class="mdui-panel-item-title">回到旧版</div>
+      <div class="mdui-panel-item-title" data-i18n="nav.oldVersion">回到旧版</div>
       <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
     </div>
     <div class="mdui-panel-item-body">
       <div class="mdui-typo">
-        <p>旧版网站将不会有任何更新，不建议使用，仅作纪念。</p>
+        <p data-i18n="nav.oldVersionDesc">旧版网站将不会有任何更新，不建议使用，仅作纪念。</p>
       </div>
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="https://next.foldcraftlauncher.cn" target="_blank"><i class="mdui-icon material-icons">history</i> NEXT版</a>
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="https://mdui.foldcraftlauncher.cn" target="_blank"><i class="mdui-icon material-icons">history</i> mdui版</a>
-      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="https://old.foldcraftlauncher.cn" target="_blank"><i class="mdui-icon material-icons">history</i> 初版</a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="https://next.foldcraftlauncher.cn" target="_blank"><i class="mdui-icon material-icons">history</i> <span data-i18n="nav.nextVersion">NEXT版</span></a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="https://mdui.foldcraftlauncher.cn" target="_blank"><i class="mdui-icon material-icons">history</i> <span data-i18n="nav.mduiVersion">mdui版</span></a>
+      <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="https://old.foldcraftlauncher.cn" target="_blank"><i class="mdui-icon material-icons">history</i> <span data-i18n="nav.firstVersion">初版</span></a>
     </div>
   </div>
 
   <!-- 建议反馈（由 JS 动态加载） -->
   <div class="mdui-panel-item mdui-panel-item-open">
     <div class="mdui-panel-item-header mdui-ripple">
-      <div class="mdui-panel-item-title">建议反馈</div>
+      <div class="mdui-panel-item-title" data-i18n="nav.feedback">建议反馈</div>
       <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
     </div>
     <div class="mdui-panel-item-body" id="drawer-feedback"></div>
@@ -68,18 +86,18 @@
   <!-- 网站信息 -->
   <div class="mdui-panel-item mdui-panel-item-open">
     <div class="mdui-panel-item-header mdui-ripple">
-      <div class="mdui-panel-item-title">网站信息</div>
+      <div class="mdui-panel-item-title" data-i18n="nav.siteInfo">网站信息</div>
       <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
     </div>
     <div class="mdui-panel-item-body">
       <div class="mdui-typo">
         <p>这坨屎山已经非常松弛地运行了<span id="drawer-runtime"></span>。</p>
-        <p>此网站是完全开源的，GH仓库见下方链接。</p>
+        <p data-i18n="nav.siteInfoOpenSource">此网站是完全开源的，GH仓库见下方链接。</p>
         <a href="https://github.com/XiaoluoFoxington/FCL.downsite.NEW" target="_blank" rel="noopener noreferrer">https://github.com/XiaoluoFoxington/FCL.downsite.NEW</a>
         <p>此网站使用 <a target="_blank" title="51la网站统计" href="https://v6.51.la/land/3Qf548Mk9X7m1VlP" target="_blank" rel="noopener noreferrer"><img src="https://sdk.51.la/icon/1-1.png" alt="51.la 统计"></a> 统计访问信息，公开的详细报表见下方链接。</p>
         <a href="https://v6.51.la/s/8ze51w1tHeLPJUz" target="_blank" rel="noopener noreferrer">https://v6.51.la/s/8ze51w1tHeLPJUz</a>
         <hr>
-        <p>COPYRIGHT 2026 XIAOLUOFOXINGTON</p>
+        <p data-i18n="nav.copyright">COPYRIGHT 2026 XIAOLUOFOXINGTON</p>
         <a href="https://beian.miit.gov.cn" target="_blank" rel="noopener noreferrer">新ICP备2024015133号-7</a>
       </div>
     </div>

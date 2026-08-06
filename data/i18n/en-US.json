@@ -1,0 +1,189 @@
+{
+  "site": {
+    "name": "FCL Download Site",
+    "description": "A community-built download site providing FCL launcher and related resources, including launchers, renderers, drivers, and plugins for playing Minecraft Java Edition on Android devices.",
+    "ogDescription": "A community-built public download site for FCL launcher and Minecraft Java Edition Android resources.",
+    "nameShort": "FCL Download"
+  },
+  "nav": {
+    "title": "Navigation",
+    "list": "Resource List",
+    "sponsor": "Sponsor",
+    "about": "About",
+    "home": "Home",
+    "back": "Back",
+    "detail": "Details",
+    "settings": "Settings",
+    "behavior": "Behavior",
+    "theme": "Theme",
+    "pageOps": "Page Actions",
+    "hardRefresh": "Hard Refresh",
+    "oldVersion": "Old Version",
+    "oldVersionDesc": "The old site will not receive any updates. Not recommended, kept for memories only.",
+    "nextVersion": "NEXT Version",
+    "mduiVersion": "mdui Version",
+    "firstVersion": "First Version",
+    "feedback": "Feedback",
+    "feedbackLoading": "Loading feedback channels...",
+    "feedbackEmpty": "No feedback channels available",
+    "feedbackVia": "Via {name}",
+    "siteInfo": "Site Info",
+    "siteInfoRuntime": "This site has been running smoothly for {time}.",
+    "siteInfoOpenSource": "This site is fully open source. See the GitHub repo link below.",
+    "siteInfoStats": "This site uses {service} for analytics. Public reports are available via the link below.",
+    "copyright": "COPYRIGHT 2026 XIAOLUOFOXINGTON"
+  },
+  "drawer": {
+    "loading": "Loading...",
+    "newAnnouncement": "New announcement"
+  },
+  "index": {
+    "navTitle": "Navigation",
+    "quickAccess": "Quick Access",
+    "quickAccessDesc": "Want to download Fold Craft Launcher directly? Click the button below.",
+    "downloadFCL": "Download Fold Craft Launcher",
+    "welcome": "🎉 FCL Download Site 🎉",
+    "welcomeText": "Welcome to this unofficial FCL download site built by the player community!",
+    "welcomeHere": "Here you can download:",
+    "launchers": "Multiple launchers (FCL, ZL(2), Amethyst-android, etc.)",
+    "renderers": "Renderer plugins",
+    "vulkan": "Vulkan driver plugins",
+    "jre": "JRE",
+    "ffmpeg": "Pojav FFmpeg Plugin",
+    "onlineTools": "Online multiplayer tools",
+    "enjoy": "Enjoy!",
+    "sponsorText": "Direct download links consume significant traffic. If you can, please consider <a href=\"/html/sponsor.html\">sponsoring the site owner</a> or helping spread the word! Your support helps us do better! Of course, you can still download without sponsoring qwq!"
+  },
+  "list": {
+    "title": "Resource List",
+    "description": "Browse all available resources on FCL Download Site, including Fold Craft Launcher, Zalith Launcher, Pojav Launcher, MobileGlues, HMCL launchers, renderers, and plugins. Filter and search supported.",
+    "ogDescription": "Browse and filter all available resources on FCL Download Site.",
+    "twitterDescription": "Browse and filter all available resources on FCL Download Site.",
+    "filter": "Filter",
+    "searchLabel": "Search:",
+    "searchPlaceholder": "Search",
+    "tagLabel": "Tags:",
+    "relationLabel": "Relation: Search term",
+    "and": "AND",
+    "or": "OR",
+    "not": "NOT",
+    "tagAndTag": "Tag",
+    "relationSuffix": "Tag.",
+    "listTitle": "List"
+  },
+  "about": {
+    "title": "About",
+    "description": "Learn about FCL Download Site - a community-built public download site for Minecraft Java Edition Android launchers and resources. View site background, contributors, download line providers, and open source projects used.",
+    "ogDescription": "Learn about the background, contributors, and open source projects of FCL Download Site.",
+    "aboutSection": "About",
+    "aboutP1": "Minecraft, as a sandbox game with high freedom, has an extremely large player ecosystem. From launchers, modpacks, and shader packs to world saves, gameplay videos, and tutorials - the community's creations are diverse. However, the largest group remains ordinary players. The other side of high freedom is that it directly or indirectly raises the entry barrier. We hope to do our best to help ordinary players avoid detours and focus more on the game itself.",
+    "aboutP2": "With the improvement of mobile phone performance, more and more people want to play Minecraft: Java Edition on Android devices. In this context, various developers have contributed out of passion, resulting in many open-source and free launcher projects.",
+    "aboutP3": "Fold Craft Launcher Download Site is a non-profit unofficial download site. We sincerely thank every developer and every player who supports us.",
+    "aboutP4": "XiaoluoFoxington, as the site owner, maintains this site and provides Line 1 download source. Developers like Wanmeng have also contributed to this site. Haha252 and others have provided additional download lines that greatly relieve traffic pressure. Ningmei provided the domain name for this site. In addition, we are grateful to all the enthusiastic friends for their sponsorship, support, and encouragement!",
+    "aboutP5": "We stand on the shoulders of giants. Compared to this site, the launcher and software developers behind it have it even harder - they have invested more time and energy, and most have chosen to open source everything without reservation. Their spirit of selfless dedication and open sharing deserves to be praised and learned by everyone. Thank you again for their contributions!",
+    "aboutP6": "This site is not the official Minecraft website, nor the official website of any launcher. It has no affiliation with Mojang, Microsoft, or any launcher developers. This site is solely a public-interest resource aggregation and sharing website, aiming to provide convenient download services for ordinary players.",
+    "aiSection": "AI Usage",
+    "aiP1": "This site used AI assistance during development, including some code, documentation, and images.",
+    "aiP2": "We treat AI as a tool rather than a worker, and will not let AI take full responsibility for the site's operation and maintenance.",
+    "linesSection": "Download Lines",
+    "linesProvider": "Provider",
+    "linesLine": "Line",
+    "contributorsSection": "Site Development Contributors (in no particular order)",
+    "ossSection": "Open Source Projects Used",
+    "ossName": "Project Name",
+    "ossDesc": "Description",
+    "ossUsage": "Usage",
+    "ossVersion": "Version",
+    "ossLink": "Link",
+    "ossLicense": "License"
+  },
+  "sponsor": {
+    "title": "Sponsor",
+    "description": "Support FCL Download Site and its developers. Sponsor the site or open source project developers like Fold Craft Launcher, Zalith Launcher, Pojav Launcher, MobileGlues, etc.",
+    "ogDescription": "Support FCL Download Site and the open source project developers behind it.",
+    "otherDevs": "Sponsor Other Developers",
+    "otherDevsDesc": "Compared to this download site, the developers behind it have put in more effort. If you want to sponsor someone other than this site, please select the project you want to sponsor below.",
+    "table": "Table",
+    "developer": "Developer",
+    "project": "Project",
+    "sponsorLink": "Sponsor Link",
+    "sponsorSite": "Sponsor This Site's Developer",
+    "sponsorSiteDesc": "Download traffic costs are high, and we have always insisted on keeping this site non-profit and ad-free. If you find this site helpful and your financial situation allows, please consider sponsoring me below.",
+    "sponsorSiteDesc2": "I will regularly distribute sponsorship shares to other developers who have contributed to this site. You can check below.",
+    "sponsorNote1": "I may NOT use all the sponsorship I receive for the development of this site.",
+    "sponsorNote2": "Sponsorship is purely voluntary. You can use the site normally without sponsoring. Please consider your financial situation before deciding to sponsor. Sponsorship is non-refundable."
+  },
+  "detail": {
+    "title": "Resource Details",
+    "description": "View detailed information about resources on FCL Download Site, including version numbers, supported Android versions, download line configurations, etc.",
+    "ogDescription": "View detailed resource information and download line configurations.",
+    "operations": "Operations",
+    "download": "Download",
+    "introDoc": "Introduction",
+    "versionHistory": "Version History",
+    "message": "Messages",
+    "basicInfo": "Basic Info",
+    "name": "Name",
+    "value": "Value",
+    "linesPreview": "Download Lines Preview",
+    "randomSelect": "Random selection:",
+    "lineId": "Line ID",
+    "lineName": "Line Name",
+    "fullApiUrl": "Full API URL",
+    "inRandom": "In Random Selection"
+  },
+  "down": {
+    "title": "Download",
+    "description": "High-speed download of Minecraft Java Edition Android launchers, renderers, drivers, and plugins from FCL Download Site, with multiple download lines available.",
+    "ogDescription": "High-speed download of Minecraft Java Edition Android related launchers, renderers, and plugins.",
+    "twitterDescription": "High-speed download of Minecraft Java Edition Android related resources.",
+    "download": "Download",
+    "forceStop": "Force Stop Loading"
+  },
+  "intro": {
+    "title": "Introduction",
+    "description": "View detailed introduction documents for resources on FCL Download Site, learn about software features, usage instructions, and related information.",
+    "ogDescription": "View detailed introduction documents and usage instructions."
+  },
+  "theme": {
+    "title": "Theme Settings",
+    "description": "Customize the appearance of FCL Download Site. Switch between light/dark/auto mode, select primary and accent colors.",
+    "ogDescription": "Customize the appearance and color scheme of FCL Download Site.",
+    "themeSection": "Theme Settings",
+    "theme": "Theme",
+    "primary": "Primary",
+    "accent": "Accent"
+  },
+  "behavior": {
+    "title": "Behavior Settings",
+    "description": "Configure behavior preferences for FCL Download Site, including byte formatting prefix, default resource list opening method, sponsor reminders, and other personalized settings.",
+    "ogDescription": "Configure behavior preferences and personalized settings for FCL Download Site."
+  },
+  "rh": {
+    "title": "Version History",
+    "description": "View version history of resources on FCL Download Site, including update contents and change details for each version.",
+    "ogDescription": "View version history and update contents of resources."
+  },
+  "announcement": {
+    "title": "Announcement",
+    "loading": "Loading announcement..."
+  },
+  "sponsorRemind": {
+    "title": "We Need Your Support!",
+    "visitCount": "Hello! You have visited this site {count} times!",
+    "description": "Download traffic costs are high and site operation is challenging. We have always insisted on keeping this site open source, ad-free, and non-profit. If you find this site helpful and your financial situation allows, you are welcome to sponsor us! Your sponsorship will help us continue operating this site. Thank you very much!",
+    "notMandatory": "This is not mandatory. You can choose not to sponsor. This prompt appears only because your visit count has reached a multiple of 10. If you do not click \"Close Forever\", this prompt will appear again when your visit count reaches the next multiple of 10.",
+    "sponsorUs": "Sponsor Us",
+    "closeForever": "Close Forever"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error: {message}",
+    "retry": "Retry"
+  },
+  "i18n": {
+    "switchLang": "Language",
+    "langZh": "中文",
+    "langEn": "English"
+  }
+}

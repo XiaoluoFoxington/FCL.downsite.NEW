@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-cn">
+<html lang="zh-CN">
 
 <head>
   <meta charset="utf-8">
@@ -10,11 +10,11 @@
   <link rel="stylesheet" href="/css/mdui.patch.css">
   <link rel="stylesheet" href="/css/xf.css">
   <link rel="icon" href="/data/software/0/icon.avif">
-  <title>资源详情 - FCL下载站</title>
-  <meta name="description" content="查看FCL下载站中资源的详细信息，包括版本号、支持的Android版本、下载线路配置等。">
+  <title data-i18n="detail.title">资源详情 - FCL下载站</title>
+  <meta data-i18n="detail.description" name="description" content="查看FCL下载站中资源的详细信息，包括版本号、支持的Android版本、下载线路配置等。">
   <meta name="keywords" content="资源详情, 软件信息, 版本信息, 下载线路, FCL, 我的世界启动器">
   <meta property="og:title" content="资源详情 - FCL下载站">
-  <meta property="og:description" content="查看资源的详细信息与下载线路配置。">
+  <meta data-i18n="detail.ogDescription" property="og:description" content="查看资源的详细信息与下载线路配置。">
   <meta property="og:image" content="/media/img/thumbnail/thumbnail.webp">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
@@ -41,7 +41,7 @@
     <div class="mdui-panel" mdui-panel>
       <div class="mdui-panel-item mdui-panel-item-open">
         <div class="mdui-panel-item-header mdui-ripple">
-          <div>操作</div>
+          <div data-i18n="detail.operations">操作</div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body" id="operationTable">
@@ -49,13 +49,13 @@
             <div class="mdui-row">
               <div class="mdui-col-xs-12 mdui-col-sm-4">
                 <!-- 禁用是因为此时还未初始化下载控制器，直接点击会报错未提供软件ID。MDUI 已处理 <a disabled> 的样式与交互。 -->
-                <a id="btn-download" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/down.html" disabled><i class="mdui-icon material-icons">file_download</i> 下载资源</a>
+                <a id="btn-download" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/down.html" disabled><i class="mdui-icon material-icons">file_download</i> <span data-i18n="detail.download">下载资源</span></a>
               </div>
               <div class="mdui-col-xs-12 mdui-col-sm-4">
-                <a id="btn-intro" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/intro.html" disabled><i class="mdui-icon material-icons">description</i> 介绍文档</a>
+                <a id="btn-intro" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/intro.html" disabled><i class="mdui-icon material-icons">description</i> <span data-i18n="detail.introDoc">介绍文档</span></a>
               </div>
               <div class="mdui-col-xs-12 mdui-col-sm-4">
-                <a id="btn-history" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/rh.html" disabled><i class="mdui-icon material-icons">track_changes</i> 版本历史</a>
+                <a id="btn-history" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/rh.html" disabled><i class="mdui-icon material-icons">track_changes</i> <span data-i18n="detail.versionHistory">版本历史</span></a>
               </div>
             </div>
           </div>
@@ -63,7 +63,7 @@
       </div>
       <div class="mdui-panel-item mdui-panel-item-open" id="messageWrapper" hidden>
         <div class="mdui-panel-item-header mdui-ripple">
-          <div>消息</div>
+          <div data-i18n="detail.message">消息</div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body">
@@ -74,7 +74,7 @@
       <div id="sponsorRemindContainer"></div>
       <div class="mdui-panel-item mdui-panel-item-open">
         <div class="mdui-panel-item-header mdui-ripple">
-          <div>基本信息</div>
+          <div data-i18n="detail.basicInfo">基本信息</div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body mdui-typo" id="infoTable">
@@ -82,8 +82,8 @@
             <table class="mdui-table">
               <thead>
                 <tr>
-                  <th>名称</th>
-                  <th>值</th>
+                  <th data-i18n="detail.name">名称</th>
+                  <th data-i18n="detail.value">值</th>
                 </tr>
               </thead>
               <tbody id="basic-info-body">
@@ -96,7 +96,7 @@
 
       <div class="mdui-panel-item mdui-panel-item-open">
         <div class="mdui-panel-item-header mdui-ripple">
-          <div>线路预览</div>
+          <div data-i18n="detail.linesPreview">线路预览</div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body mdui-typo">
@@ -107,10 +107,10 @@
             <table class="mdui-table">
               <thead>
                 <tr>
-                  <th>线路ID</th>
-                  <th>线路名称</th>
-                  <th>完整API URL</th>
-                  <th>参与随机选择</th>
+                  <th data-i18n="detail.lineId">线路ID</th>
+                  <th data-i18n="detail.lineName">线路名称</th>
+                  <th data-i18n="detail.fullApiUrl">完整API URL</th>
+                  <th data-i18n="detail.inRandom">参与随机选择</th>
                 </tr>
               </thead>
               <tbody id="mirror-info-body">

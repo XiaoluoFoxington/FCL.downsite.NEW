@@ -1,0 +1,189 @@
+{
+  "site": {
+    "name": "FCL下载站",
+    "description": "这是由玩家社区自发搭建的提供FCL启动器等众多相关资源下载站，提供包括但不限于启动器、渲染器、驱动等软件与插件的下载，帮助您在Android设备上游玩我的世界Java版。",
+    "ogDescription": "由玩家社区搭建的FCL启动器及我的世界Java版Android相关资源公益下载站。",
+    "nameShort": "FCL下载站"
+  },
+  "nav": {
+    "title": "网站导航",
+    "list": "资源列表",
+    "sponsor": "赞助站长",
+    "about": "关于网站",
+    "home": "首页",
+    "back": "返回",
+    "detail": "详情",
+    "settings": "网站设置",
+    "behavior": "行为设置",
+    "theme": "主题设置",
+    "pageOps": "页面操作",
+    "hardRefresh": "硬刷新",
+    "oldVersion": "回到旧版",
+    "oldVersionDesc": "旧版网站将不会有任何更新，不建议使用，仅作纪念。",
+    "nextVersion": "NEXT版",
+    "mduiVersion": "mdui版",
+    "firstVersion": "初版",
+    "feedback": "建议反馈",
+    "feedbackLoading": "正在加载反馈渠道……",
+    "feedbackEmpty": "暂无可用的反馈渠道",
+    "feedbackVia": "通过 {name}",
+    "siteInfo": "网站信息",
+    "siteInfoRuntime": "这坨屎山已经非常松弛地运行了{time}。",
+    "siteInfoOpenSource": "此网站是完全开源的，GH仓库见下方链接。",
+    "siteInfoStats": "此网站使用 {service} 统计访问信息，公开的详细报表见下方链接。",
+    "copyright": "COPYRIGHT 2026 XIAOLUOFOXINGTON"
+  },
+  "drawer": {
+    "loading": "正在加载……",
+    "newAnnouncement": "有新公告"
+  },
+  "index": {
+    "navTitle": "网站导航",
+    "quickAccess": "开门见山",
+    "quickAccessDesc": "想直接下载Fold Craft Launcher？点击下方按钮直接跳转。",
+    "downloadFCL": "下载 Fold Craft Launcher",
+    "welcome": "🎉 FCL 下载站 🎉",
+    "welcomeText": "欢迎来到这个由玩家社区搭建的非官方 FCL 下载站！",
+    "welcomeHere": "在这里，您可以下载到：",
+    "launchers": "多种启动器（FCL、ZL(2)与Amethyst-android等）",
+    "renderers": "渲染器插件",
+    "vulkan": "Vulkan 驱动插件",
+    "jre": "JRE",
+    "ffmpeg": "Pojav FFmpeg Plugin",
+    "onlineTools": "联机工具",
+    "enjoy": "尽情享受吧！",
+    "sponsorText": "直链流量消耗巨大，若您有余力，请考虑<a href=\"/html/sponsor.html\">赞助站长</a>或者帮忙宣传宣传！您的支持将帮助我们做得更好！当然，不赞助也能正常下载 qwq！"
+  },
+  "list": {
+    "title": "资源列表",
+    "description": "浏览FCL下载站所有可用资源，包括Fold Craft Launcher、Zalith Launcher、Pojav Launcher、MobileGlues、HMCL等启动器、渲染器与插件，支持筛选和搜索。",
+    "ogDescription": "浏览并筛选FCL下载站所有可用资源，包含启动器、渲染器、插件等。",
+    "twitterDescription": "浏览并筛选FCL下载站所有可用资源。",
+    "filter": "筛选",
+    "searchLabel": "搜索词：",
+    "searchPlaceholder": "搜索",
+    "tagLabel": "标签：",
+    "relationLabel": "关系：搜索词",
+    "and": "与",
+    "or": "或",
+    "not": "非",
+    "tagAndTag": "标签",
+    "relationSuffix": "标签。",
+    "listTitle": "列表"
+  },
+  "about": {
+    "title": "关于网站",
+    "description": "了解FCL下载站——由玩家社区搭建的我的世界Java版Android启动器与资源公益下载站。查看网站背景、贡献者名单、下载线路提供者及使用的开源项目。",
+    "ogDescription": "了解FCL下载站的背景、贡献者与开源项目。",
+    "aboutSection": "关于",
+    "aboutP1": "《我的世界》（《Minecraft》）作为高自由度的沙盒游戏，拥有极其庞大的玩家生态。大到启动器、模组包与光影包，小到世界存档、游玩视频与教程攻略，这些玩家社区成果都是百花齐放的。然而，基数最大的还得是普通玩家。但是，高自由度的另一面，也直接或间接提高了入门门槛。我们希望尽我们所能，帮助普通玩家少走一些弯路，更专注于游戏本身。",
+    "aboutP2": "随着手机性能的提升，有越来越多人希望在Android设备上游玩《我的世界：Java版》（《Minecraft: Java Edition》）。在此背景下，各大开发者为爱发电，涌现了众多开源免费的启动器项目。",
+    "aboutP3": "Fold Craft Launcher 下载站是具有公益性质的非官方下载站。我们真挚地感谢支持我们的每一位开发者与每一位玩家。",
+    "aboutP4": "洛狐XiaoluoFoxington作为此站站长，持续维护此站的同时还提供了线路1下载源；晚梦等开发者所做出的贡献也为此站添砖加瓦；哈哈haha252等提供的其它下载线路源极大地解决了流量压力；柠枺提供了此站域名。此外，也离不开各位热心朋友的赞助、支持与鼓励！",
+    "aboutP5": "我们站在巨人的肩膀上，相比起此站，网站背后的启动器或软件开发者也不容易——他们付出了更多的时间与精力，且大多都选择了毫无保留地全部开源。他们这种无私奉献、开源共享的精神，值得我们每一个人歌颂与学习。再次感谢他们的付出！",
+    "aboutP6": "此站并非Minecraft官方网站，亦非任何启动器的官方网站。与Mojang、微软以及各启动器的开发者，均无任何隶属关系。此站仅为公益性质的资源整合与分享网站，旨在为普通玩家提供便捷的下载服务。",
+    "aiSection": "AI 使用说明",
+    "aiP1": "此站在开发过程中使用了 AI 辅助，包括部分代码、文档与图像。",
+    "aiP2": "我们将 AI 视为工具而不是工人，不会让 AI 全权负责网站的运营与维护。",
+    "linesSection": "线路对照表",
+    "linesProvider": "提供者",
+    "linesLine": "线路",
+    "contributorsSection": "网站开发贡献者列表（排名不分先后）",
+    "ossSection": "使用的开源项目",
+    "ossName": "项目名称",
+    "ossDesc": "项目描述",
+    "ossUsage": "使用描述",
+    "ossVersion": "使用版本",
+    "ossLink": "项目链接",
+    "ossLicense": "开源协议"
+  },
+  "sponsor": {
+    "title": "赞助支持",
+    "description": "支持FCL下载站及其背后的开发者。赞助本站或Fold Craft Launcher、Zalith Launcher、Pojav Launcher、MobileGlues等开源项目开发者。",
+    "ogDescription": "支持FCL下载站及其背后的开源项目开发者。",
+    "otherDevs": "赞助其他开发者",
+    "otherDevsDesc": "相比起此下载站，背后的开发者们作出了比此站更多的努力。如果您想赞助的不是此站，请在下方选择您想赞助的项目。",
+    "table": "表格",
+    "developer": "开发者",
+    "project": "代表项目",
+    "sponsorLink": "赞助链接",
+    "sponsorSite": "赞助此网站开发者",
+    "sponsorSiteDesc": "下载流量费用高昂，我们一直坚守使此站保持公益性质。如果您觉得此站对您有帮助，可考虑在下方赞助我。",
+    "sponsorSiteDesc2": "我会定期将赞助分成给其他为此站做出贡献的开发者，可在下方查看。",
+    "sponsorNote1": "我可能并不会将我最终得到的赞助全部用于此站开发。",
+    "sponsorNote2": "赞助为纯自愿。不赞助也能正常使用网站。请结合您的经济状况实力再考虑是否要赞助。赞助后无法退款。"
+  },
+  "detail": {
+    "title": "资源详情",
+    "description": "查看FCL下载站中资源的详细信息，包括版本号、支持的Android版本、下载线路配置等。",
+    "ogDescription": "查看资源的详细信息与下载线路配置。",
+    "operations": "操作",
+    "download": "下载资源",
+    "introDoc": "介绍文档",
+    "versionHistory": "版本历史",
+    "message": "消息",
+    "basicInfo": "基本信息",
+    "name": "名称",
+    "value": "值",
+    "linesPreview": "线路预览",
+    "randomSelect": "随机选择线路：",
+    "lineId": "线路ID",
+    "lineName": "线路名称",
+    "fullApiUrl": "完整API URL",
+    "inRandom": "参与随机选择"
+  },
+  "down": {
+    "title": "下载资源",
+    "description": "从FCL下载站高速下载Fold Craft Launcher等我的世界Java版Android启动器、渲染器、驱动及插件资源，提供多种下载线路。",
+    "ogDescription": "高速下载我的世界Java版Android相关启动器、渲染器与插件资源。",
+    "twitterDescription": "高速下载我的世界Java版Android相关资源。",
+    "download": "下载",
+    "forceStop": "强行终止加载"
+  },
+  "intro": {
+    "title": "介绍文档",
+    "description": "查看FCL下载站中资源的详细介绍文档，了解软件功能、使用方法及相关说明。",
+    "ogDescription": "查看资源的详细介绍文档与使用说明。"
+  },
+  "theme": {
+    "title": "主题设置",
+    "description": "自定义FCL下载站的外观主题，切换明亮/暗色/自动模式，选择主色和强调色，打造个性化浏览体验。",
+    "ogDescription": "自定义FCL下载站的外观主题与配色方案。",
+    "themeSection": "主题设置",
+    "theme": "主题",
+    "primary": "主色",
+    "accent": "强调色"
+  },
+  "behavior": {
+    "title": "行为设置",
+    "description": "配置FCL下载站的行为偏好，包括字节数格式化前缀、资源列表默认打开方式、赞助提醒等个性化设置。",
+    "ogDescription": "配置FCL下载站的行为偏好与个性化设置。"
+  },
+  "rh": {
+    "title": "版本历史",
+    "description": "查看FCL下载站各资源的版本历史记录，了解每个版本的更新内容与变更详情。",
+    "ogDescription": "查看各资源的版本历史与更新内容。"
+  },
+  "announcement": {
+    "title": "网站公告",
+    "loading": "正在加载公告……"
+  },
+  "sponsorRemind": {
+    "title": "我们需要您的赞助！",
+    "visitCount": "您好，您已访问此网站 {count} 次！",
+    "description": "下载流量费用高昂，网站运营困难，我们一直坚守开源、无广告，使此站保持公益性质。如果您觉得此站对您有帮助且您经济条件允许，欢迎赞助我们！您的赞助将帮助我们继续运营此站，非常感谢！",
+    "notMandatory": "这不是强制要求，您完全可以选择不赞助。显示此提示仅仅是因为您的访问次数达到了10的倍数。如果您不点击\"永久关闭\"，此提示将会在您的访问次数再次达到10的倍数时显示。",
+    "sponsorUs": "赞助我们",
+    "closeForever": "永久关闭"
+  },
+  "common": {
+    "loading": "正在加载……",
+    "error": "错误：{message}",
+    "retry": "重试"
+  },
+  "i18n": {
+    "switchLang": "语言",
+    "langZh": "中文",
+    "langEn": "English"
+  }
+}
