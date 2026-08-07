@@ -1,3 +1,5 @@
+import { showToast } from '../common/toast.js';
+
 /**
  * 通用 UI 控件工厂。
  * 集中管理 MDUI 面板、表格、按钮、链接等常用 DOM 结构的创建，
@@ -163,12 +165,18 @@ export function createHR() {
 }
 
 /**
- * 弹出右下角 MDUI Snackbar 提示。
- * @param {string} message 提示文本
- * @param {number} [timeout=5000] 显示时间（毫秒）
- * @param {object} [options] 其它选项
- * @returns {object}
+ * 显示一条 Toast 临时消息。
+ * （直接复制过来的调用，为了兼容已有代码）
+ *
+ * @param {string} content 消息内容，支持 HTML（innerHTML）。
+ * @param {object} [options] 选项。
+ * @param {number} [options.duration=10000] 显示/渐隐时间（毫秒），最小 100ms。
+ * @param {string} [options.size=''] 尺寸：''（默认）| 'sm' | 'lg'。
+ * @param {string} [options.position='bottom-right'] 位置：
+ *   'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'。
+ * @returns {{ close: Function, element: HTMLDivElement }}
+ *   close() 可手动提前关闭；element 为 Toast 的 DOM 引用。
  */
-export function showSnackbar(message, timeout = 5000, options = {}) {
-  return window.mdui?.snackbar({ message, timeout, position: 'right-bottom', ...options });
+export function showSnackbar(content, options = {}) {
+  return showToast(content, options);
 }
