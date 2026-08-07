@@ -42,31 +42,37 @@
           <div>筛选<i id="filter-active-indicator" class="mdui-icon material-icons xf-filter-active-indicator xf-hide">filter_list</i></div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
-        <div class="mdui-panel-item-body">
-          <div class="mdui-typo"><p>搜索词：</p></div>
-          <div class="mdui-textfield">
-            <input class="mdui-textfield-input" type="text" placeholder="搜索" />
+        <div class="mdui-panel-item-body mdui-row">
+          <div class="mdui-col-xs-12 mdui-col-sm-6">
+            <div class="mdui-textfield">
+              <label class="mdui-textfield-label">搜索词</label>
+              <input class="mdui-textfield-input" type="text" placeholder="显示所有" />
+            </div>
+            <div class="mdui-typo">
+              <p>
+                关系：搜索词
+                <select id="relation-between-searchWord-and-tag" class="mdui-select">
+                  <option value="and">与</option>
+                  <option value="or">或</option>
+                  <option value="not">非</option>
+                </select>
+                标签
+                <select id="relation-between-tag-and-tag" class="mdui-select">
+                  <option value="and">与</option>
+                  <option value="or">或</option>
+                </select>
+                标签。
+              </p>
+            </div>
           </div>
-          <div class="mdui-typo"><p>标签：</p></div>
-          <div id="filter-tag">
-            <!-- 将由JS生成，下方为示例 -->
-            <div class="mdui-spinner"></div>
-          </div>
-          <div class="mdui-typo">
-            <p>
-              关系：搜索词
-              <select id="relation-between-searchWord-and-tag" class="mdui-select">
-                <option value="and">与</option>
-                <option value="or">或</option>
-                <option value="not">非</option>
-              </select>
-              标签
-              <select id="relation-between-tag-and-tag" class="mdui-select">
-                <option value="and">与</option>
-                <option value="or">或</option>
-              </select>
-              标签。
-            </p>
+          <div class="mdui-col-xs-12 mdui-col-sm-6">
+            <div class="mdui-typo">
+              <p>标签：</p>
+            </div>
+            <div id="filter-tag">
+              <!-- 将由JS生成，下方为示例 -->
+              <div class="mdui-spinner"></div>
+            </div>
           </div>
         </div>
       </div>
