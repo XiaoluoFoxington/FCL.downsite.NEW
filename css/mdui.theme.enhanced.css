@@ -179,7 +179,7 @@ html[data-xf-theme="dark"] .mdui-panel-item {
 /* 应用栏透明模糊背景 */
 .mdui-appbar>[class*=mdui-color-][class*=mdui-color-]:not(.mdui-color-transparent) {
   color: unset !important;
-  background-color: unset !important;
+  background-color: #80808040 !important;
   backdrop-filter: blur(16px);
 }
 
