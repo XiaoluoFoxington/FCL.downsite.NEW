@@ -212,3 +212,8 @@ html[data-xf-theme="dark"] .mdui-table td:last-child {
 html[data-xf-theme="dark"] .mdui-table-hoverable tbody tr:hover {
   background-color: rgba(255, 255, 255, .12);
 }
+
+/* 神秘之当th设置了color时虽然有!important但td不会继承颜色，因为原版里有在深色主题时强制td为白色 */
+html[data-xf-theme="dark"] .mdui-table td {
+  color: unset;
+}

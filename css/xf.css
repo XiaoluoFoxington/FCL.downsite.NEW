@@ -141,10 +141,6 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   outline-offset: -2px;
 }
 
-.xf-download-buttons-container {
-  text-wrap: nowrap;
-}
-
 #xf-verWatermarkContainer {
   position: fixed;
   bottom: 0;
@@ -171,7 +167,7 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   background: linear-gradient(135deg, #40ff8040 0%, #40ffff40 100%);
 }
 
-.xf-asset-table {
+.xf-nowrap {
   white-space: nowrap;
 }
 

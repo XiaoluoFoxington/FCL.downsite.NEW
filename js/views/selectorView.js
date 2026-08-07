@@ -110,7 +110,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     // 只保留至少有一行内容的元数据列，移动端不浪费横向空间。
     const visibleColumns = COLUMN_DEFINITIONS.filter(([, key]) => key === 'action' || rows.some((row) => row.values[key]));
     const { wrapper, table, thead, tbody } = createFluidTable();
-    table.classList.add('xf-download-buttons-container');
+    table.classList.add('xf-nowrap');
     const header = document.createElement('tr');
     visibleColumns.forEach(([label]) => {
       const cell = document.createElement('th');
@@ -122,7 +122,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     rows.forEach((row) => {
       const tr = document.createElement('tr');
       if (row.hidden) tr.classList.add('xf-filter-hidden');
-      if (row.architecture && row.architecture === matchedArchitecture) tr.classList.add('xf-matched-arch');
+      if (row.architecture && row.architecture === matchedArchitecture) tr.classList.add('mdui-color-theme-accent');
       visibleColumns.forEach(([, key]) => {
         const cell = document.createElement('td');
         if (key === 'action') {
@@ -154,7 +154,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     if (matchedArchitecture && rows.some((row) => row.architecture === matchedArchitecture)) {
       const note = document.createElement('p');
       note.className = 'description mdui-typo';
-      note.textContent = '已匹配当前架构，请留意绿色行（仅供参考，安装失败时请选择 all 架构）。';
+      note.textContent = '已匹配当前架构，请留意高亮行（仅供参考，安装失败时请选择 all 架构）。';
       section.appendChild(note);
     }
 

@@ -145,7 +145,7 @@ function createAssetPanel(asset) {
   const { element: panelItem, body } = createPanelItem(asset.name, { bodyClass: 'mdui-typo' });
 
   const { wrapper } = createFluidTable();
-  wrapper.classList.add('xf-asset-table');
+  wrapper.classList.add('xf-nowrap');
   const tbody = wrapper.querySelector('tbody');
   addTableRow(tbody, '大小', formatBytes(asset.size) || '');
   addTableRow(tbody, '内容类型', asset.content_type || '');
@@ -169,7 +169,7 @@ function createSummaryPanel(assets) {
   const { element: panelItem, body } = createPanelItem('合计');
 
   const { wrapper } = createFluidTable();
-  wrapper.classList.add('xf-asset-table');
+  wrapper.classList.add('xf-nowrap');
   const tbody = wrapper.querySelector('tbody');
   addTableRow(tbody, '总大小', formatBytes(totalSize));
   addTableRow(tbody, '所有下载URL', allUrls.join('\n'));
