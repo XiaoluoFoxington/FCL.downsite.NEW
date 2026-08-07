@@ -22,6 +22,39 @@
   <meta name="twitter:description" content="自定义FCL下载站的外观主题与配色方案。">
   <meta name="twitter:image" content="/media/img/thumbnail/thumbnail.webp">
   <link rel="canonical" href="theme.html">
+
+  <style>
+.color-palette {
+  position:relative;
+  padding:0 0 36px!important;
+  margin:0;
+  list-style:none!important;
+  font-weight:500;
+  font-size:14px
+}
+.color-palette li {
+  padding:15px
+}
+.color-palette .color-divider {
+  margin-top:8px
+}
+.color-palette .main-color .color-name {
+  display:block;
+  margin-bottom:60px
+}
+.color-palette .color-hex {
+  float:right;
+  text-transform:uppercase
+}
+.color-palette .anchor-primary-color {
+  position:absolute;
+  top:-72px
+}
+.color-palette .anchor-accent-color {
+  position:absolute;
+  top:520px
+}
+  </style>
 </head>
 
 <body class="mdui-appbar-with-toolbar mdui-container-fluid mdui-theme-layout-auto">
@@ -117,6 +150,136 @@
           </div>
         </div>
       </div>
+
+      <div class="mdui-panel-item mdui-panel-item-open">
+        <div class="mdui-panel-item-header mdui-ripple">
+          <div>预览</div>
+          <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+        </div>
+        <div class="mdui-panel-item-body">
+          <div class="mdui-panel" mdui-panel>
+            <div class="mdui-panel-item mdui-panel-item-open">
+              <div class="mdui-panel-item-header mdui-ripple">
+                <div>颜色</div>
+                <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+              </div>
+              <div class="mdui-panel-item-body">
+                <div class="mdui-row-xs-1 mdui-row-md-2">
+                  <div class="mdui-col">
+                    <ul class="color-palette">
+                      <li class="mdui-color-theme main-color"><span class="color-name">Primary (主色)</span><span class="color-class">mdui-color-theme</span></li>
+                      <li class="mdui-color-theme-50"><span class="color-class">mdui-color-theme-50</span></li>
+                      <li class="mdui-color-theme-100"><span class="color-class">mdui-color-theme-100</span></li>
+                      <li class="mdui-color-theme-200"><span class="color-class">mdui-color-theme-200</span></li>
+                      <li class="mdui-color-theme-300"><span class="color-class">mdui-color-theme-300</span></li>
+                      <li class="mdui-color-theme-400"><span class="color-class">mdui-color-theme-400</span></li>
+                      <li class="mdui-color-theme-500"><span class="color-class">mdui-color-theme-500</span></li>
+                      <li class="mdui-color-theme-600"><span class="color-class">mdui-color-theme-600</span></li>
+                      <li class="mdui-color-theme-700"><span class="color-class">mdui-color-theme-700</span></li>
+                      <li class="mdui-color-theme-800"><span class="color-class">mdui-color-theme-800</span></li>
+                      <li class="mdui-color-theme-900"><span class="color-class">mdui-color-theme-900</span></li>
+                    </ul>
+                  </div>
+                  <div class="mdui-col">
+                    <ul class="color-palette">
+                      <li class="mdui-color-theme-accent main-color"><span class="color-name">Accent (强调色)</span><span class="color-class">mdui-color-theme-accent</span></li>
+                      <li class="mdui-color-theme-a100"><span class="color-class">mdui-color-theme-a100</span></li>
+                      <li class="mdui-color-theme-a200"><span class="color-class">mdui-color-theme-a200</span></li>
+                      <li class="mdui-color-theme-a400"><span class="color-class">mdui-color-theme-a400</span></li>
+                      <li class="mdui-color-theme-a700"><span class="color-class">mdui-color-theme-a700</span></li>
+                      <li class="mdui-text-color-theme-text"><span>mdui-text-color-theme-text</span><span class="color-hex mdui-visible-light-theme">87%</span><span class="color-hex mdui-visible-dark-theme">100%</span></li>
+                      <li class="mdui-text-color-theme-secondary"><span>mdui-text-color-theme-secondary</span><span class="color-hex mdui-visible-light-theme">54%</span><span class="color-hex mdui-visible-dark-theme">70%</span></li>
+                      <li class="mdui-text-color-theme-disabled"><span>mdui-text-color-theme-disabled</span><span class="color-hex mdui-visible-light-theme">38%</span><span class="color-hex mdui-visible-dark-theme">50%</span></li>
+                      <li class="mdui-text-color-theme-divider"><span>mdui-text-color-theme-divider</span><span class="color-hex mdui-visible-light-theme">12%</span><span class="color-hex mdui-visible-dark-theme">12%</span></li>
+                      <li class="mdui-text-color-theme-icon"><span>mdui-text-color-theme-icon</span><span class="color-hex mdui-visible-light-theme">54%</span><span class="color-hex mdui-visible-dark-theme">100%</span></li>
+                      <li class="mdui-text-color-theme-icon-disabled"><span>mdui-text-color-theme-icon-disabled</span><span class="color-hex mdui-visible-light-theme">26%</span><span class="color-hex mdui-visible-dark-theme">30%</span></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+      
+            <div class="mdui-panel-item mdui-panel-item-open">
+              <div class="mdui-panel-item-header mdui-ripple">
+                <div>排版</div>
+                <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+              </div>
+              <div class="mdui-panel-item-body">
+                <div class="mdui-typo">
+                  <p>这行文本很普通。</p>
+                  <p><a href="#">这是一个链接</a></p>
+                  <p>使用 mark 标签来<mark>高亮文本</mark>。</p>
+                  <p><del>这行文本被视为已删除文本。</del></p>
+                  <p><ins>这行文本是被强势插入的元素。</ins></p>
+                  <p><u>这行文本带有下划线。</u></p>
+                  <p><small>这行文本字体被缩小了。</small></p>
+                  <p><strong>这行文本被加粗了。</strong></p>
+                  <p><em>这段文本是斜体的。</em></p>
+                  <p>响应式设计（<abbr title="Responsive web design">RWD</abbr>）。</p>
+                  <p>这行文本包含内联代码 <code>&lt;code&gt;</code>。</p>
+                  <p>按下 <kbd>Esc</kbd> 可以关闭对话框。</p>
+                  <p><var>y</var> = <var>m</var><var>x</var> + <var>b</var></p>
+                </div>      
+              </div>
+            </div>
+
+            <div class="mdui-panel-item mdui-panel-item-open">
+              <div class="mdui-panel-item-header mdui-ripple">
+                <div>表格</div>
+                <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+              </div>
+              <div class="mdui-panel-item-body mdui-typo">
+                <div class="mdui-table-fluid">
+                  <table class="mdui-table">
+                    <thead>
+                      <tr>
+                        <th>名称</th>
+                        <th>值</th>
+                      </tr>
+                    </thead>
+                    <tbody id="basic-info-body">
+                      <tr>
+                        <td>名称</td>
+                        <td>Fold Craft Launcher</td>
+                      </tr>
+                      <tr>
+                        <td>图标</td>
+                        <td><img src="/data/software/0/icon.avif" alt="Fold Craft Launcher" class="xf-detail-icon" width="64" height="64" loading="lazy"></td>
+                      </tr>
+                      <tr>
+                        <td>ID</td>
+                        <td>0</td>
+                      </tr>
+                      <tr>
+                        <td>TAG</td>
+                        <td>Android, MCJE相关, 启动器</td>
+                      </tr>
+                      <tr>
+                        <td>系统需求</td>
+                        <td>Android 7</td>
+                      </tr>
+                      <tr>
+                        <td>developer</td>
+                        <td><a href="https://github.com/FCL-Team" target="_blank" rel="noopener noreferrer">https://github.com/FCL-Team</a></td>
+                      </tr>
+                      <tr>
+                        <td>official website</td>
+                        <td><a href="https://FCL-Team.github.io/" target="_blank" rel="noopener noreferrer">https://FCL-Team.github.io/</a></td>
+                      </tr>
+                      <tr>
+                        <td>Github</td>
+                        <td><a href="https://github.com/FCL-Team/foldcraftlauncher/" target="_blank" rel="noopener noreferrer">https://github.com/FCL-Team/foldcraftlauncher/</a></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+  
+          </div>
+        </div>   
+      </div>
+
     </div>
   </div>
 

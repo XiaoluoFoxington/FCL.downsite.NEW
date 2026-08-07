@@ -217,3 +217,19 @@ html[data-xf-theme="dark"] .mdui-table-hoverable tbody tr:hover {
 html[data-xf-theme="dark"] .mdui-table td {
   color: unset;
 }
+
+/* 新增的样式 */
+
+/* 仅浅色时可见 */
+.mdui-visible-light-theme {
+  display: unset;
+}
+.mdui-visible-dark-theme {
+  display: none;
+}
+html[data-xf-theme="dark"] .mdui-visible-light-theme {
+  display: none;
+}
+html[data-xf-theme="dark"] .mdui-visible-dark-theme {
+  display: unset;
+}
