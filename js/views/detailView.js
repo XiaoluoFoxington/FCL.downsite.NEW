@@ -3,6 +3,7 @@ import { renderStatus, renderMessages, renderTableStatus, setErrorTitle, setSoft
 import { isSafeNavigationUrl, joinUrl } from '../security/content.js';
 import { createExternalLink, createGrid, createMaterialIcon } from './uiComponents.js';
 import { isBookmarked, toggleBookmark, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
+import { readPreference } from '../domain/preferences.js';
 
 // 反馈渠道异步请求的取消控制器：renderDetail 成功或再次进入 renderDetailError 时 abort 旧的，
 // 既保护 DOM 不被旧响应写入，也取消进行中的网络请求避免无谓流量。
@@ -117,10 +118,11 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   setSoftwareHeader(basic, { titlePrefix: '资源详情' });
   elements.operations.hidden = false;
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
+  const iconTd = '图标';
   // value 可以是字符串，也可以是受本 view 创建的安全 DOM 节点（图标或外链）。
   const rows = [
     ['名称', basic.name],
-    ['图标', createIcon(basic)],
+    [iconTd, createIcon(basic)],
     ['ID', String(id)],
     ['TAG', basic.tagIds.map((tagId) => tagMap.get(tagId) || String(tagId)).join(', ')],
     detail.OSRequest?.length ? ['系统需求', formatOSRequest(detail.OSRequest)] : null,
@@ -133,6 +135,7 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
     const nameCell = document.createElement('td');
     const valueCell = document.createElement('td');
     nameCell.textContent = name;
+    if (name === iconTd) valueCell.style.lineHeight = '0'; // 消除图标下方的空白
     if (value instanceof Node) valueCell.appendChild(value);
     else valueCell.textContent = value;
     row.append(nameCell, valueCell);
@@ -159,12 +162,13 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
  * @returns {HTMLImageElement} 图标元素
  */
 function createIcon(basic) {
+  const iconSize = Number(readPreference('fdn-detail-icon-size', '64'));
   const image = document.createElement('img');
   image.src = basic.icon || '/media/img/picMissing.webp';
   image.alt = basic.name;
   image.className = 'xf-detail-icon';
-  image.width = 64;
-  image.height = 64;
+  image.width = iconSize;
+  image.height = iconSize;
   image.loading = 'lazy';
   return image;
 }

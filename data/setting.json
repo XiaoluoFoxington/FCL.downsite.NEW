@@ -79,6 +79,20 @@
             "storageKey": "fdn-default-open-method"
           }
         ]
+      },
+      {
+        "name": "detail",
+        "label": "详情页",
+        "children": [
+          {
+            "id": 5,
+            "name": "图标尺寸（px）",
+            "type": "number",
+            "min": 1,
+            "default": 64,
+            "storageKey": "fdn-detail-icon-size"
+          }
+        ]
       }
     ]
   }
