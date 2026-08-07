@@ -45,7 +45,7 @@ async function renderAnnouncement(container, html, hash, isNew) {
   headerTitle.textContent = '网站公告';
   if (isNew) {
     const badge = document.createElement('i');
-    badge.className = 'mdui-icon material-icons xf-new-announcement-badge';
+    badge.className = 'mdui-icon material-icons xf-new-announcement-badge mdui-text-color-theme-accent';
     badge.textContent = 'new_releases';
     badge.id = 'new-announcement-badge';
     headerTitle.appendChild(badge);
