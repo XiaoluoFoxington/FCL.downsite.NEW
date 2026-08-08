@@ -2,6 +2,7 @@ import { adaptDownloadData, randomlySelectDefault } from '../adapters/download/i
 import { loadDescription, loadDownloadNodes } from '../repositories/downloadRepository.js';
 import { createSafeContent } from '../security/content.js';
 import { createSelectorView } from '../views/selectorView.js';
+import { logError } from '../common/logger.js';
 
 /**
  * 判断节点数组是否已到达叶子层级。
@@ -152,7 +153,7 @@ export function createDownloadSelectorController(options) {
       ]);
     } catch (error) {
       if (error.kind !== 'abort' && isCurrent(sequence)) {
-        console.error('下载选项加载失败', error);
+        logError(error, '下载选项');
         view.renderError(level + 1, error, retry);
       }
     } finally {

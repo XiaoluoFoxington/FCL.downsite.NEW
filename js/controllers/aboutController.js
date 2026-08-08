@@ -7,6 +7,7 @@ import {
   renderAboutLoading,
   renderAboutError,
 } from '../views/aboutView.js';
+import { logError } from '../common/logger.js';
 
 /**
  * 关于页面 controller。
@@ -30,7 +31,7 @@ export function createAboutController(elements) {
       await renderContributors(elements.contributors, contributors, mirrors);
       await renderUsedProjects(elements.usedProjects, usedProjects);
     } catch (error) {
-      console.error('关于页面加载失败', error);
+      logError(error, '关于页');
       renderAboutError(elements.downloadLines, error, load, 2);
       renderAboutError(elements.contributors, error, load);
       renderAboutError(elements.usedProjects, error, load, 6);

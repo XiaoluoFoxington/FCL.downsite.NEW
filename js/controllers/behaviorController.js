@@ -12,6 +12,7 @@ import {
   showSaveSuccess,
   showSaveError,
 } from '../views/behaviorView.js';
+import { logWarn, logError } from '../common/logger.js';
 
 /**
  * 行为设置页面 controller。
@@ -43,7 +44,7 @@ export function createBehaviorController(elements) {
    */
   function savePreference(setting, value) {
     if (!isValidValue(setting, value)) {
-      console.warn(`尝试保存无效的设置值: ${setting.storageKey}=${value}`);
+      logWarn(`尝试保存无效的设置值: ${setting.storageKey}=${value}`);
       debouncedShowSaveError();
       return;
     }
@@ -64,7 +65,7 @@ export function createBehaviorController(elements) {
         savePreference,
       );
     } catch (error) {
-      console.error('加载行为设置失败', error);
+      logError(error, '行为设置');
       renderBehaviorError(elements.container, error, load);
     }
   }

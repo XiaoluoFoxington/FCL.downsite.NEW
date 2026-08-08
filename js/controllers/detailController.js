@@ -1,5 +1,6 @@
 import { getMirrors, getSoftware, getTags } from '../repositories/siteRepository.js';
 import { renderDetail, renderDetailError, renderDetailLoading } from '../views/detailView.js';
+import { logError } from '../common/logger.js';
 
 /**
  * 详情 controller 只协调数据与 view：软件详情、标签与线路目录可并行加载，
@@ -25,7 +26,7 @@ export function createDetailController(elements, softwareId) {
       });
       renderDetail(elements, softwareId, basic, detail, tags, mirrors);
     } catch (error) {
-      console.error('详情页加载失败', error);
+      logError(error, '详情页');
       renderDetailError(elements, error, load);
     }
   }

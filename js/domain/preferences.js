@@ -1,3 +1,5 @@
+import { logWarn } from '../common/logger.js';
+
 /**
  * 浏览器偏好存储的小型封装。
  * 封装 localStorage 的读写，兼容隐私模式或存储被禁用的场景。
@@ -13,7 +15,7 @@ export function readPreference(key, defaultValue = null) {
   try {
     return localStorage.getItem(key) ?? defaultValue;
   } catch (error) {
-    console.warn(`无法读取设置 ${key}`, error);
+    logWarn(error, `读取设置 ${key}`);
     return defaultValue;
   }
 }
@@ -27,6 +29,6 @@ export function writePreference(key, value) {
   try {
     localStorage.setItem(key, value);
   } catch (error) {
-    console.warn(`无法保存设置 ${key}`, error);
+    logWarn(error, `保存设置 ${key}`);
   }
 }

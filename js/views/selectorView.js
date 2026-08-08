@@ -2,6 +2,7 @@ import { inferArchitecture } from '../domain/systemInfo.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { formatBytes, renderStatus } from './commonView.js';
 import { createExternalLink, createFluidTable, createRaisedButton } from './uiComponents.js';
+import { logWarn } from '../common/logger.js';
 
 // 最终表格会删除所有行均为空的列，列名与下载项统一模型一一对应。
 const COLUMN_DEFINITIONS = [
@@ -94,7 +95,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
             try {
               return new RegExp(pattern).test(item.downloadUrl);
             } catch (_) {
-              console.warn('筛选正则表达式无效，已跳过:', pattern);
+              logWarn(_, `筛选正则表达式无效，已跳过: ${pattern}`);
               return false;
             }
           }),

@@ -3,6 +3,7 @@ import { getMirrors, getSoftware } from '../repositories/siteRepository.js';
 import { createDownloadSelectorController } from './downloadSelectorController.js';
 import { renderStatus, renderMessages, setErrorTitle, setSoftwareHeader } from '../views/commonView.js';
 import { joinUrl } from '../security/content.js';
+import { logError } from '../common/logger.js';
 
 /**
  * 下载页 controller。
@@ -62,7 +63,7 @@ export function createDownloadController(elements, softwareId) {
       });
       selectorController.start();
     } catch (error) {
-      console.error('下载页初始化失败', error);
+      logError(error, '下载页初始化');
       setErrorTitle();
       if (elements.messageWrapper) elements.messageWrapper.hidden = true;
       renderStatus(elements.container, 'error', { message: error.message, onRetry: load });

@@ -1,3 +1,5 @@
+import { logWarn } from '../common/logger.js';
+
 /**
  * 收藏资源管理器。
  * 封装 localStorage 的收藏读写，支持事件通知。
@@ -15,7 +17,7 @@ export function getBookmarks() {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch (error) {
-    console.warn('无法读取收藏', error);
+    logWarn(error, '读取收藏');
     return [];
   }
 }
@@ -28,7 +30,7 @@ function saveBookmarks(bookmarks) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
   } catch (error) {
-    console.warn('无法保存收藏', error);
+    logWarn(error, '保存收藏');
   }
 }
 

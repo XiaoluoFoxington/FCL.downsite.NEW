@@ -1,5 +1,6 @@
 import { getJSON } from "../http/client.js";
 import { createBreak } from "../views/uiComponents.js";
+import { logWarn } from "./logger.js";
 
 /**
  * 版本水印
@@ -13,7 +14,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const container = createContainer(version);
     document.body.appendChild(container);
   } catch (error) {
-    console.warn('版本水印加载失败', error);
+    logWarn(error, '版本水印');
   }
 });
 

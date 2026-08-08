@@ -2,6 +2,7 @@ import { getText } from '../http/client.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { renderStatus } from '../views/commonView.js';
 import { createSafeContent } from '../security/content.js';
+import { logWarn, logError } from '../common/logger.js';
 
 /**
  * 网站公告模块。
@@ -90,7 +91,7 @@ export async function checkNewAnnouncement() {
     const storedHash = readPreference(STORAGE_KEY);
     return { html, hash, isNew: hash !== storedHash };
   } catch (error) {
-    console.error('公告检查失败', error);
+    logError(error, '公告');
     return null;
   }
 }
@@ -112,7 +113,7 @@ export async function loadAnnouncement(container) {
       throw new Error('公告数据为空');
     }
   } catch (error) {
-    console.error('公告加载失败', error);
+    logError(error, '公告');
     renderStatus(container, 'error', { message: error.message, onRetry: () => loadAnnouncement(container) });
   }
 }

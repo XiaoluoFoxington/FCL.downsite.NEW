@@ -2,6 +2,7 @@ import { readPreference } from '../domain/preferences.js';
 import { getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
 import { debounce } from '../views/commonView.js';
 import { renderFilterTags, renderListError, renderListLoading, renderSoftwareList, setFilterIndicator } from '../views/listView.js';
+import { logError } from '../common/logger.js';
 
 /**
  * 资源列表 controller。
@@ -64,7 +65,7 @@ export function createListController(elements) {
       });
       applyFilters();
     } catch (error) {
-      console.error('资源列表加载失败', error);
+      logError(error, '资源列表');
       renderListError(elements, error, load);
     }
   }

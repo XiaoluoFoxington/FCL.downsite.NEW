@@ -1,6 +1,7 @@
 import { getSoftware } from '../repositories/siteRepository.js';
 import { getJSON } from '../http/client.js';
 import { renderReleases, renderRhError, renderRhLoading } from '../views/rhView.js';
+import { logError } from '../common/logger.js';
 
 /**
  * 版本历史页 controller。
@@ -28,7 +29,7 @@ export function createRhController(container, softwareId) {
 
       await renderReleases(container, basic, releases);
     } catch (error) {
-      console.error('版本历史加载失败', error);
+      logError(error, '版本历史');
       // 将 GitHub API 的状态码错误转为可读消息
       const message = translateError(error);
       renderRhError(container, new Error(message), load);

@@ -6,6 +6,7 @@ import { loadAnnouncement, checkNewAnnouncement } from './announcement.js';
 import { showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
 import { mountBookmarkList } from '../views/bookmarkView.js';
+import { logError } from './logger.js';
 
 /**
  * 所有页面共用的右侧抽屉。
@@ -45,7 +46,7 @@ async function loadFeedback(container) {
       renderStatus(container, 'empty', { message: '暂无可用的反馈渠道' });
     }
   } catch (error) {
-    console.error('反馈渠道加载失败', error);
+    logError(error, '反馈渠道');
     renderStatus(container, 'error', { message: error.message, onRetry: () => loadFeedback(container) });
   }
 }
@@ -143,7 +144,7 @@ async function loadDrawerContent(drawer) {
       }
     }
   } catch (error) {
-    console.error('抽屉内容加载失败', error);
+    logError(error, '抽屉导航栏');
     renderStatus(drawer, 'error', { message: error.message, onRetry: () => loadDrawerContent(drawer) });
   }
 }

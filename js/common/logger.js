@@ -44,9 +44,9 @@ function extractError(e) {
 // =========================== 核心日志函数 ===========================
 /** 日志级别与 Toast 图标的映射 */
 const ICON_MAP = {
-  info: 'info',
-  warn: 'warning',
-  error: 'error',
+  info: 'info_outline',
+  warn: 'error_outline',
+  error: 'highlight_off',
 };
 
 /**

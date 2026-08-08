@@ -1,6 +1,7 @@
 import { formatBytes, renderStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
 import { createSafeContent } from '../security/content.js';
 import { createPanel, createPanelItem, createTypoContainer, createFluidTable, createExternalLink } from './uiComponents.js';
+import { logError } from '../common/logger.js';
 
 /** 版本历史首屏加载状态。 */
 export function renderRhLoading(container) {
@@ -107,7 +108,7 @@ async function renderReleaseBody(container, body) {
     // 容器可能已被移除（用户关闭/折叠面板或离开页面），避免更新游离 DOM。
     if (container.isConnected) container.replaceChildren(fragment);
   } catch (error) {
-    console.error('Release 正文渲染失败', error);
+    logError(error, 'Release 正文渲染');
     if (!container.isConnected) return;
     renderStatus(container, 'error', {
       message: `正文渲染失败：${error.message}`,
