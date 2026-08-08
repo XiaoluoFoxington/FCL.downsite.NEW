@@ -2,16 +2,35 @@ import { showToast } from "./toast.js";
 import { escapeHtml } from "../security/content.js";
 
 // =========================== 配置 ===========================
-const CONFIG = {
+/** 默认配置（当用户设置未配置时使用） */
+const DEFAULT_CONFIG = {
   /** 是否在控制台输出日志 */
   enableConsole: true,
-  /** 是否显示 Toast 提示 */
-  enableToast: true,
   /** 全局错误监听是否阻止默认行为 */
   preventDefault: true,
-  /** Toast 提示持续时间（毫秒） */
-  duration: 10000,
 };
+
+/** Toast 配置的存储键 */
+const TOAST_CONFIG_KEYS = {
+  enableToast: 'fdn-logger-enableToast',
+  duration: 'fdn-logger-duration',
+};
+
+/**
+ * 从用户设置中读取动态 Toast 配置
+ * @returns {{enableToast: boolean, duration: number}}
+ */
+function getToastConfig() {
+  try {
+    const storedEnableToast = localStorage.getItem(TOAST_CONFIG_KEYS.enableToast);
+    const enableToast = storedEnableToast === null ? true : storedEnableToast === 'true';
+    const storedDuration = localStorage.getItem(TOAST_CONFIG_KEYS.duration);
+    const duration = storedDuration === null ? 10000 : Number(storedDuration) || 10000;
+    return { enableToast, duration };
+  } catch {
+    return { enableToast: true, duration: 10000 };
+  }
+}
 
 // =========================== 工具函数 ===========================
 
@@ -59,23 +78,24 @@ function _log(level, err, context) {
   const error = extractError(err);
   const prefix = context ? `${context}: ` : '';
   const message = error.message;
+  const toastConfig = getToastConfig();
 
   // 1. 控制台输出
-  if (CONFIG.enableConsole) {
+  if (DEFAULT_CONFIG.enableConsole) {
     const consoleMethod = console[level] || console.log;
     consoleMethod(prefix, error);
   }
 
   // 2. Toast 提示
-  if (CONFIG.enableToast) {
+  if (toastConfig.enableToast) {
     try {
       const icon = ICON_MAP[level] || 'info';
       // 对 message 进行 HTML 转义，防止 XSS
       const safeMessage = escapeHtml(prefix + message);
-      showToast(`<i class="mdui-icon material-icons">${icon}</i>${safeMessage}`, { duration: CONFIG.duration });
+      showToast(`<i class="mdui-icon material-icons">${icon}</i>${safeMessage}`, { duration: toastConfig.duration });
     } catch (toastErr) {
-      // 若 showToast 本身抛出错误，静默降级（可考虑额外控制台输出）
-      if (CONFIG.enableConsole) {
+      // 若 showToast 本身抛出错误
+      if (DEFAULT_CONFIG.enableConsole) {
         console.warn('Toast 显示失败:', toastErr);
       }
     }
@@ -117,12 +137,12 @@ export function registerGlobalHandlers() {
   listenersRegistered = true;
 
   window.addEventListener('error', (e) => {
-    if (CONFIG.preventDefault) e.preventDefault();
+    if (DEFAULT_CONFIG.preventDefault) e.preventDefault();
     logError(e, 'JS运行时致命错误');
   });
 
   window.addEventListener('unhandledrejection', (e) => {
-    if (CONFIG.preventDefault) e.preventDefault();
+    if (DEFAULT_CONFIG.preventDefault) e.preventDefault();
     logError(e, '未捕获的Promise错误');
   });
 }

@@ -42,6 +42,29 @@
         ]
       },
       {
+        "name": "log",
+        "label": "日志提示",
+        "children": [
+          {
+            "id": 7,
+            "name": "启用 Toast 提示",
+            "type": "switch",
+            "default": true,
+            "storageKey": "fdn-logger-enableToast"
+          },
+          {
+            "id": 8,
+            "name": "Toast 持续时间（ms）",
+            "type": "number",
+            "min": 1000,
+            "max": 60000,
+            "step": 1000,
+            "default": 10000,
+            "storageKey": "fdn-logger-duration"
+          }
+        ]
+      },
+      {
         "name": "list",
         "label": "资源列表",
         "children": [
