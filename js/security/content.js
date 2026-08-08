@@ -149,3 +149,14 @@ export function isSafeNavigationUrl(value, { allowRelative = true } = {}) {
     return false;
   }
 }
+
+/**
+ * 简单的 HTML 转义，防止 XSS
+ * @param {string} str
+ * @returns {string}
+ */
+export function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
