@@ -3,6 +3,9 @@ import { applyTheme } from '../domain/theme.js';
 import { showSnackbar } from '../views/uiComponents.js';
 import { debounce } from '../views/commonView.js';
 
+/** 模块级共享的防抖保存提示，避免快速切换多个设置项时重复弹出。 */
+const debouncedShowSaveSuccess = debounce(showSaveSuccess);
+
 // 立即应用本地保存的主题：脚本位于 body 末尾，body 已就绪，
 // 不必等 DOMContentLoaded，可避免深色模式下首帧闪白。
 applyTheme();
@@ -63,7 +66,6 @@ function restoreRadioState(containerId, name, value) {
  * @param {string} storageKey 本地存储键
  */
 function bindRadioEvent(containerId, name, storageKey) {
-  const debouncedShowSaveSuccess = debounce(showSaveSuccess);
   const container = document.getElementById(containerId);
   if (!container) return;
   container.addEventListener('change', function (e) {

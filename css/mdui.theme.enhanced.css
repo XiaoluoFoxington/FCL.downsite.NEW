@@ -54,12 +54,10 @@
 }
 
 /* 每个主题色定义浅色/深色背景变量 */
-/* 暗夜模式背景色：实际变暗的色号使用 950 值，其余直接引用 900
- * 生成方法：基于 MDUI 原始 900 色值，通过 HSL 色彩空间降低明度(Lightness)，
- * 保持色相(Hue)和饱和度(Saturation)不变，使相对亮度降至约 0.06，
- * 与白色文字对比度 >= 9.0，远超 WCAG AAA 标准（7.0）
- * 注：blue-grey, brown, deep-purple, grey, indigo, purple, teal 原始亮度已低于 0.06，
- * 无需单独定义 950，暗色模式直接引用 900 */
+/* 暗夜模式背景色：实际变暗的色号使用 950 值，其余直接引用 900。
+ * 生成方法：基于 MDUI 原始 900 色值，通过 HSL 色彩空间降低明度(Lightness)，保持色相(Hue)和饱和度(Saturation)不变，使相对亮度降至约 0.06，与白色文字对比度 >= 9.0，远超 WCAG AAA 标准（7.0）。
+ * 注：blue-grey, brown, deep-purple, grey, indigo, purple, teal 原始亮度已低于 0.06，无需单独定义 950，暗色模式直接引用 900。
+  */
 
 body.mdui-theme-primary-amber .mdui-drawer,
 body.mdui-theme-primary-amber {
@@ -167,6 +165,8 @@ html[data-xf-theme="dark"] body[class*="mdui-theme-primary-"] {
   background-color: var(--mdui-bg-dark) !important;
 }
 
+/* 透明背景目的：能继承父元素的颜色直到body，改body就相当于改所有元素的颜色，而且半透明会显得有层次感 */
+
 /* 面板透明背景 */
 .mdui-panel-item {
   background-color: #ffffff40;
@@ -194,6 +194,7 @@ html[data-xf-theme="dark"] .mdui-panel-item {
   background-color: unset;
 }
 
+/* 应用主题色到抽屉背景 */
 .mdui-drawer {
   background-color: var(--mdui-bg) !important;
 }

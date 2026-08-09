@@ -4,6 +4,7 @@
  * 不再关心系统偏好与 MDUI layout 类的各种组合。
  */
 
+/* 让抽屉在默认展开时更宽 */
 @media (min-width:1024px) {
   .mdui-drawer-body-left {
     padding-left: 320px
@@ -81,30 +82,19 @@ html[data-xf-theme="dark"] .mdui-panel-item {
   width: unset;
 }
 
+/* 这样看着顺眼 */
 .mdui-select {
   font-size: unset;
   font-family: unset;
 }
 
+/* 水平线上下边距不一致，强迫症犯了 */
 .mdui-typo hr {
   height: 1px;
   margin-bottom: 1.2em;
 }
 
-.mdui-block {
-  margin: 1rem 0;
-  display: block;
-  width: 100%;
-}
-
-div>.mdui-block:first-child {
-  margin-top: 0;
-}
-
-div>.mdui-block:last-child {
-  margin-bottom: 0;
-}
-
+/* 给表格的列也加上边框。 */
 .mdui-table {
   border-left: none;
 }
@@ -125,7 +115,7 @@ html[data-xf-theme="dark"] .mdui-table td:last-child {
   border-right: unset;
 }
 
-/* 给表格的列也加上边框。 */
+/* 减小单元格间距 */
 .mdui-table td:first-child,
 .mdui-table th:first-child {
   padding-right: 12px;
@@ -147,6 +137,7 @@ html[data-xf-theme="dark"] .mdui-table td:last-child {
   border-right: none;
 }
 
+/* 不喜欢MDUI原版链接那花哨的动画与样式 */
 .mdui-typo.mdui-typo a {
   color: unset;
   text-decoration: underline;
@@ -171,12 +162,14 @@ html[data-xf-theme="dark"] .mdui-table td:last-child {
   text-decoration: none;
 }
 
+/* 元素禁用时样式，虽然好像并没有用 */
 [disabled],
 .disabled {
   opacity: .5;
   pointer-events: none;
 }
 
+/* 当列表项中大部分为p时，上个列表项中最后一个p与下一个列表项的第一个p没有间距 */
 .mdui-typo li p:last-child {
   margin-bottom: 1.2em;
 }
@@ -218,11 +211,26 @@ html[data-xf-theme="dark"] .mdui-table td {
   color: unset;
 }
 
-/* 新增的样式 */
+/* 以下为新增的MDUI原版里没有的样式 */
 
-/* 仅浅色时可见 */
+/* 秒变块级元素 */
+.mdui-block {
+  margin: 1rem 0;
+  display: block;
+  width: 100%;
+}
+
+div>.mdui-block:first-child {
+  margin-top: 0;
+}
+
+div>.mdui-block:last-child {
+  margin-bottom: 0;
+}
+
+/* 仅深/浅色时可见 */
 .mdui-visible-light-theme {
-  display: unset;
+  display: revert;
 }
 .mdui-visible-dark-theme {
   display: none;
@@ -231,5 +239,5 @@ html[data-xf-theme="dark"] .mdui-visible-light-theme {
   display: none;
 }
 html[data-xf-theme="dark"] .mdui-visible-dark-theme {
-  display: unset;
+  display: revert;
 }
