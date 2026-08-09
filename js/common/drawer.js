@@ -1,7 +1,5 @@
 import { getText } from '../http/client.js';
-import { getFeedbackChannels } from '../repositories/siteRepository.js';
-import { renderStatus } from '../views/commonView.js';
-import { isSafeNavigationUrl } from '../security/content.js';
+import { loadFeedback, renderStatus } from '../views/commonView.js';
 import { loadAnnouncement, checkNewAnnouncement } from './announcement.js';
 import { showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
@@ -9,47 +7,12 @@ import { mountBookmarkList } from '../views/bookmarkView.js';
 import { logError } from './logger.js';
 
 /**
- * 所有页面共用的右侧抽屉。
- * 本模块只在页面存在 #menu_btn 时工作；窄屏下创建抽屉推迟到首次点击，宽屏则立即创建以适配 MDUI 持久展开。
- * 抽屉静态结构从 /html/drawer.html 加载，动态内容（公告、反馈、运行时间）在 JS 中注入。
- *
- * 点击按钮后立即弹出抽屉容器并显示加载状态，内容异步加载完成后渲染到抽屉内。
- */
-
-/**
- * 将 data/feedback.json 转为外链按钮。
- * 无效 URL 会被过滤；请求失败时通过统一状态机在 drawer 面板内显示错误。
- * @param {HTMLElement} container 反馈容器
- * @returns {Promise<void>}
- */
-async function loadFeedback(container) {
-  renderStatus(container, 'loading', { message: '正在加载反馈渠道……' });
-  try {
-    const feedbacks = await getFeedbackChannels();
-    const links = feedbacks
-      .filter((feedback) => isSafeNavigationUrl(feedback.href, { allowRelative: false }))
-      .map((feedback) => {
-        const link = document.createElement('a');
-        link.className = 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple';
-        link.href = feedback.href;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        const icon = document.createElement('i');
-        icon.className = 'mdui-icon material-icons';
-        icon.textContent = 'feedback';
-        link.append(icon, document.createTextNode(` 通过 ${feedback.name}`));
-        return link;
-      });
-    if (links.length) {
-      container.replaceChildren(...links);
-    } else {
-      renderStatus(container, 'empty', { message: '暂无可用的反馈渠道' });
-    }
-  } catch (error) {
-    logError(error, '反馈渠道');
-    renderStatus(container, 'error', { message: error.message, onRetry: () => loadFeedback(container) });
-  }
-}
+* 所有页面共用的右侧抽屉。
+* 本模块只在页面存在 #menu_btn 时工作；窄屏下创建抽屉推迟到首次点击，宽屏则立即创建以适配 MDUI 持久展开。
+* 抽屉静态结构从 /html/drawer.html 加载，动态内容（公告、反馈、运行时间）在 JS 中注入。
+*
+* 点击按钮后立即弹出抽屉容器并显示加载状态，内容异步加载完成后渲染到抽屉内。
+*/
 
 /**
  * 创建抽屉外壳（立即完成），显示加载状态，返回 drawer 元素和 MDUI 实例。

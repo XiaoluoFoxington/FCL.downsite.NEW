@@ -1,4 +1,7 @@
+import { logError } from '../common/logger.js';
 import { readPreference } from '../domain/preferences.js';
+import { getFeedbackChannels } from '../repositories/siteRepository.js';
+import { isSafeNavigationUrl } from '../security/content.js';
 import { createPanel, createPanelItem, createMaterialIcon } from './uiComponents.js';
 
 const SITE_NAME = 'FCL 下载站';
@@ -185,3 +188,39 @@ export function getSoftwareId() {
   if (rawId === null || !/^\d+$/.test(rawId)) return null;
   return Number(rawId);
 }
+
+/**
+ * 将 data/feedback.json 转为外链按钮。
+ * 无效 URL 会被过滤；请求失败时通过统一状态机在 drawer 面板内显示错误。
+ * @param {HTMLElement} container 反馈容器
+ * @returns {Promise<void>}
+ */
+export async function loadFeedback(container) {
+  renderStatus(container, 'loading', { message: '正在加载反馈渠道……' });
+  try {
+    const feedbacks = await getFeedbackChannels();
+    const links = feedbacks
+      .filter((feedback) => isSafeNavigationUrl(feedback.href, { allowRelative: false }))
+      .map((feedback) => {
+        const link = document.createElement('a');
+        link.className = 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple';
+        link.href = feedback.href;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        const icon = document.createElement('i');
+        icon.className = 'mdui-icon material-icons';
+        icon.textContent = 'feedback';
+        link.append(icon, document.createTextNode(` 通过 ${feedback.name}`));
+        return link;
+      });
+    if (links.length) {
+      container.replaceChildren(...links);
+    } else {
+      renderStatus(container, 'empty', { message: '暂无可用的反馈渠道' });
+    }
+  } catch (error) {
+    logError(error, '反馈渠道');
+    renderStatus(container, 'error', { message: error.message, onRetry: () => loadFeedback(container) });
+  }
+}
+
