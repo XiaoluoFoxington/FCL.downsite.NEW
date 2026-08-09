@@ -3,6 +3,32 @@
   src: url('/media/font/Mojangles.ttf');
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #80808080 transparent;
+}
+
+*:hover {
+  scrollbar-width: unset;
+}
+
+*::-webkit-scrollbar {
+  width: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #80808080;
+}
+
+*:hover::-webkit-scrollbar {
+  width: unset;
+}
+
+
 body {
   font-family: 'mojangles', sans-serif;
   scroll-behavior: smooth;
