@@ -1,5 +1,14 @@
 [
   {
+    "name": "v1.0.2",
+    "children": [
+      {
+        "name": "amcl-v1.0.2-unsigned.hap",
+        "url": "https://pan.huang1111.cn/f/KV5RSZ/amcl-v1.0.2-unsigned.hap"
+      }
+    ]
+  },
+  {
     "name": "v1.0.1",
     "children": [
       {
