@@ -3,7 +3,7 @@ import { readPreference, writePreference } from '../domain/preferences.js';
 import { renderStatus } from '../views/commonView.js';
 import { createSafeContent } from '../security/content.js';
 import { logWarn, logError } from '../common/logger.js';
-import { t } from './i18n.js';
+import { t, getCurrentLang } from './i18n.js';
 
 /**
  * 网站公告模块。
@@ -14,7 +14,10 @@ import { t } from './i18n.js';
  * checkNewAnnouncement 可在渲染前提前判断是否有新公告，供外部（如 drawer.js）在窄屏下提前弹出提醒。
  */
 
-const STORAGE_KEY = 'fdn-announcement';
+/** 已读状态按语言分别记账，避免切换语言后另一语言版本被误判为新公告。 */
+function announcementStorageKey() {
+  return `fdn-announcement-${getCurrentLang()}`;
+}
 
 /**
  * 简单 64 位字符串哈希，用于生成公告内容校验值。
@@ -69,7 +72,7 @@ async function renderAnnouncement(container, html, hash, isNew) {
   // 经 writePreference 写入，隐私模式或存储被禁用时降级为只记录警告，不让整个公告模块崩溃。
   header.addEventListener('click', () => {
     if (isNew) {
-      writePreference(STORAGE_KEY, hash);
+      writePreference(announcementStorageKey(), hash);
       const badge = document.getElementById('new-announcement-badge');
       if (badge) badge.remove();
     }
@@ -89,7 +92,7 @@ export async function checkNewAnnouncement() {
   try {
     const html = await getLocalizedText('/data/announcement.html', { cache: true });
     const hash = simpleHash64(html);
-    const storedHash = readPreference(STORAGE_KEY);
+    const storedHash = readPreference(announcementStorageKey());
     return { html, hash, isNew: hash !== storedHash };
   } catch (error) {
     logError(error, '公告');
