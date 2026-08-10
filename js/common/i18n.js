@@ -367,9 +367,13 @@ export function tOr(key, fallback) {
 export function getLocalizedPath(path) {
   if (currentLang === 'zh-CN') return null;
   if (typeof path !== 'string' || !path.startsWith('/')) return null;
+  // 先剥离 query/hash，避免查询参数或锚点里的点被误当成扩展名；
   // 只对带扩展名的本地文件生成本地化路径；无扩展名时返回 null，避免调用方重复请求同一 URL。
-  const extensionIndex = path.lastIndexOf('.');
-  const lastSlashIndex = path.lastIndexOf('/');
-  if (extensionIndex <= lastSlashIndex || extensionIndex === path.length - 1) return null;
-  return `${path.slice(0, extensionIndex)}.${currentLang}${path.slice(extensionIndex)}`;
+  const suffixIndex = path.search(/[?#]/);
+  const pathOnly = suffixIndex === -1 ? path : path.slice(0, suffixIndex);
+  const suffix = suffixIndex === -1 ? '' : path.slice(suffixIndex);
+  const extensionIndex = pathOnly.lastIndexOf('.');
+  const lastSlashIndex = pathOnly.lastIndexOf('/');
+  if (extensionIndex <= lastSlashIndex || extensionIndex === pathOnly.length - 1) return null;
+  return `${pathOnly.slice(0, extensionIndex)}.${currentLang}${pathOnly.slice(extensionIndex)}${suffix}`;
 }
