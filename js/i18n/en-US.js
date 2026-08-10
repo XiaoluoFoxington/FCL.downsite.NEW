@@ -4,6 +4,9 @@
  */
 const enUS = {
   // Common
+  // TODO: 死键（全仓库无引用，可清理）：confirm、cancel、noData、name、id、tags、bookmark、bookmarkYes、bookmarkNo、
+  // downloadResource、intro、history、detail、search、relationAnd、relationOr、relationNot、list、filter、randomSelect、
+  // available、forceStop、feedbackLoadFailed
   common: {
     siteName: 'FCL Download Station',
     commitHash: 'Commit Hash',
@@ -81,6 +84,7 @@ const enUS = {
     downloadFcl: 'Download Fold Craft Launcher',
     loadingSponsorRemind: 'Loading sponsor reminder...',
     separator: ', ',
+    // TODO: 死键（全仓库无引用，可清理）：sponsorHint、newTab、systemRequirements、osReq、basicInfo、linePreview、operation、addBookmark、noDetail
     nav: {
       announcement: 'Announcements',
       bookmarks: 'Saved Resources',
@@ -227,6 +231,7 @@ const enUS = {
   },
 
   // Home page
+  // TODO: 死键（全仓库无引用，可清理）：home.nav、home.welcomeHighlight、home.welcomeSite
   home: {
     title: 'FCL Download Station - Minecraft Java Edition Android Launcher & Resources',
     description: 'An unofficial FCL download station built by the player community, providing downloads for launchers, renderers, drivers and more to help you play Minecraft Java Edition on Android devices.',
@@ -268,6 +273,7 @@ const enUS = {
   },
 
   // List page
+  // TODO: 死键（全仓库无引用，可清理）：list.loadingError、list.tagRelation、list.header.id、list.header.sortByName、list.header.sortById
   list: {
     title: 'Resource List',
     pageTitle: 'Resource List - FCL Download Station',
@@ -313,6 +319,7 @@ const enUS = {
     linePreview: 'Mirror Preview',
     randomSelectLabel: 'Random Mirror Selection:',
     value: 'Value',
+    // TODO: 死键（全仓库无引用，可清理）：basicInfoTable.id、basicInfoTable.tags
     basicInfoTable: {
       name: 'Name',
       icon: 'Icon',
@@ -329,6 +336,7 @@ const enUS = {
   },
 
   // Download page
+  // TODO: 死键（全仓库无引用，可清理）：down.loadingError
   down: {
     title: 'Download Resource',
     pageTitle: 'Download Resource - FCL Download Station',
@@ -341,6 +349,8 @@ const enUS = {
   },
 
   // About page
+  // TODO: 死键（全仓库无引用，可清理）：about.developers、about.usedProjects、about.loading、about.loadingError、about.unknown、
+  // about.projects.name、about.projects.description、about.projects.usage、about.projects.version、about.projects.link、about.projects.license
   about: {
     title: 'About',
     pageTitle: 'About - FCL Download Station',

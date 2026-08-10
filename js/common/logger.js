@@ -76,6 +76,8 @@ const ICON_MAP = {
  */
 function _log(level, err, context) {
   const error = extractError(err);
+  // TODO: context 前缀未国际化：英文界面下 Toast 仍会显示中文语境（如“读取设置”）。
+  // 若要彻底国际化，需为各调用点提供翻译键或统一去掉前缀。
   const prefix = context ? `${context}: ` : '';
   const message = error.message;
   const toastConfig = getToastConfig();

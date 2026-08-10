@@ -90,6 +90,8 @@ export function createSortableList(container, { items = [], renderItem, onReorde
       // renderItem 返回空值时兜底为空行，保证索引对齐且不抛错。
       if (!el || typeof el.appendChild !== 'function') el = document.createElement('div');
       el.classList.add('sortable-list-item');
+      // TODO: HTML5 拖拽在触屏设备上不可用，移动端目前只能依赖上下按钮排序；
+      // 如需触屏拖拽，需另行实现 pointer/touch 事件方案。
       el.draggable = true;
       el.dataset.sortableIndex = String(index);
       el.addEventListener('dragstart', (event) => {

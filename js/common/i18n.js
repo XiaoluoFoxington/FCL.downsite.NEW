@@ -44,6 +44,8 @@ let initPromise = null;
  */
 function getNestedValue(pack, key) {
   let value = pack;
+  // TODO: 兼容性：正则后行断言 (?<!\\) 在 Safari < 16.4 / 较老 WebView 中解析即抛 SyntaxError，
+  // 会拖垮整个 i18n 模块。如需兼容老浏览器，请改用 split + indexOf 的循环实现。
   const parts = String(key).split(/(?<!\\)\./).map((part) => part.replace(/\\\./g, '.'));
   for (const part of parts) {
     if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, part)) {
@@ -61,6 +63,8 @@ function getNestedValue(pack, key) {
  * @param {string} segment 动态键段
  * @returns {string}
  */
+// TODO: 转义不对称：getNestedValue 只还原 \.，键段本身含字面反斜杠时会往返成双反斜杠。
+// 当前数据源无此场景（只需转义点号），如要支持请让 getNestedValue 同时把 \\ 还原为 \。
 export function escapeKeySegment(segment) {
   return String(segment).replace(/\\/g, '\\\\').replace(/\./g, '\\.');
 }
@@ -190,6 +194,7 @@ export function setLanguageOrder(order, { reload = true } = {}) {
   } catch (error) {
     logWarn(error, '保存语言顺序');
   }
+  // TODO: 死代码：applyTranslations 已注释、try/catch 空转，可整段删除（当前设计为保存后强制刷新）。
   try {
     // applyTranslations();
     // 注释掉，强行让用户刷新页面
@@ -278,6 +283,8 @@ export function applyTranslations(root = document) {
           // data-i18n="some.key" - 需要翻译的占位符，key 即占位符名
           name = childKey;
         }
+        // FIXME: 同名占位符只移出第一个，后续同名子元素仍留在父节点里，
+        // 会被随后的 el.textContent 赋值直接销毁。应全部移出，并按 token 出现次数用克隆回插。
         if (!placeholders.has(name)) {
           placeholders.set(name, child);
           child.remove();

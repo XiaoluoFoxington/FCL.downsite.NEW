@@ -1,1 +1,4 @@
 .vscode/
+
+# TODO: .tmp/ 与 .trae-html-share-packages/ 已被 git 跟踪（历史遗留的构建产物与旧版页面 zip 快照）。
+# 确认无用后可 git rm -r --cached 解除跟踪，再在此处补充忽略规则。

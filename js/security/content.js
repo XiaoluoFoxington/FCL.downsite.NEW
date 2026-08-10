@@ -4,6 +4,9 @@
  * 其他页面若仅需显示字符串，应直接使用 textContent，不应调用本模块。
  */
 
+// TODO: 循环依赖：i18n.js → logger.js → content.js → i18n.js。
+// 当前因各模块顶层未互相调用导出而可安全运行，但结构脆弱；
+// 后续可把依赖错误文案的翻译移到调用方，或把 escapeHtml 拆到不依赖 i18n 的模块。
 import { t } from '../common/i18n.js';
 
 // 这两个依赖只在介绍正文或明确声明为 HTML 的远程描述首次展示时加载，
