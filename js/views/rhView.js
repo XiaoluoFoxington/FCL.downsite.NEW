@@ -2,7 +2,7 @@ import { formatBytes, renderStatus, setErrorTitle, setSoftwareHeader } from './c
 import { createSafeContent } from '../security/content.js';
 import { createPanel, createPanelItem, createTypoContainer, createFluidTable, createExternalLink } from './uiComponents.js';
 import { logError } from '../common/logger.js';
-import { t } from '../common/i18n.js';
+import { t, getCurrentLang } from '../common/i18n.js';
 
 /** 版本历史首屏加载状态。 */
 export function renderRhLoading(container) {
@@ -46,7 +46,7 @@ export async function renderReleases(container, basic, releases) {
     const release = releases[index];
     const summaryTexts = [
       release.tag_name,
-      (() => { try { return new Date(release.published_at).toLocaleString(); } catch (_) { return release.published_at || ''; } })(),
+      (() => { try { return new Date(release.published_at).toLocaleString(getCurrentLang()); } catch (_) { return release.published_at || ''; } })(),
     ];
     const { element: panelItem, body } = createPanelItem(
       release.name || t('rh.unnamedVersion'),
