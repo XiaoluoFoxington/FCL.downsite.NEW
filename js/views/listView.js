@@ -262,6 +262,13 @@ function handleTableClick(event) {
 /** 表格键盘事件委托：Enter/Space 导航或排序。 */
 function handleTableKeydown(event) {
   if (event.key === 'Enter' || event.key === ' ') {
+    // 焦点在收藏链接上时只切换收藏，不能触发整行跳转。
+    const bookmarkLink = event.target.closest('.xf-bookmark-link');
+    if (bookmarkLink) {
+      event.preventDefault();
+      bookmarkLink.click();
+      return;
+    }
     event.preventDefault();
     const th = event.target.closest('th[data-sort-key]');
     if (th) {
