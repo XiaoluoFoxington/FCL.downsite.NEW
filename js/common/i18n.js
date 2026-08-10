@@ -87,7 +87,7 @@ function lookupTranslation(key) {
  */
 function interpolate(text, params, skip) {
   if (!params || Object.keys(params).length === 0) return text;
-  return text.replace(/\{(\w+)\}/g, (match, name) => {
+  return text.replace(/\{([\w.]+)\}/g, (match, name) => {
     if (skip && skip.has(name)) return match;
     return Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match;
   });
@@ -221,7 +221,9 @@ export function getSupportedLanguages() {
  * 支持两种用法：
  * - data-i18n="key"：翻译文本内容；
  * - data-i18n="key" data-i18n-attr="attr"：翻译指定属性（如 title/alt/content）。
- * 混合内容请用 data-i18n-placeholder="name" 标记子元素，翻译文本中以 {name} 保留。
+ * 混合内容中带 data-i18n 的直接子元素作为占位符处理：
+ * - data-i18n="some.key"：翻译子元素，父模板中用 {some.key} 占位；
+ * - data-i18n="[name]"：不翻译子元素，父模板中用 {name} 占位。
  * @param {ParentNode} [root=document] 扫描根节点
  */
 export function applyTranslations(root = document) {
@@ -243,6 +245,9 @@ export function applyTranslations(root = document) {
       const key = el.getAttribute('data-i18n');
       if (!key) return;
 
+      // 跳过 data-i18n="[name]" 的不需要翻译的占位符元素
+      if (key.startsWith('[') && key.endsWith(']')) return;
+
       let params = {};
       const paramsStr = el.getAttribute('data-i18n-params');
       if (paramsStr) {
@@ -259,12 +264,21 @@ export function applyTranslations(root = document) {
         return;
       }
 
-      // 收集占位符子元素并临时移出 DOM，翻译后再按 {name} 文本位置还原。
+      // 收集直接子元素中的 [data-i18n] 占位符并临时移出 DOM。
       // 注意：占位符元素必须在设置 textContent 之前移除，否则会被 textContent 覆盖销毁。
       const placeholders = new Map();
-      el.querySelectorAll('[data-i18n-placeholder]').forEach((child) => {
-        const name = child.getAttribute('data-i18n-placeholder');
-        if (name && !placeholders.has(name)) {
+      Array.from(el.children).forEach((child) => {
+        const childKey = child.getAttribute('data-i18n');
+        if (!childKey) return;
+        let name;
+        if (childKey.startsWith('[') && childKey.endsWith(']')) {
+          // data-i18n="[name]" - 不需要翻译的占位符
+          name = childKey.slice(1, -1);
+        } else {
+          // data-i18n="some.key" - 需要翻译的占位符，key 即占位符名
+          name = childKey;
+        }
+        if (!placeholders.has(name)) {
           placeholders.set(name, child);
           child.remove();
         }
