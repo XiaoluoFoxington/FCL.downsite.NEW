@@ -82,7 +82,7 @@ export function renderMessages(wrapper, container, messages) {
     const typeTitle = type === 'message'
       ? t('common.nav.message')
       : tOr(`common.${escapeKeySegment(type)}Message`, type);
-    const { element, body } = createPanelItem(typeTitle, { isOpen: msg.panelOpen || true, icon, iconClass: 'mdui-icon' });
+    const { element, body } = createPanelItem(typeTitle, { isOpen: msg.panelOpen ?? true, icon, iconClass: 'mdui-icon' });
     element.classList.add('xf-message');
     if (msg.type) {
       element.classList.add(`xf-message-${msg.type}`);
