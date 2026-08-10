@@ -242,7 +242,7 @@ const enUS = {
     pageTitle: 'Language Settings - FCL Download Station',
     description: 'Configure the interface language and fallback order for FCL Download Station.',
     order: 'Language Order',
-    hint: 'The list order defines language priority: the first language is used for the interface, and the rest are used as fallbacks in order when translations are missing. Drag or use the up/down buttons to reorder; changes are saved immediately.',
+    hint: 'The list order defines language priority: the first language is used for the interface, and the rest are used as fallbacks in order when translations are missing. Drag or use the up/down buttons to reorder; changes require a page refresh to apply fully.',
     current: 'Current',
     moveUp: 'Move Up',
     moveDown: 'Move Down',
