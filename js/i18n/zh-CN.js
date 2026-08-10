@@ -566,6 +566,7 @@ const zhCN = {
     sponsorSite: '赞助此网站开发者',
     sponsorSiteDesc1: '下载流量费用高昂，我们一直坚守使此站保持公益性质。如果您觉得此站对您有帮助，可考虑在下方赞助我。',
     sponsorSiteDesc2: '我会定期将赞助分成给其他为此站做出贡献的开发者，可在下方查看。',
+    // TODO: 与 en-US 不对齐。
     sponsorSplit: '{link}',
     disclaimer1: '我{sponsor.m1}将我最终得到的赞助全部用于此站开发。',
     m1: '可能并不会',

@@ -414,6 +414,8 @@ html[data-xf-theme="dark"] .toast {
   left: 0;
   right: 0;
   height: 2px;
+  /* FIXME: --mdui-color-theme-accent 在整个项目 CSS 中未定义，指示线恒为白色，
+     亮色主题下不可见；需在主题 CSS 中补定义或改用 currentColor。 */
   background: var(--mdui-color-theme-accent, #fff);
   pointer-events: none;
   z-index: 2;
