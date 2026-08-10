@@ -204,6 +204,14 @@ export function createDownloadSelectorController(options) {
   }
 
   // 终止按钮由 view 的 busy 状态显示/隐藏，controller 只维护实际取消语义。
-  options.stopButton?.addEventListener('click', abort);
-  return { abort, start };
+  const handleStopClick = () => abort();
+  options.stopButton?.addEventListener('click', handleStopClick);
+  return {
+    abort,
+    start,
+    // 新 controller 接管前调用，解除旧监听，避免重试后同一按钮上监听器越积越多。
+    dispose() {
+      options.stopButton?.removeEventListener('click', handleStopClick);
+    },
+  };
 }

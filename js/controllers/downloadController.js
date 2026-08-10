@@ -16,7 +16,8 @@ export function createDownloadController(elements, softwareId) {
   let selectorController = null;
 
   async function load() {
-    // 点击重试前先终止旧选择器，避免旧请求在新页面状态完成后回写 DOM。
+    // 点击重试前先终止旧选择器并解除其按钮监听，避免旧请求回写 DOM、监听器随重试累积。
+    selectorController?.dispose();
     selectorController?.abort();
     renderStatus(elements.container, 'loading', { message: t('down.loadingMirrors') });
     if (elements.messageWrapper) elements.messageWrapper.hidden = true;
