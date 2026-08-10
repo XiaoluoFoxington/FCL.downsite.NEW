@@ -58,9 +58,12 @@ async function showSponsorRemind(container, visitCount) {
     const sponsorHtml = await getText('/data/sponsorRemind.html', { cache: true });
     // 模板用 {{key}} 标记文案，必须在 DOMPurify 净化前完成翻译：
     // createSafeContent 配置会剥离 data-* 属性，DOM 级翻译标记无法存活。
+    // {count} 只替换访问次数文案里的占位符，避免误伤模板中其他字面 {count}。
+    const visitCountHtml = t('sponsorRemind.visitCount').replace(/\{count\}/g, '<span id="visitCount"></span>');
     const localizedHtml = sponsorHtml
+      .replace(/\{\{sponsorRemind\.visitCount\}\}/g, () => visitCountHtml)
       .replace(/\{\{([\w.]+)\}\}/g, (match, key) => t(key))
-      .replace(/\{count\}/g, '<span id="visitCount"></span>');
+      .replace(/\{count\}/g, '');
     container.replaceChildren(await createSafeContent(localizedHtml));
     const visitCountEl = container.querySelector('#visitCount');
     const closeBtn = container.querySelector('#sponsorRemindCloseBtn');
