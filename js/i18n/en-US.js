@@ -79,7 +79,6 @@ const enUS = {
     clickToDownload: 'Click the button below to jump directly',
     downloadFcl: 'Download Fold Craft Launcher',
     loadingSponsorRemind: 'Loading sponsor reminder...',
-    language: 'Language',
     separator: ', ',
     nav: {
       announcement: 'Announcements',

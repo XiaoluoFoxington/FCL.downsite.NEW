@@ -188,16 +188,6 @@ export function getSupportedLanguages() {
 }
 
 /**
- * 设置语言并保存偏好。为保证所有动态视图一致，切换后刷新页面。
- * 等价于把该语言移到顺序列表第一位。
- * @param {string} lang 语言代码
- */
-export function setLang(lang) {
-  if (!LANGUAGE_PACKS[lang]) return;
-  setLanguageOrder([lang, ...languageOrder.filter((code) => code !== lang)]);
-}
-
-/**
  * 对 DOM 应用翻译。
  * 支持两种用法：
  * - data-i18n="key"：翻译文本内容；
@@ -334,14 +324,6 @@ export function initI18n() {
   });
 
   return initPromise;
-}
-
-/**
- * 等待 i18n 初始化完成。
- * @returns {Promise<void>}
- */
-export function waitForI18n() {
-  return initPromise || initI18n();
 }
 
 /**

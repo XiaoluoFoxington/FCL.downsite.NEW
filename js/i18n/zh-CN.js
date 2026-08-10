@@ -79,7 +79,6 @@ const zhCN = {
     clickToDownload: '想直接下载Fold Craft Launcher？点击下方按钮直接跳转。',
     downloadFcl: '下载 Fold Craft Launcher',
     loadingSponsorRemind: '正在加载赞助提醒……',
-    language: '语言',
     separator: '、',
     nav: {
       announcement: '网站公告',
