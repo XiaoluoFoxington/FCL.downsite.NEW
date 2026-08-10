@@ -50,16 +50,14 @@ function createRow(lang, index, total) {
   const info = document.createElement('div');
   info.className = 'language-list-info';
   const name = document.createElement('span');
-  name.className = 'language-name';
   name.textContent = lang.name;
-  const code = document.createElement('span');
-  code.className = 'language-code';
-  code.textContent = lang.code;
+  const code = document.createElement('small');
+  code.textContent = '/ ' + lang.code;
   info.append(name, code);
   if (lang.code === getCurrentLang()) {
     const badge = document.createElement('span');
-    badge.className = 'language-current mdui-color-theme';
-    badge.textContent = t('language.current');
+    badge.className = 'mdui-text-color-theme-accent';
+    badge.textContent = '[' + t('language.current') + ']';
     info.appendChild(badge);
   }
 

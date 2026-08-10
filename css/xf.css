@@ -399,21 +399,6 @@ html[data-xf-theme="dark"] .toast {
   min-width: 0;
 }
 
-.language-name {
-  font-size: 16px;
-}
-
-.language-code {
-  font-size: 12px;
-  opacity: 0.6;
-}
-
-.language-current {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
 .language-actions {
   display: flex;
   gap: 4px;
