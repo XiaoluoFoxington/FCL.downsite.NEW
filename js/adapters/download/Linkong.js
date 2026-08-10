@@ -4,6 +4,7 @@
  * API 换新的了，返回的 download_url 直接就是镜像地址，旧的呢？KV缓存线被剪了
 */
 import { normalizeDownloadItem } from './common.js';
+import { t } from '../../common/i18n.js';
 
 /**
  * 适配 Linkong API 响应。
@@ -14,7 +15,7 @@ import { normalizeDownloadItem } from './common.js';
 export function adaptLinkong(payload, context) {
   const releases = payload?.releases || [];
   return releases.map((release, index) => ({
-    name: release.version || release.title || `版本 ${index + 1}`,
+    name: release.version || release.title || t('common.adapters.versionN', { index: index + 1 }),
     default: index === 0,
     children: (release.assets || []).map((asset) =>
       normalizeDownloadItem(

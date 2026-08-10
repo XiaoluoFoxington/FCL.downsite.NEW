@@ -3,6 +3,7 @@ import { loadDescription, loadDownloadNodes } from '../repositories/downloadRepo
 import { createSafeContent } from '../security/content.js';
 import { createSelectorView } from '../views/selectorView.js';
 import { logError } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 判断节点数组是否已到达叶子层级。
@@ -68,7 +69,9 @@ export function createDownloadSelectorController(options) {
         container.textContent = content;
       }
     } catch (error) {
-      if (error.kind !== 'abort' && isCurrent(sequence)) container.textContent = `描述加载失败：${error.message}`;
+      if (error.kind !== 'abort' && isCurrent(sequence)) {
+        container.textContent = t('common.selectors.descLoadFailed', { message: error.message });
+      }
     }
   }
 
@@ -169,7 +172,7 @@ export function createDownloadSelectorController(options) {
  */
   function renderNodes(items, level, inheritedFilter) {
     if (!Array.isArray(items)) {
-      view.renderError(level, new Error('镜像数据格式不正确：应为数组'));
+      view.renderError(level, new Error(t('common.selectors.mirrorDataInvalid')));
       return;
     }
     // view 只接收已归一化的节点；这里决定它应显示选择框还是最终下载表格。
@@ -196,7 +199,7 @@ export function createDownloadSelectorController(options) {
     view.setBusy(false);
     const notice = document.createElement('p');
     notice.className = 'xf-status xf-status-idle xf-cancel-notice';
-    notice.textContent = '已终止当前加载，可重新选择线路。';
+    notice.textContent = t('common.selectors.loadStopped');
     options.container.appendChild(notice);
   }
 

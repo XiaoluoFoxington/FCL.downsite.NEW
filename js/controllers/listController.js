@@ -3,6 +3,7 @@ import { getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
 import { debounce } from '../views/commonView.js';
 import { renderFilterTags, renderListError, renderListLoading, renderSoftwareList, setFilterIndicator } from '../views/listView.js';
 import { logError } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 资源列表 controller。
@@ -55,7 +56,7 @@ export function createListController(elements) {
       const [software, tags] = await Promise.all([getSoftwareCatalog(), getTags()]);
       const knownTags = new Set(tags.map((tag) => tag.id));
       software.forEach((item) => item.tagIds.forEach((id) => {
-        if (!knownTags.has(id)) throw new Error(`软件 ${item.id} 引用了不存在的标签 ${id}`);
+    if (!knownTags.has(id)) throw new Error(t('common.repository.unknownTag', { id }));
       }));
       catalog = software;
       tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));

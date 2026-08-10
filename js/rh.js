@@ -1,5 +1,6 @@
 import { createRhController } from './controllers/rhController.js';
 import { getSoftwareId, renderStatus, setErrorTitle } from './views/commonView.js';
+import { t } from './common/i18n.js';
 
 /**
  * 版本历史页入口。
@@ -11,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (softwareId === null) {
     setErrorTitle();
-    renderStatus(container, 'error', { message: '未指定有效的软件 ID' });
+    renderStatus(container, 'error', { message: t('common.osNotSpecified') });
     return;
   }
 

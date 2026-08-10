@@ -3,8 +3,7 @@ import { readPreference } from '../domain/preferences.js';
 import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { createPanel, createPanelItem, createMaterialIcon } from './uiComponents.js';
-
-const SITE_NAME = 'FCL 下载站';
+import { t } from '../common/i18n.js';
 
 /** 防抖：延迟执行 fn，期间再次调用则重新计时。 */
 export function debounce(fn, delay = 500) {
@@ -17,7 +16,7 @@ export function debounce(fn, delay = 500) {
 
 /** 将字节数转为可读字符串。根据用户偏好自动选择 IEC/SI 前缀。 */
 export function formatBytes(bytes) {
-  if (typeof bytes !== 'number' || bytes < 0) return '未知';
+  if (typeof bytes !== 'number' || bytes < 0) return t('common.unknownSize');
   if (bytes === 0) return '0 B';
 
   const prefix = readPreference('fdn-default-format-prefix');
@@ -108,7 +107,7 @@ export function renderTableStatus(body, colspan = 2, state, message, onRetry) {
   const label = document.createElement('td');
   const content = document.createElement('td');
   content.colSpan = colspan - 1;
-  label.textContent = state === 'error' ? '错误' : '状态';
+  label.textContent = state === 'error' ? t('common.error') : t('common.status');
   row.append(label, content);
   body.replaceChildren(row);
   renderStatus(content, state, { message, onRetry });
@@ -135,10 +134,10 @@ export function renderStatus(container, state, { message = '', onRetry } = {}) {
 
   const text = document.createElement('p');
   text.textContent = message || ({
-    idle: '等待加载',
-    loading: '正在加载……',
-    empty: '暂无内容',
-    error: '加载失败',
+    idle: t('common.idle'),
+    loading: t('common.loading'),
+    empty: t('common.noContent'),
+    error: t('common.loadingError'),
   }[state] || '');
   wrapper.appendChild(text);
 
@@ -147,7 +146,7 @@ export function renderStatus(container, state, { message = '', onRetry } = {}) {
     const retry = document.createElement('button');
     retry.type = 'button';
     retry.className = 'mdui-btn mdui-btn-raised mdui-ripple';
-    retry.textContent = '重试';
+    retry.textContent = t('common.retry');
     retry.addEventListener('click', onRetry, { once: true });
     wrapper.appendChild(retry);
   }
@@ -170,15 +169,16 @@ export function setSoftwareHeader(basic, { titlePrefix = '', detailButton } = {}
     icon.alt = basic.name;
   }
   if (title) title.textContent = pageTitle;
-  document.title = pageTitle + ' - ' + SITE_NAME;
+  document.title = pageTitle + ' - ' + t('common.siteName');
   if (detailButton) detailButton.href = `/html/detail.html?id=${basic.id}`;
 }
 
 /** 将浏览器标题与工具栏标题切换为错误状态。 */
 export function setErrorTitle() {
   const title = document.getElementById('title');
-  if (title) title.textContent = '错误';
-  document.title = '错误';
+  const errorText = t('common.error');
+  if (title) title.textContent = errorText;
+  document.title = errorText;
 }
 
 /** 从 ?id= 读取软件 ID，非法、负数、空值一律返回 null。 */
@@ -196,7 +196,7 @@ export function getSoftwareId() {
  * @returns {Promise<void>}
  */
 export async function loadFeedback(container) {
-  renderStatus(container, 'loading', { message: '正在加载反馈渠道……' });
+  renderStatus(container, 'loading', { message: t('common.feedbackLoading') });
   try {
     const feedbacks = await getFeedbackChannels();
     const links = feedbacks
@@ -210,13 +210,13 @@ export async function loadFeedback(container) {
         const icon = document.createElement('i');
         icon.className = 'mdui-icon material-icons';
         icon.textContent = 'feedback';
-        link.append(icon, document.createTextNode(` 通过 ${feedback.name}`));
+        link.append(icon, document.createTextNode(` ${t('common.feedbackVia', { name: feedback.name })}`));
         return link;
       });
     if (links.length) {
       container.replaceChildren(...links);
     } else {
-      renderStatus(container, 'empty', { message: '暂无可用的反馈渠道' });
+      renderStatus(container, 'empty', { message: t('common.noFeedbackChannels') });
     }
   } catch (error) {
     logError(error, '反馈渠道');

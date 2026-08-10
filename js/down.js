@@ -1,5 +1,6 @@
 import { createDownloadController } from './controllers/downloadController.js';
 import { getSoftwareId, renderStatus, setErrorTitle } from './views/commonView.js';
+import { t } from './common/i18n.js';
 
 /**
  * 下载页入口。
@@ -19,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 无效 ID 时保留页面框架并显示可读错误，而非让模块初始化异常中断。
   if (softwareId === null) {
     setErrorTitle();
-    renderStatus(elements.container, 'error', { message: '未指定有效的软件 ID' });
+    renderStatus(elements.container, 'error', { message: t('common.osNotSpecified') });
     return;
   }
   createDownloadController(elements, softwareId).load();

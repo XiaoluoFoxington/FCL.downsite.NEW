@@ -1,5 +1,6 @@
 import { renderStatus, renderTableStatus } from './commonView.js';
 import { createPanelItem, createExternalLink } from './uiComponents.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 关于页面 view。
@@ -14,9 +15,9 @@ import { createPanelItem, createExternalLink } from './uiComponents.js';
  */
 export function renderAboutLoading(container, colspan) {
   if (container.tagName === 'TBODY') {
-    renderTableStatus(container, colspan || 2, 'loading', '正在加载……');
+    renderTableStatus(container, colspan || 2, 'loading', t('common.loading'));
   } else {
-    renderStatus(container, 'loading', { message: '正在加载……' });
+    renderStatus(container, 'loading', { message: t('common.loading') });
   }
 }
 
@@ -55,10 +56,10 @@ export function renderDownloadLines(container, mirrors, contributors) {
 
     const ids = mirror.contributeId || [];
     if (ids.length === 0) {
-      tdProvider.textContent = '未知';
+      tdProvider.textContent = t('common.unknown');
     } else {
       ids.forEach((id, index) => {
-        if (index > 0) tdProvider.appendChild(document.createTextNode('、'));
+        if (index > 0) tdProvider.appendChild(document.createTextNode(t('common.separator')));
         const c = contributorMap.get(id);
         const name = c ? (c.accentName || c.name) : `contributorID-${id}`;
         const a = document.createElement('a');
@@ -168,7 +169,7 @@ export async function renderContributors(container, contributors, mirrors) {
     const mirrorNames = contributorMirrors.get(c.id);
     if (mirrorNames && mirrorNames.length > 0) {
       const li = document.createElement('li');
-      li.textContent = '提供' + mirrorNames.join('、');
+      li.textContent = t('about.projects.providedMirrors', { mirrors: mirrorNames.join(t('common.separator')) });
       ul.appendChild(li);
     }
 

@@ -1,9 +1,10 @@
 import { renderStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
 import { createPanel, createPanelItem } from './uiComponents.js';
+import { t } from '../common/i18n.js';
 
 /** 介绍目录仍在请求时显示的首屏状态。 */
 export function renderIntroLoading(container) {
-  renderStatus(container, 'loading', { message: '正在加载介绍文档列表……' });
+  renderStatus(container, 'loading', { message: t('intro.loadingDocList') });
 }
 
 /** 目录请求失败时的错误状态；重试只重新获取目录，不会预取正文。 */
@@ -19,11 +20,11 @@ export function renderIntroError(container, error, onRetry) {
  */
 export function renderIntroPanels(container, basic, items, onOpen) {
   setSoftwareHeader(basic, {
-    titlePrefix: '介绍文档',
+    titlePrefix: t('intro.title'),
     detailButton: document.getElementById('detailBtn'),
   });
   if (!items.length) {
-    renderStatus(container, 'empty', { message: '暂无介绍文档' });
+    renderStatus(container, 'empty', { message: t('intro.noDocs') });
     return;
   }
 
@@ -33,11 +34,11 @@ export function renderIntroPanels(container, basic, items, onOpen) {
   const panel = createPanel();
   items.forEach((item, index) => {
     const { element: panelItem, header, body } = createPanelItem(
-      item.title || `文档 ${index + 1}`,
+      item.title || t('intro.docN', { index: index + 1 }),
       { bodyClass: 'mdui-typo' },
     );
     // 空闲提示能让用户理解首次展开可能需要等待，而不是误以为内容丢失。
-    renderStatus(body, 'idle', { message: '展开后加载正文' });
+    renderStatus(body, 'idle', { message: t('intro.idle') });
     panel.appendChild(panelItem);
     header.addEventListener('click', () => onOpen(item, body));
   });
@@ -49,7 +50,7 @@ export function renderIntroPanels(container, basic, items, onOpen) {
 
 /** 单个已展开文档正在下载时的局部加载态。 */
 export function renderDocumentLoading(container) {
-  renderStatus(container, 'loading', { message: '正在加载文档……' });
+  renderStatus(container, 'loading', { message: t('intro.loadingDoc') });
 }
 
 /** 将已经净化的 DocumentFragment 插入单个文档面板。 */
@@ -60,5 +61,5 @@ export function renderDocument(container, fragment) {
 
 /** 单篇文档的错误不会影响其他面板；用户可只重试这一篇。 */
 export function renderDocumentError(container, error, onRetry) {
-  renderStatus(container, 'error', { message: `文档加载失败：${error.message}`, onRetry });
+  renderStatus(container, 'error', { message: t('intro.docLoadError', { message: error.message }), onRetry });
 }

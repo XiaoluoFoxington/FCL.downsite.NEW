@@ -6,6 +6,7 @@ import { adaptPlain } from './plain.js';
 import { adaptLinkong } from './Linkong.js';
 import { adaptWay2old } from './way2old.js';
 export { randomlySelectDefault } from './common.js';
+import { t } from '../../common/i18n.js';
 
 /**
  * 下载协议注册表。
@@ -33,7 +34,7 @@ const ADAPTERS = new Map([
 export function adaptDownloadData(payload, apiVersion, context = {}) {
   // 为所有 adapter 补齐同一份上下文，未登记协议自动退回兼容性的 plain adapter。
   const normalizedContext = {
-    source: context.source || apiVersion || '未知线路',
+    source: context.source || apiVersion || t('common.unknownMirror'),
     baseUrl: context.baseUrl || window.location.origin,
     latestVersion: context.latestVersion || payload?.latest || null,
     notJoinRandom: context.notJoinRandom || false,

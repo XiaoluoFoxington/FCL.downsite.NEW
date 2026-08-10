@@ -3,6 +3,8 @@
  * 它只影响绿色推荐行，不会隐藏其他下载项；无法识别时用户仍可手动选择 all 架构。
  */
 
+import { t } from '../common/i18n.js';
+
 // windows 系统不要根据平台来判断架构!!!
 // windows 系统不管是 64 位还是 32 位始终为 win32 平台
 // 再乱改我就炸了!!!
@@ -81,7 +83,7 @@ export function checkOSRequirement(osRequests, system) {
   const osVersion = system?.fullResult?.os?.version;
 
   if (!osName) {
-    messages.push({ type: 'warning', text: '无法检测当前系统名称。' });
+    messages.push({ type: 'warning', text: t('common.system.cannotDetectOs') });
     return messages;
   }
 
@@ -90,10 +92,10 @@ export function checkOSRequirement(osRequests, system) {
   );
 
   if (!matched) {
-    const supportedNames = osRequests.map((r) => r.osName).join('、');
+    const supportedNames = osRequests.map((r) => r.osName).join(t('common.separator'));
     messages.push({
       type: 'warning',
-      text: `要求 ${supportedNames}，当前系统（${osName}）可能无法正常运行。（仅供参考，不一定准）`,
+      text: t('common.system.osRequirement', { supported: supportedNames, osName }),
     });
     return messages;
   }
@@ -102,7 +104,12 @@ export function checkOSRequirement(osRequests, system) {
     if (compareVersion(osVersion, matched.osVersion) < 0) {
       messages.push({
         type: 'warning',
-        text: `要求 ${matched.osName} ${matched.osVersion} 及以上，当前系统（${osName} ${osVersion}）可能无法正常运行。（仅供参考，不一定准）`,
+        text: t('common.system.osVersionRequirement', {
+          osName: matched.osName,
+          osVersion: matched.osVersion,
+          currentOs: osName,
+          currentVersion: osVersion,
+        }),
       });
     }
   }
@@ -145,7 +152,7 @@ export function buildSystemMessages(system) {
   }
 
   if (result.cpu?.architecture) {
-    parts.push(`CPU ${result.cpu.architecture}`);
+    parts.push(t('common.system.cpuInfo', { arch: result.cpu.architecture }));
   }
 
   if (parts.length > 0) {
@@ -153,7 +160,7 @@ export function buildSystemMessages(system) {
   }
 
   if (system?.matchedArchitecture) {
-    messages.push({ type: 'success', text: `已为您匹配推荐架构：${system.matchedArchitecture}` });
+    messages.push({ type: 'success', text: t('common.system.matchedArch', { arch: system.matchedArchitecture }) });
   }
 
   return messages;

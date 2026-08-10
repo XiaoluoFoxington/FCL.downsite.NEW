@@ -4,6 +4,7 @@ import { isSafeNavigationUrl, joinUrl } from '../security/content.js';
 import { createExternalLink, createGrid, createMaterialIcon } from './uiComponents.js';
 import { isBookmarked, toggleBookmark, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
 import { readPreference } from '../domain/preferences.js';
+import { t, translateTag } from '../common/i18n.js';
 
 // 反馈渠道异步请求的取消控制器：renderDetail 成功或再次进入 renderDetailError 时 abort 旧的，
 // 既保护 DOM 不被旧响应写入，也取消进行中的网络请求避免无谓流量。
@@ -14,9 +15,9 @@ let feedbackAbort = null;
  * @param {HTMLTableElement} elements tbody 元素
  */
 export function renderDetailLoading(elements) {
-  renderTableStatus(elements.body, 2, 'loading', '正在加载软件详情……');
+  renderTableStatus(elements.body, 2, 'loading', t('detail.loadingDetail'));
   if (elements.mirrorInfoBody) {
-    renderTableStatus(elements.mirrorInfoBody, 4, 'loading', '正在加载线路预览……');
+    renderTableStatus(elements.mirrorInfoBody, 4, 'loading', t('detail.loadingMirror'));
   }
   if (elements.messageWrapper) {
     elements.messageWrapper.hidden = true;
@@ -45,7 +46,7 @@ export function renderDetailError(elements, error, onRetry) {
   }
 
   // 清空操作区，先显示加载状态
-  renderStatus(elements.operations, 'loading', { message: '加载反馈渠道...' });
+  renderStatus(elements.operations, 'loading', { message: t('common.feedbackLoading') });
 
   // 异步获取反馈渠道，signal 让旧请求在新状态进入时被真正取消。
   getFeedbackChannels({ signal: ac.signal })
@@ -64,17 +65,17 @@ export function renderDetailError(elements, error, onRetry) {
         const icon = document.createElement('i');
         icon.className = 'mdui-icon material-icons';
         icon.textContent = 'feedback';
-        feedBtn.append(icon, ` 通过 ${channels[0].name} 反馈问题`);
+        feedBtn.append(icon, ` ${t('detail.feedbackHint', { name: channels[0].name })}`);
         elements.operations.appendChild(feedBtn);
       } else {
         // 无反馈渠道，显示错误状态并提供重试
-        renderStatus(elements.operations, 'error', { message: '暂无反馈渠道', onRetry });
+        renderStatus(elements.operations, 'error', { message: t('detail.noFeedbackChannel'), onRetry });
       }
     })
     .catch((err) => {
       if (ac.signal.aborted || err.kind === 'abort') return; // 被新状态取消，不显示错误
       // 获取渠道失败，显示错误状态并提供重试
-      renderStatus(elements.operations, 'error', { message: `反馈渠道加载失败: ${err.message}`, onRetry });
+      renderStatus(elements.operations, 'error', { message: t('detail.feedbackLoadError', { message: err.message }), onRetry });
     });
 }
 
@@ -115,17 +116,17 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   onBookmarkChange(syncHandler);
   container._bookmarkSync = () => offBookmarkChange(syncHandler);
 
-  setSoftwareHeader(basic, { titlePrefix: '资源详情' });
+  setSoftwareHeader(basic, { titlePrefix: t('detail.title') });
   elements.operations.hidden = false;
   const tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
-  const iconTd = '图标';
+  const iconTd = t('detail.basicInfoTable.icon');
   // value 可以是字符串，也可以是受本 view 创建的安全 DOM 节点（图标或外链）。
   const rows = [
-    ['名称', basic.name],
+    [t('detail.basicInfoTable.name'), basic.name],
     [iconTd, createIcon(basic)],
     ['ID', String(id)],
-    ['TAG', basic.tagIds.map((tagId) => tagMap.get(tagId) || String(tagId)).join(', ')],
-    detail.OSRequest?.length ? ['系统需求', formatOSRequest(detail.OSRequest)] : null,
+    ['TAG', basic.tagIds.map((tagId) => translateTag(tagMap.get(tagId) || String(tagId))).join(', ')],
+    detail.OSRequest?.length ? [t('detail.basicInfoTable.osRequest'), formatOSRequest(detail.OSRequest)] : null,
   ].filter(Boolean);
   (detail.info || []).forEach((item) => rows.push([item.name, createInfoValue(item)]));
 
@@ -143,7 +144,7 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   });
   elements.body.replaceChildren(fragment);
 
-  elements.isRandomSelect.textContent = detail.randomSelectMirror ? '是' : '否';
+  elements.isRandomSelect.textContent = detail.randomSelectMirror ? t('common.yes') : t('common.no');
   renderMessages(elements.messageWrapper, elements.messageContainer, detail.message);
   renderMirrorInfo(elements.mirrorInfoBody, detail.download, mirrors);
 
@@ -215,7 +216,7 @@ function syncBookmarkButton(btn, basic, forcedState) {
   if (!btn.contains(icon)) btn.prepend(icon);
   btn.textContent = ''; // 清空后重新构建
   btn.appendChild(icon);
-  btn.appendChild(document.createTextNode(bookmarked ? ' 取消收藏' : ' 加入收藏'));
+  btn.appendChild(document.createTextNode(` ${bookmarked ? t('common.bookmarkRemove') : t('common.bookmarkAdd')}`));
 }
 
 /**
@@ -238,7 +239,7 @@ function renderMirrorInfo(body, downloads, mirrors) {
   if (!body) return;
   const list = Array.isArray(downloads) ? downloads : [];
   if (list.length === 0) {
-    renderTableStatus(body, 4, 'empty', '该软件暂无下载线路');
+    renderTableStatus(body, 4, 'empty', t('common.noMirrorInfo'));
     return;
   }
   const mirrorMap = new Map((mirrors || []).map((mirror) => [mirror.id, mirror]));
@@ -256,10 +257,10 @@ function renderMirrorInfo(body, downloads, mirrors) {
       nameCell.textContent = mirror.name;
       urlCell.appendChild(createExternalLink(joinUrl(mirror.baseUrl, download.key)));
     } else {
-      nameCell.textContent = '未知线路';
-      urlCell.textContent = '（线路配置缺失）';
+      nameCell.textContent = t('common.unknownMirror');
+      urlCell.textContent = t('common.mirrorConfigMissing');
     }
-    randomCell.textContent = download.notJoinRandom ? '否' : '是';
+    randomCell.textContent = download.notJoinRandom ? t('common.no') : t('common.yes');
     row.append(idCell, nameCell, urlCell, randomCell);
     fragment.appendChild(row);
   });

@@ -1,5 +1,6 @@
 import { createIntroController } from './controllers/introController.js';
 import { getSoftwareId, renderStatus, setErrorTitle } from './views/commonView.js';
+import { t } from './common/i18n.js';
 
 /**
  * 介绍页入口。container 初始显示 spinner，随后由 introView 替换为文档折叠面板；
@@ -11,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const softwareId = getSoftwareId();
   if (softwareId === null) {
     setErrorTitle();
-    renderStatus(container, 'error', { message: '未指定有效的软件 ID' });
+    renderStatus(container, 'error', { message: t('common.osNotSpecified') });
     return;
   }
   createIntroController(container, softwareId).load();

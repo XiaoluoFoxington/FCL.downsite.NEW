@@ -4,6 +4,8 @@
  * 其他页面若仅需显示字符串，应直接使用 textContent，不应调用本模块。
  */
 
+import { t } from '../common/i18n.js';
+
 // 这两个依赖只在介绍正文或明确声明为 HTML 的远程描述首次展示时加载，
 // 完整性哈希防止 CDN 内容被替换后仍在本站上下文执行。
 const MARKED = {
@@ -38,9 +40,9 @@ export function loadExternalScript({ src, integrity, globalName }) {
     script.crossOrigin = 'anonymous';
     script.addEventListener('load', () => {
       if (window[globalName]) resolve(window[globalName]);
-      else reject(new Error(`依赖加载后未找到 ${globalName}`));
+      else reject(new Error(t('common.dependencyMissing', { name: globalName })));
     }, { once: true });
-    script.addEventListener('error', () => reject(new Error(`无法加载依赖：${src}`)), { once: true });
+    script.addEventListener('error', () => reject(new Error(t('common.dependencyLoadFailed', { src }))), { once: true });
     document.head.appendChild(script);
   }).catch((error) => {
     scriptPromises.delete(src);

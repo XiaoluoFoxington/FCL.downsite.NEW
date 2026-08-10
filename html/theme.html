@@ -10,16 +10,16 @@
   <link rel="stylesheet" href="/css/mdui.patch.css">
   <link rel="stylesheet" href="/css/xf.css">
   <link rel="icon" href="/data/software/0/icon.avif">
-  <title>主题设置 - FCL下载站</title>
-  <meta name="description" content="自定义FCL下载站的外观主题，切换明亮/暗色/自动模式，选择主色和强调色，打造个性化浏览体验。">
+  <title data-i18n="theme.pageTitle">主题设置 - FCL下载站</title>
+  <meta name="description" data-i18n-attr="content" data-i18n="theme.description" content="自定义FCL下载站的外观主题，切换明亮/暗色/自动模式，选择主色和强调色，打造个性化浏览体验。">
   <meta name="keywords" content="主题设置, 深色模式, 亮色模式, 个性化, 主题颜色, 强调色, FCL下载站">
-  <meta property="og:title" content="主题设置 - FCL下载站">
-  <meta property="og:description" content="自定义FCL下载站的外观主题与配色方案。">
+  <meta property="og:title" data-i18n-attr="content" data-i18n="theme.pageTitle" content="主题设置 - FCL下载站">
+  <meta property="og:description" data-i18n-attr="content" data-i18n="theme.description" content="自定义FCL下载站的外观主题与配色方案。">
   <meta property="og:image" content="/media/img/thumbnail/thumbnail.webp">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="主题设置 - FCL下载站">
-  <meta name="twitter:description" content="自定义FCL下载站的外观主题与配色方案。">
+  <meta name="twitter:title" data-i18n-attr="content" data-i18n="theme.pageTitle" content="主题设置 - FCL下载站">
+  <meta name="twitter:description" data-i18n-attr="content" data-i18n="theme.description" content="自定义FCL下载站的外观主题与配色方案。">
   <meta name="twitter:image" content="/media/img/thumbnail/thumbnail.webp">
   <link rel="canonical" href="theme.html">
 
@@ -62,7 +62,7 @@
     <div class="mdui-toolbar mdui-color-theme">
       <a href="javascript: window.history.back();" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">arrow_back</i></a>
       <a href="/" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">home</i></a>
-      <a href="" class="mdui-typo-title">主题设置</a>
+      <a href="" class="mdui-typo-title" data-i18n="theme.title">主题设置</a>
       <div class="mdui-toolbar-spacer"></div>
       <a href="javascript:void(0);" id="menu_btn" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">menu</i></a>
     </div>
@@ -72,7 +72,7 @@
     <div class="mdui-panel" mdui-panel>
       <div class="mdui-panel-item mdui-panel-item-open">
         <div class="mdui-panel-item-header mdui-ripple">
-          <div>主题设置</div>
+          <div data-i18n="theme.title">主题设置</div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body">
@@ -80,7 +80,7 @@
             <div class="mdui-panel" mdui-panel>
               <div class="mdui-panel-item mdui-panel-item-open">
                 <div class="mdui-panel-item-header mdui-ripple">
-                  <div>主题</div>
+                  <div data-i18n="theme.theme">主题</div>
                   <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
                 </div>
                 <div class="mdui-panel-item-body">
@@ -93,7 +93,7 @@
               </div>
               <div class="mdui-panel-item mdui-panel-item-open">
                 <div class="mdui-panel-item-header mdui-ripple">
-                  <div class="mdui-text-color-theme">主色</div>
+                  <div class="mdui-text-color-theme" data-i18n="theme.primary">主色</div>
                   <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
                 </div>
                 <div class="mdui-panel-item-body">
@@ -122,7 +122,7 @@
               </div>
               <div class="mdui-panel-item mdui-panel-item-open">
                 <div class="mdui-panel-item-header mdui-ripple">
-                  <div class="mdui-text-color-theme-accent">强调色</div>
+                  <div class="mdui-text-color-theme-accent" data-i18n="theme.accent">强调色</div>
                   <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
                 </div>
                 <div class="mdui-panel-item-body">
@@ -153,21 +153,21 @@
 
       <div class="mdui-panel-item mdui-panel-item-open">
         <div class="mdui-panel-item-header mdui-ripple">
-          <div>预览</div>
+          <div data-i18n="theme.preview">预览</div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body">
           <div class="mdui-panel" mdui-panel>
             <div class="mdui-panel-item mdui-panel-item-open">
               <div class="mdui-panel-item-header mdui-ripple">
-                <div>颜色</div>
+                <div data-i18n="theme.colors">颜色</div>
                 <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
               </div>
               <div class="mdui-panel-item-body">
                 <div class="mdui-row-xs-1 mdui-row-md-2">
                   <div class="mdui-col">
                     <ul class="color-palette">
-                      <li class="mdui-color-theme main-color"><span class="color-name">Primary (主色)</span><span class="color-class">mdui-color-theme</span></li>
+                      <li class="mdui-color-theme main-color"><span class="color-name" data-i18n="theme.primaryLabel">Primary (主色)</span><span class="color-class">mdui-color-theme</span></li>
                       <li class="mdui-color-theme-50"><span class="color-class">mdui-color-theme-50</span></li>
                       <li class="mdui-color-theme-100"><span class="color-class">mdui-color-theme-100</span></li>
                       <li class="mdui-color-theme-200"><span class="color-class">mdui-color-theme-200</span></li>
@@ -182,7 +182,7 @@
                   </div>
                   <div class="mdui-col">
                     <ul class="color-palette">
-                      <li class="mdui-color-theme-accent main-color"><span class="color-name">Accent (强调色)</span><span class="color-class">mdui-color-theme-accent</span></li>
+                      <li class="mdui-color-theme-accent main-color"><span class="color-name" data-i18n="theme.accentLabel">Accent (强调色)</span><span class="color-class">mdui-color-theme-accent</span></li>
                       <li class="mdui-color-theme-a100"><span class="color-class">mdui-color-theme-a100</span></li>
                       <li class="mdui-color-theme-a200"><span class="color-class">mdui-color-theme-a200</span></li>
                       <li class="mdui-color-theme-a400"><span class="color-class">mdui-color-theme-a400</span></li>
@@ -201,23 +201,23 @@
       
             <div class="mdui-panel-item mdui-panel-item-open">
               <div class="mdui-panel-item-header mdui-ripple">
-                <div>排版</div>
+                <div data-i18n="theme.typography">排版</div>
                 <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
               </div>
               <div class="mdui-panel-item-body">
                 <div class="mdui-typo">
-                  <p>这行文本很普通。</p>
-                  <p><a href="#">这是一个链接</a></p>
-                  <p>使用 mark 标签来<mark>高亮文本</mark>。</p>
-                  <p><del>这行文本被视为已删除文本。</del></p>
-                  <p><ins>这行文本是被强势插入的元素。</ins></p>
-                  <p><u>这行文本带有下划线。</u></p>
-                  <p><small>这行文本字体被缩小了。</small></p>
-                  <p><strong>这行文本被加粗了。</strong></p>
-                  <p><em>这段文本是斜体的。</em></p>
-                  <p>响应式设计（<abbr title="Responsive web design">RWD</abbr>）。</p>
-                  <p>这行文本包含内联代码 <code>&lt;code&gt;</code>。</p>
-                  <p>按下 <kbd>Esc</kbd> 可以关闭对话框。</p>
+                  <p data-i18n="theme.samplePlain">这行文本很普通。</p>
+                  <p><a href="#" data-i18n="theme.sampleLink">这是一个链接</a></p>
+                  <p data-i18n="theme.sampleMark">使用 mark 标签来<mark data-i18n-placeholder="m1" data-i18n="theme.markText">高亮文本</mark>。</p>
+                  <p><del data-i18n="theme.sampleDel">这行文本被视为已删除文本。</del></p>
+                  <p><ins data-i18n="theme.sampleIns">这行文本是被强势插入的元素。</ins></p>
+                  <p><u data-i18n="theme.sampleUnderline">这行文本带有下划线。</u></p>
+                  <p><small data-i18n="theme.sampleSmall">这行文本字体被缩小了。</small></p>
+                  <p><strong data-i18n="theme.sampleStrong">这行文本被加粗了。</strong></p>
+                  <p><em data-i18n="theme.sampleEm">这段文本是斜体的。</em></p>
+                  <p data-i18n="theme.sampleRwd">响应式设计（<abbr data-i18n-placeholder="rwd" title="Responsive web design">RWD</abbr>）。</p>
+                  <p data-i18n="theme.sampleCode">这行文本包含内联代码 <code data-i18n-placeholder="code">&lt;code&gt;</code>。</p>
+                  <p data-i18n="theme.sampleKbd">按下 <kbd data-i18n-placeholder="kbd">Esc</kbd> 可以关闭对话框。</p>
                   <p><var>y</var> = <var>m</var><var>x</var> + <var>b</var></p>
                 </div>      
               </div>
@@ -225,7 +225,7 @@
 
             <div class="mdui-panel-item mdui-panel-item-open">
               <div class="mdui-panel-item-header mdui-ripple">
-                <div>表格</div>
+                <div data-i18n="theme.table">表格</div>
                 <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
               </div>
               <div class="mdui-panel-item-body mdui-typo">
@@ -233,17 +233,17 @@
                   <table class="mdui-table">
                     <thead>
                       <tr>
-                        <th>名称</th>
-                        <th>值</th>
+                        <th data-i18n="detail.basicInfoTable.name">名称</th>
+                        <th data-i18n="theme.value">值</th>
                       </tr>
                     </thead>
                     <tbody id="basic-info-body">
                       <tr>
-                        <td>名称</td>
+                        <td data-i18n="detail.basicInfoTable.name">名称</td>
                         <td>Fold Craft Launcher</td>
                       </tr>
                       <tr>
-                        <td>图标</td>
+                        <td data-i18n="detail.basicInfoTable.icon">图标</td>
                         <td><img src="/data/software/0/icon.avif" alt="Fold Craft Launcher" class="xf-detail-icon" width="64" height="64" loading="lazy"></td>
                       </tr>
                       <tr>
@@ -255,7 +255,7 @@
                         <td>Android, MCJE相关, 启动器</td>
                       </tr>
                       <tr>
-                        <td>系统需求</td>
+                        <td data-i18n="detail.basicInfoTable.osRequest">系统需求</td>
                         <td>Android 7</td>
                       </tr>
                       <tr>

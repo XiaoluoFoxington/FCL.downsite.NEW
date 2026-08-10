@@ -1,5 +1,6 @@
 import { renderStatus } from './commonView.js';
 import { createPanel, createPanelItem, showSnackbar } from './uiComponents.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 行为设置页面 view。
@@ -190,7 +191,7 @@ function renderSettingItem(container, setting, savedValue, onChange) {
  */
 export function renderSettingsTree(container, categories, readPref, onChange) {
   if (!categories.length) {
-    renderStatus(container, 'empty', { message: '暂无行为设置项' });
+    renderStatus(container, 'empty', { message: t('behavior.empty') });
     return;
   }
 
@@ -226,7 +227,7 @@ export function renderSettingsTree(container, categories, readPref, onChange) {
  * @param {HTMLElement} container 挂载容器
  */
 export function renderBehaviorLoading(container) {
-  renderStatus(container, 'loading', { message: '正在加载设置……' });
+  renderStatus(container, 'loading', { message: t('behavior.loading') });
 }
 
 /**
@@ -236,19 +237,19 @@ export function renderBehaviorLoading(container) {
  * @param {Function} onRetry 重试回调
  */
 export function renderBehaviorError(container, error, onRetry) {
-  renderStatus(container, 'error', { message: error.message || '设置加载失败', onRetry });
+  renderStatus(container, 'error', { message: error.message || t('behavior.loadingError'), onRetry });
 }
 
 /**
  * 显示保存成功的提示。
  */
 export function showSaveSuccess() {
-  showSnackbar('设置保存成功');
+  showSnackbar(t('behavior.saveSuccess'));
 }
 
 /**
  * 显示保存失败的提示。
  */
 export function showSaveError() {
-  showSnackbar('设置保存失败');
+  showSnackbar(t('behavior.saveError'));
 }

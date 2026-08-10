@@ -4,6 +4,7 @@ import { createPanel } from '../views/uiComponents.js';
 import { getText } from '../http/client.js';
 import { createSafeContent } from '../security/content.js';
 import { renderStatus } from '../views/commonView.js';
+import { t, translateDynamicContent } from './i18n.js';
 
 /**
  * 赞助提醒，用于在访问次数达到10的倍数时显示赞助提醒
@@ -51,15 +52,16 @@ async function showSponsorRemindIfAllow(container) {
  * @param {number} visitCount 当前访问次数
  */
 async function showSponsorRemind(container, visitCount) {
-  renderStatus(container, 'loading', { message: '正在加载赞助提醒……' });
+  renderStatus(container, 'loading', { message: t('common.loadingSponsorRemind') });
   try {
     container.className = 'mdui-panel-item mdui-panel-item-open xf-sponsorRemind';
     const sponsorHtml = await getText('/data/sponsorRemind.html', { cache: true });
     container.replaceChildren(await createSafeContent(sponsorHtml));
+    translateDynamicContent(container);
     const visitCountEl = container.querySelector('#visitCount');
     const closeBtn = container.querySelector('#sponsorRemindCloseBtn');
     if (!visitCountEl || !closeBtn) {
-      throw new Error('赞助提醒模板缺少必要的元素（#visitCount 或 #sponsorRemindCloseBtn）');
+      throw new Error(t('common.sponsorRemindTemplateMissing'));
     }
     visitCountEl.textContent = visitCount;
     closeBtn.addEventListener('click', () => {

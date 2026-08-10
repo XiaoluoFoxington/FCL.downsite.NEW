@@ -1,4 +1,5 @@
 import { getJSON } from '../http/client.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 本站静态数据仓库。
@@ -15,7 +16,7 @@ import { getJSON } from '../http/client.js';
  * @returns {Array} 校验后的数组
  */
 function assertArray(value, label) {
-  if (!Array.isArray(value)) throw new Error(`${label}数据格式不正确：应为数组`);
+  if (!Array.isArray(value)) throw new Error(t('common.repository.invalidArray', { label }));
   return value;
 }
 
@@ -28,8 +29,8 @@ function assertArray(value, label) {
 function assertUniqueIds(items, label) {
   const ids = new Set();
   for (const item of items) {
-    if (!Number.isInteger(item?.id)) throw new Error(`${label}存在无效 ID`);
-    if (ids.has(item.id)) throw new Error(`${label}存在重复 ID：${item.id}`);
+    if (!Number.isInteger(item?.id)) throw new Error(t('common.repository.invalidId', { label }));
+    if (ids.has(item.id)) throw new Error(t('common.repository.duplicateId', { label, id: item.id }));
     ids.add(item.id);
   }
   return items;
@@ -43,12 +44,12 @@ function assertUniqueIds(items, label) {
 export async function getSoftwareCatalog(options = {}) {
   // 软件目录是列表页的唯一基础数据源，避免旧实现按软件逐一请求 basic.json。
   const items = assertUniqueIds(
-    assertArray(await getJSON('/data/software.json', { ...options, cache: true }), '软件目录'),
-    '软件目录',
+    assertArray(await getJSON('/data/software.json', { ...options, cache: true }), t('common.repository.software')),
+    t('common.repository.software'),
   );
   items.forEach((item) => {
     if (!item.name || !item.detailUrl || !Array.isArray(item.tagIds)) {
-      throw new Error(`软件 ${item.id} 的基础信息不完整`);
+      throw new Error(t('common.repository.softwareIncomplete', { id: item.id }));
     }
   });
   return items;
@@ -61,8 +62,8 @@ export async function getSoftwareCatalog(options = {}) {
  */
 export async function getTags(options = {}) {
   return assertUniqueIds(
-    assertArray(await getJSON('/data/tag.json', { ...options, cache: true }), '标签'),
-    '标签',
+    assertArray(await getJSON('/data/tag.json', { ...options, cache: true }), t('common.repository.tags')),
+    t('common.repository.tags'),
   );
 }
 
@@ -73,8 +74,8 @@ export async function getTags(options = {}) {
  */
 export async function getMirrors(options = {}) {
   return assertUniqueIds(
-    assertArray(await getJSON('/data/mirror.json', { ...options, cache: true }), '镜像线路'),
-    '镜像线路',
+    assertArray(await getJSON('/data/mirror.json', { ...options, cache: true }), t('common.repository.mirrors')),
+    t('common.repository.mirrors'),
   );
 }
 
@@ -84,7 +85,7 @@ export async function getMirrors(options = {}) {
  * @returns {Promise<Array<object>>} 反馈渠道数组，项结构为 { name, href }
  */
 export async function getFeedbackChannels(options = {}) {
-  return assertArray(await getJSON('/data/feedback.json', { ...options, cache: true }), '反馈渠道');
+  return assertArray(await getJSON('/data/feedback.json', { ...options, cache: true }), t('common.repository.feedback'));
 }
 
 /**
@@ -94,7 +95,7 @@ export async function getFeedbackChannels(options = {}) {
  */
 export async function getSettings(options = {}) {
   const data = await getJSON('/data/setting.json', { ...options, cache: true });
-  if (!Array.isArray(data)) throw new Error('设置数据格式不正确：应为数组');
+  if (!Array.isArray(data)) throw new Error(t('common.repository.settingsInvalid'));
   return data;
 }
 
@@ -108,10 +109,10 @@ export async function getSoftware(id, options = {}) {
   // 先从目录定位详情路径，而不是将路径规则硬编码到各个页面入口中。
   const catalog = await getSoftwareCatalog(options);
   const basic = catalog.find((item) => item.id === id);
-  if (!basic) throw new Error(`找不到 ID 为 ${id} 的软件`);
+  if (!basic) throw new Error(t('common.repository.softwareNotFound', { id }));
   const detail = await getJSON(basic.detailUrl, { ...options, cache: true });
   if (!detail || typeof detail !== 'object' || Array.isArray(detail)) {
-    throw new Error(`软件 ${id} 的详情数据格式不正确`);
+    throw new Error(t('common.repository.detailInvalid', { id }));
   }
   return { basic, detail };
 }

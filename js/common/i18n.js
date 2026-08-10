@@ -1,0 +1,286 @@
+/**
+ * i18n 国际化核心模块
+ *
+ * 设计目标：绝不影响站点可用性。
+ * - 翻译键缺失时回退到另一种语言，再回退到键本身，绝不抛错；
+ * - 所有 DOM 翻译逐元素容错，单个元素失败不影响其他元素；
+ * - 语言切换只保存偏好并刷新页面，不做复杂的实时 DOM 重建；
+ * - 默认简体中文，未检测到支持的语言时保持中文。
+ */
+
+import zhCN from '../i18n/zh-CN.js';
+import enUS from '../i18n/en-US.js';
+import { readPreference, writePreference } from '../domain/preferences.js';
+import { logWarn } from './logger.js';
+
+/** 语言偏好存储键 */
+const LANGUAGE_KEY = 'fdn-language';
+
+/** 支持的语言包 */
+const LANGUAGE_PACKS = {
+  'zh-CN': zhCN,
+  'en-US': enUS,
+};
+
+/** 语言显示名称（用于语言选择器） */
+export const LANGUAGE_NAMES = {
+  'zh-CN': '简体中文',
+  'en-US': 'English',
+};
+
+/** 各语言的回退顺序 */
+const FALLBACK_ORDER = {
+  'zh-CN': ['zh-CN', 'en-US'],
+  'en-US': ['en-US', 'zh-CN'],
+};
+
+let currentLang = 'zh-CN';
+let initPromise = null;
+
+/**
+ * 读取嵌套翻译值。
+ * @param {object} pack 语言包
+ * @param {string} key 点号分隔的键路径
+ * @returns {string|undefined}
+ */
+function getNestedValue(pack, key) {
+  let value = pack;
+  for (const part of key.split('.')) {
+    if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, part)) {
+      value = value[part];
+    } else {
+      return undefined;
+    }
+  }
+  return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * 替换 {param} 占位符。
+ * @param {string} text 原文
+ * @param {object} params 参数映射
+ * @param {Set<string>} skip 需要保留原样的参数名（用于 DOM 占位符元素）
+ * @returns {string}
+ */
+function interpolate(text, params, skip) {
+  if (!params || Object.keys(params).length === 0) return text;
+  return text.replace(/\{(\w+)\}/g, (match, name) => {
+    if (skip && skip.has(name)) return match;
+    return Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match;
+  });
+}
+
+/**
+ * 翻译函数。
+ * @param {string} key 翻译键，如 'common.nav.resourceList'
+ * @param {object} [params] 参数替换 {name: value}
+ * @param {Set<string>} [skip] 不替换的占位符名集合
+ * @returns {string}
+ */
+export function t(key, params = {}, skip = null) {
+  try {
+    const order = FALLBACK_ORDER[currentLang] || FALLBACK_ORDER['zh-CN'];
+    for (const lang of order) {
+      const value = getNestedValue(LANGUAGE_PACKS[lang], key);
+      if (value !== undefined) return interpolate(value, params, skip);
+    }
+  } catch (error) {
+    logWarn(error, `i18n 翻译失败: ${key}`);
+  }
+  return key;
+}
+
+/**
+ * 获取当前语言代码。
+ * @returns {string} 'zh-CN' | 'en-US'
+ */
+export function getCurrentLang() {
+  return currentLang;
+}
+
+/**
+ * 获取所有支持的语言列表。
+ * @returns {Array<{code: string, name: string}>}
+ */
+export function getSupportedLanguages() {
+  return Object.keys(LANGUAGE_PACKS).map((code) => ({
+    code,
+    name: LANGUAGE_NAMES[code] || code,
+  }));
+}
+
+/**
+ * 设置语言并保存偏好。为保证所有动态视图一致，切换后刷新页面。
+ * @param {string} lang 语言代码
+ */
+export function setLang(lang) {
+  if (!LANGUAGE_PACKS[lang]) {
+    logWarn(`不支持的语言: ${lang}`);
+    return;
+  }
+  if (currentLang === lang) return;
+  currentLang = lang;
+  try {
+    writePreference(LANGUAGE_KEY, lang);
+    document.documentElement.lang = lang;
+    applyTranslations();
+    window.location.reload();
+  } catch (error) {
+    logWarn(error, '切换语言');
+  }
+}
+
+/**
+ * 对 DOM 应用翻译。
+ * 支持两种用法：
+ * - data-i18n="key"：翻译文本内容；
+ * - data-i18n="key" data-i18n-attr="attr"：翻译指定属性（如 title/alt/content）。
+ * 混合内容请用 data-i18n-placeholder="name" 标记子元素，翻译文本中以 {name} 保留。
+ * @param {ParentNode} [root=document] 扫描根节点
+ */
+export function applyTranslations(root = document) {
+  if (!root || typeof root.querySelectorAll !== 'function') return;
+  let elements;
+  try {
+    elements = root.querySelectorAll('[data-i18n]');
+  } catch (error) {
+    logWarn(error, 'i18n 扫描 DOM');
+    return;
+  }
+
+  elements.forEach((el) => {
+    try {
+      const key = el.getAttribute('data-i18n');
+      if (!key) return;
+
+      let params = {};
+      const paramsStr = el.getAttribute('data-i18n-params');
+      if (paramsStr) {
+        try {
+          params = JSON.parse(paramsStr) || {};
+        } catch (_) {
+          logWarn(`解析 i18n 参数失败: ${paramsStr}`);
+        }
+      }
+
+      const attr = el.getAttribute('data-i18n-attr');
+      if (attr) {
+        el.setAttribute(attr, t(key, params));
+        return;
+      }
+
+      // 收集占位符子元素并临时移出 DOM，翻译后再按 {name} 文本位置还原。
+      // 注意：占位符元素必须在设置 textContent 之前移除，否则会被 textContent 覆盖销毁。
+      const placeholders = new Map();
+      el.querySelectorAll('[data-i18n-placeholder]').forEach((child) => {
+        const name = child.getAttribute('data-i18n-placeholder');
+        if (name && !placeholders.has(name)) {
+          placeholders.set(name, child);
+          child.remove();
+        }
+      });
+
+      const skip = new Set(placeholders.keys());
+      el.textContent = t(key, params, skip);
+
+      placeholders.forEach((child, name) => {
+        const token = `{${name}}`;
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+          if (node.nodeValue.includes(token)) {
+            const parts = node.nodeValue.split(token);
+            const parent = node.parentNode;
+            const fragment = document.createDocumentFragment();
+            parts.forEach((part, index) => {
+              if (index > 0) fragment.appendChild(child);
+              if (part) fragment.appendChild(document.createTextNode(part));
+            });
+            parent.replaceChild(fragment, node);
+            break;
+          }
+        }
+      });
+    } catch (error) {
+      logWarn(error, `i18n 应用翻译失败: ${el.getAttribute('data-i18n')}`);
+    }
+  });
+}
+
+/**
+ * 翻译动态插入的内容（如抽屉、公告等）。
+ * @param {ParentNode} container 新内容容器
+ */
+export function translateDynamicContent(container) {
+  applyTranslations(container);
+}
+
+/**
+ * 检测浏览器语言。
+ * @returns {string} 支持的语言代码，不支持时返回 'zh-CN'
+ */
+function detectBrowserLang() {
+  try {
+    const lang = String(navigator.language || navigator.userLanguage || 'zh-CN').toLowerCase();
+    if (lang.startsWith('zh')) return 'zh-CN';
+    if (lang.startsWith('en')) return 'en-US';
+  } catch (_) {
+    // 忽略检测异常
+  }
+  return 'zh-CN';
+}
+
+/**
+ * 初始化 i18n：恢复保存的语言或检测浏览器语言，并在 DOM 就绪后应用翻译。
+ * @returns {Promise<void>}
+ */
+export function initI18n() {
+  if (initPromise) return initPromise;
+
+  initPromise = new Promise((resolve) => {
+    try {
+      const savedLang = readPreference(LANGUAGE_KEY);
+      const detected = savedLang || detectBrowserLang();
+      currentLang = LANGUAGE_PACKS[detected] ? detected : 'zh-CN';
+      document.documentElement.lang = currentLang;
+    } catch (error) {
+      logWarn(error, '初始化 i18n');
+    }
+
+    const apply = () => {
+      try {
+        applyTranslations();
+      } catch (error) {
+        logWarn(error, '应用初始翻译');
+      }
+      resolve();
+    };
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', apply, { once: true });
+    } else {
+      apply();
+    }
+  });
+
+  return initPromise;
+}
+
+/**
+ * 等待 i18n 初始化完成。
+ * @returns {Promise<void>}
+ */
+export function waitForI18n() {
+  return initPromise || initI18n();
+}
+
+/**
+ * 翻译标签名（数据源中的中文标签），无对应翻译时原样返回。
+ * @param {string} name 标签名
+ * @returns {string}
+ */
+export function translateTag(name) {
+  if (!name) return name;
+  const translated = t(`tags.${name}`);
+  return translated.startsWith('tags.') ? name : translated;
+}

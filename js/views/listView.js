@@ -1,6 +1,7 @@
 import { renderStatus } from './commonView.js';
 import { readPreference } from '../domain/preferences.js';
 import { isBookmarked, toggleBookmark } from '../domain/bookmarks.js';
+import { t, translateTag } from '../common/i18n.js';
 
 /** 切换筛选面板标题中“已有筛选条件”图标的显示。 */
 export function setFilterIndicator(element, active) {
@@ -9,8 +10,8 @@ export function setFilterIndicator(element, active) {
 
 /** 同时显示目录与标签两个并行请求的加载状态。 */
 export function renderListLoading(elements) {
-  renderStatus(elements.list, 'loading', { message: '正在加载软件目录……' });
-  renderStatus(elements.tags, 'loading', { message: '正在加载标签……' });
+  renderStatus(elements.list, 'loading', { message: t('list.loadingCatalog') });
+  renderStatus(elements.tags, 'loading', { message: t('list.loadingTags') });
   setFilterIndicator(elements.filterIndicator, false);
 }
 
@@ -35,9 +36,9 @@ export function renderFilterTags(container, tags, onChange) {
 
   const activeTagIds = new Set();
   const fragment = document.createDocumentFragment();
-  const allButton = createTagButton('显示所有', '', true);
+  const allButton = createTagButton(t('common.showAll'), '', true);
   fragment.appendChild(allButton);
-  tags.forEach((tag) => fragment.appendChild(createTagButton(tag.name, String(tag.id))));
+  tags.forEach((tag) => fragment.appendChild(createTagButton(translateTag(tag.name), String(tag.id))));
   container.replaceChildren(fragment);
 
   container.addEventListener('click', (event) => {
@@ -128,11 +129,11 @@ function createThead() {
   const thead = document.createElement('thead');
   const headerRow = document.createElement('tr');
   const headers = [
-    { text: '图标', sortable: false, key: null },
-    { text: '名称', sortable: true, key: 'name' },
+    { text: t('list.header.icon'), sortable: false, key: null },
+    { text: t('list.header.name'), sortable: true, key: 'name' },
     { text: 'ID', sortable: true, key: 'id' },
-    { text: '标签', sortable: false, key: null },
-    { text: '收藏', sortable: false, key: null },
+    { text: t('list.header.tags'), sortable: false, key: null },
+    { text: t('list.header.bookmark'), sortable: false, key: null },
   ];
   headers.forEach(({ text, sortable, key }) => {
     const th = document.createElement('th');
@@ -141,7 +142,7 @@ function createThead() {
       th.className = 'xf-list-table-th-sortable';
       th.dataset.sortKey = key;
       th.tabIndex = 0;
-      th.setAttribute('aria-label', `按 ${text} 排序`);
+      th.setAttribute('aria-label', t('common.sortBy', { text }));
     }
     headerRow.appendChild(th);
   });
@@ -205,7 +206,7 @@ function renderTableBody(tbody, iconSize) {
 
     // 标签单元格
     const tagsCell = document.createElement('td');
-    const tagNames = item.tagIds.map((id) => _tagMap.get(id) || String(id));
+    const tagNames = item.tagIds.map((id) => translateTag(_tagMap.get(id) || String(id)));
     tagsCell.textContent = tagNames.join(', ');
     row.appendChild(tagsCell);
 
@@ -216,7 +217,7 @@ function renderTableBody(tbody, iconSize) {
     const bookmarkLink = document.createElement('a');
     bookmarkLink.className = 'xf-bookmark-link';
     bookmarkLink.href = 'javascript:void(0)';
-    bookmarkLink.textContent = isBookmarked(item.id) ? '是' : '否';
+    bookmarkLink.textContent = isBookmarked(item.id) ? t('common.yes') : t('common.no');
     bookmarkCell.appendChild(bookmarkLink);
     row.appendChild(bookmarkCell);
 
@@ -235,7 +236,7 @@ function handleTableClick(event) {
     const item = _software.find((s) => s.id === id);
     if (item) {
       const nowBookmarked = toggleBookmark({ id: item.id, name: item.name, icon: item.icon });
-      bookmarkLink.textContent = nowBookmarked ? '是' : '否';
+      bookmarkLink.textContent = nowBookmarked ? t('common.yes') : t('common.no');
     }
     return;
   }
@@ -288,7 +289,7 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
   _container = container;
 
   if (!software.length) {
-    renderStatus(container, 'empty', { message: '没有符合条件的软件' });
+    renderStatus(container, 'empty', { message: t('list.noMatch') });
     return;
   }
 

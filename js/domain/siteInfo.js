@@ -4,6 +4,8 @@ import { readPreference, writePreference } from '../domain/preferences.js';
  * 网站信息
  */
 
+import { t } from '../common/i18n.js';
+
 const START_DATE = new Date(2025, 2, 19, 2, 19, 45); // 建站时间（月份0-based）
 const VISIT_COUNT_KEY = 'fdn-visitCount';
 
@@ -14,13 +16,13 @@ const VISIT_COUNT_KEY = 'fdn-visitCount';
 export function getRunTime() {
   const now = Date.now();
 
-  if (now < START_DATE) return "0秒";
+  if (now < START_DATE) return t('common.timeUnits.zero');
 
   const UNITS = [
-    { value: 24 * 60 * 60 * 1000, label: "天" },
-    { value: 60 * 60 * 1000, label: "时" },
-    { value: 60 * 1000, label: "分" },
-    { value: 1000, label: "秒" }
+    { value: 24 * 60 * 60 * 1000, label: t('common.timeUnits.days') },
+    { value: 60 * 60 * 1000, label: t('common.timeUnits.hours') },
+    { value: 60 * 1000, label: t('common.timeUnits.minutes') },
+    { value: 1000, label: t('common.timeUnits.seconds') }
   ];
 
   let diff = now - START_DATE;
@@ -34,7 +36,7 @@ export function getRunTime() {
     }
   }
 
-  return parts.length > 0 ? parts.join('') : "0秒";
+  return parts.length > 0 ? parts.join('') : t('common.timeUnits.zero');
 }
 
 /**

@@ -3,6 +3,7 @@ import { readPreference, writePreference } from '../domain/preferences.js';
 import { renderStatus } from '../views/commonView.js';
 import { createSafeContent } from '../security/content.js';
 import { logWarn, logError } from '../common/logger.js';
+import { t } from './i18n.js';
 
 /**
  * 网站公告模块。
@@ -43,7 +44,7 @@ async function renderAnnouncement(container, html, hash, isNew) {
   header.className = 'mdui-panel-item-header mdui-ripple';
 
   const headerTitle = document.createElement('div');
-  headerTitle.textContent = '网站公告';
+  headerTitle.textContent = t('common.nav.announcement');
   if (isNew) {
     const badge = document.createElement('i');
     badge.className = 'mdui-icon material-icons xf-new-announcement-badge mdui-text-color-theme-accent';
@@ -104,13 +105,13 @@ export async function checkNewAnnouncement() {
  * @param {HTMLElement} container 公告面板挂载容器
  */
 export async function loadAnnouncement(container) {
-  renderStatus(container, 'loading', { message: '正在加载公告……' });
+  renderStatus(container, 'loading', { message: t('common.announcementLoading') });
   try {
     const result = await checkNewAnnouncement();
     if (result) {
       await renderAnnouncement(container, result.html, result.hash, result.isNew);
     } else {
-      throw new Error('公告数据为空');
+      throw new Error(t('common.announcementEmpty'));
     }
   } catch (error) {
     logError(error, '公告');

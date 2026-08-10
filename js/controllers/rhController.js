@@ -2,6 +2,7 @@ import { getSoftware } from '../repositories/siteRepository.js';
 import { getJSON } from '../http/client.js';
 import { renderReleases, renderRhError, renderRhLoading } from '../views/rhView.js';
 import { logError } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 版本历史页 controller。
@@ -16,15 +17,15 @@ export function createRhController(container, softwareId) {
       // 从详情 JSON 中读取 GitHub API 地址
       const releaseUrl = detail.releaseHistoryUrl;
       if (!releaseUrl || typeof releaseUrl !== 'string') {
-        throw new Error('未配置 Release 历史地址（releaseHistoryUrl）');
+        throw new Error(t('rh.noReleaseUrl'));
       }
       if (!releaseUrl.startsWith('https://api.github.com/')) {
-        throw new Error('Release 历史地址格式不正确');
+        throw new Error(t('rh.invalidReleaseUrl'));
       }
 
       const releases = await getJSON(releaseUrl, { timeoutMs: 20000 });
       if (!Array.isArray(releases)) {
-        throw new Error('返回了不正确的 Release 历史记录 JSON 格式');
+        throw new Error(t('rh.invalidReleaseData'));
       }
 
       await renderReleases(container, basic, releases);
@@ -47,12 +48,13 @@ export function createRhController(container, softwareId) {
 function translateError(error) {
   const msg = error.message;
 
+  if (error.kind === 'timeout') return t('rh.timeout');
   // 本项目 HttpError 携带 status
-  if (error.status === 404) return '未找到 Release 数据，请确认软件配置正确';
-  if (error.status === 403) return 'GitHub API 请求频率超限，请稍后再试';
-  if (error.status === 500) return 'GitHub 服务暂时不可用';
+  if (error.status === 404) return t('rh.notFound');
+  if (error.status === 403) return t('rh.rateLimited');
+  if (error.status === 500) return t('rh.serverError');
 
-  if (msg.includes('超时') || msg.includes('timeout')) return '请求超时，请检查网络连接';
+  if (msg.includes('超时')) return t('rh.timeout');
 
-  return msg || '加载版本历史时发生未知错误';
+  return msg || t('rh.unknownError');
 }

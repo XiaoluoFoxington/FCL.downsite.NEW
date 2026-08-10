@@ -5,6 +5,7 @@ import { showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
 import { mountBookmarkList } from '../views/bookmarkView.js';
 import { logError } from './logger.js';
+import { t, translateDynamicContent, getCurrentLang, setLang } from './i18n.js';
 
 /**
 * 所有页面共用的右侧抽屉。
@@ -21,10 +22,10 @@ import { logError } from './logger.js';
 function createDrawerShell() {
   const drawer = document.createElement('aside');
   drawer.className = 'mdui-drawer mdui-drawer-right mdui-container-fluid';
-  drawer.setAttribute('aria-label', '网站导航');
+  drawer.setAttribute('aria-label', t('common.nav.websiteNav'));
 
   // 统一状态机：在抽屉容器内显示加载状态
-  renderStatus(drawer, 'loading', { message: '正在加载……' });
+  renderStatus(drawer, 'loading', { message: t('common.loading') });
 
   document.body.appendChild(drawer);
   document.body.classList.add('mdui-drawer-body-right');
@@ -49,11 +50,14 @@ async function loadDrawerContent(drawer) {
     const template = document.createElement('template');
     template.innerHTML = rawHtml;
     drawer.replaceChildren(template.content);
+
+    // 对动态加载的抽屉内容应用 i18n 翻译
+    translateDynamicContent(drawer);
     window.mdui?.mutation();
 
     // 在"网站导航"下方插入收藏资源面板
     const navPanel = Array.from(drawer.querySelectorAll('.mdui-panel-item')).find(
-      (item) => item.querySelector('.mdui-panel-item-title')?.textContent === '网站导航'
+      (item) => item.querySelector('.mdui-panel-item-title[data-i18n="common.nav.websiteNav"]')
     );
     if (navPanel) {
       const bookmarkPanel = createBookmarkPanel();
@@ -71,6 +75,15 @@ async function loadDrawerContent(drawer) {
 
     const feedbackContainer = drawer.querySelector('#drawer-feedback');
     if (feedbackContainer) loadFeedback(feedbackContainer);
+
+    // 语言选择器：切换语言后保存偏好并刷新页面，保证所有动态视图一致
+    const languageSelect = drawer.querySelector('#language-select');
+    if (languageSelect) {
+      languageSelect.value = getCurrentLang();
+      languageSelect.addEventListener('change', () => {
+        setLang(languageSelect.value);
+      }, { signal: ac.signal });
+    }
 
     const runtimeEl = drawer.querySelector('#drawer-runtime');
     if (runtimeEl) {
@@ -124,7 +137,7 @@ function createBookmarkPanel() {
   header.className = 'mdui-panel-item-header mdui-ripple';
   const title = document.createElement('div');
   title.className = 'mdui-panel-item-title';
-  title.textContent = '资源收藏';
+  title.textContent = t('common.nav.bookmarks');
   const arrow = document.createElement('i');
   arrow.className = 'mdui-panel-item-arrow mdui-icon material-icons';
   arrow.textContent = 'keyboard_arrow_down';
@@ -165,7 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 窄屏下抽屉懒加载，但需提前检查公告是否为新，以便弹出 Snackbar 提醒用户。
     checkNewAnnouncement().then((result) => {
       if (result?.isNew) {
-        showSnackbar('有新公告');
+        showSnackbar(t('common.nav.recentAnnouncement'));
       }
     });
   }

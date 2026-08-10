@@ -10,8 +10,8 @@
   <link rel="stylesheet" href="/css/mdui.patch.css">
   <link rel="stylesheet" href="/css/xf.css">
   <link rel="icon" href="/data/software/0/icon.avif">
-  <title>404 Not Found - FCL下载站</title>
-  <meta name="description" content="在FCL下载站中访问了不存在的资源。">
+  <title data-i18n="notFound.pageTitle">404 Not Found - FCL下载站</title>
+  <meta name="description" data-i18n-attr="content" data-i18n="notFound.description" content="在FCL下载站中访问了不存在的资源。">
   <meta name="robots" content="noindex, nofollow">
 </head>
 
@@ -20,7 +20,7 @@
     <div class="mdui-toolbar mdui-color-theme">
       <a href="javascript: window.history.back();" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">arrow_back</i></a>
       <a href="/" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">home</i></a>
-      <a href="" class="mdui-typo-title">404 Not Found</a>
+      <a href="" class="mdui-typo-title" data-i18n="notFound.title">404 Not Found</a>
       <div class="mdui-toolbar-spacer"></div>
       <a href="javascript:void(0);" id="menu_btn" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">menu</i></a>
     </div>
@@ -42,17 +42,17 @@
             <img src="/media/img/NEXT.FCL下载站-疑惑.webp" alt="可爱的狐狸兽人，白色外套，表情疑惑，无奈。动漫风格" style="max-width: 240px;">
           </div>
           -->
-          <h2>HTTP 404 - Not Found</h2>
+          <h2 data-i18n="notFound.title">HTTP 404 - Not Found</h2>
           <div class="mdui-panel" mdui-panel>
             <div class="mdui-panel-item">
               <div class="mdui-panel-item-header mdui-ripple">
-                <div>何意味？</div>
+                <div data-i18n="notFound.what">何意味？</div>
                 <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
               </div>
               <div class="mdui-panel-item-body">
                 <div class="mdui-typo">
-                  <p>HTTP 响应状态码 <code>404 Not Found</code> 指的是服务器无法找到所请求的资源。资源可能已被删除、移动或从未存在。</p>
-                  <p>参见：<a href="https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Reference/Status/404" target="_blank" rel="noopener noreferrer">MDN Web Docs</a>，<a href="https://zh.wikipedia.org/wiki/HTTP_404" target="_blank" rel="noopener noreferrer">Wikipedia</a>。</p>
+                  <p data-i18n="notFound.whatDesc">HTTP 响应状态码 <code data-i18n-placeholder="code">404 Not Found</code> 指的是服务器无法找到所请求的资源。资源可能已被删除、移动或从未存在。</p>
+                  <p data-i18n="notFound.references">参见：<a data-i18n-placeholder="mdn" href="https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Reference/Status/404" target="_blank" rel="noopener noreferrer">MDN Web Docs</a>，<a data-i18n-placeholder="wikipedia" href="https://zh.wikipedia.org/wiki/HTTP_404" target="_blank" rel="noopener noreferrer">Wikipedia</a>。</p>
                 </div>
               </div>
             </div>
@@ -64,13 +64,13 @@
         <div class="mdui-panel-item-header mdui-ripple">
           <div>
             <i class="mdui-icon material-icons">help</i>
-            建议
+            <span data-i18n="notFound.suggestion">建议</span>
           </div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body">
-          <a href="/" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple"><i class="mdui-icon material-icons">home</i> 访问主页</a>
-          <a href="javascript:history.back();" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple"><i class="mdui-icon material-icons">arrow_back</i> 返回上页</a>
+          <a href="/" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple"><i class="mdui-icon material-icons">home</i> <span data-i18n="notFound.visitHome">访问主页</span></a>
+          <a href="javascript:history.back();" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple"><i class="mdui-icon material-icons">arrow_back</i> <span data-i18n="notFound.goBack">返回上页</span></a>
           <div id="feedbackContainer">
             <!-- 动态加载反馈按钮 -->
           </div>

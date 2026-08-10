@@ -1,4 +1,5 @@
 import { compareVersionsDescending, normalizeDownloadItem } from './common.js';
+import { t } from '../../common/i18n.js';
 
 /**
  * 枫源线路适配器。
@@ -15,7 +16,7 @@ import { compareVersionsDescending, normalizeDownloadItem } from './common.js';
 export function adaptFengyuan(payload, context) {
   const grouped = new Map();
   for (const asset of payload?.data?.assets || []) {
-    const version = asset.version || '未知版本';
+    const version = asset.version || t('common.adapters.unknownVersion');
     if (!grouped.has(version)) grouped.set(version, []);
     // 枫源只返回相对 download_path，必须以 API 所在站点为基准补成绝对下载地址。
     grouped.get(version).push(normalizeDownloadItem({

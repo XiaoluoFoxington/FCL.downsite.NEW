@@ -2,10 +2,11 @@ import { formatBytes, renderStatus, setErrorTitle, setSoftwareHeader } from './c
 import { createSafeContent } from '../security/content.js';
 import { createPanel, createPanelItem, createTypoContainer, createFluidTable, createExternalLink } from './uiComponents.js';
 import { logError } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /** 版本历史首屏加载状态。 */
 export function renderRhLoading(container) {
-  renderStatus(container, 'loading', { message: '正在加载版本历史……' });
+  renderStatus(container, 'loading', { message: t('rh.loadingHistory') });
 }
 
 /** 版本历史加载失败。 */
@@ -22,12 +23,12 @@ export function renderRhError(container, error, onRetry) {
  */
 export async function renderReleases(container, basic, releases) {
   setSoftwareHeader(basic, {
-    titlePrefix: '版本历史',
+    titlePrefix: t('rh.title'),
     detailButton: document.getElementById('detailBtn'),
   });
 
   if (!releases.length) {
-    renderStatus(container, 'empty', { message: '暂无版本记录' });
+    renderStatus(container, 'empty', { message: t('rh.emptyHistory') });
     return;
   }
 
@@ -48,7 +49,7 @@ export async function renderReleases(container, basic, releases) {
       (() => { try { return new Date(release.published_at).toLocaleString(); } catch (_) { return release.published_at || ''; } })(),
     ];
     const { element: panelItem, body } = createPanelItem(
-      release.name || '未命名版本',
+      release.name || t('rh.unnamedVersion'),
       { isOpen: index === 0, summary: summaryTexts },
     );
 
@@ -75,24 +76,24 @@ export async function renderReleases(container, basic, releases) {
 
 /** 创建表头面板项：版本名称 / 版本Tag / 发布时间。 */
 function createHeaderItem() {
-  const { element: headerItem, body } = createPanelItem('版本名称', {
-    summary: ['版本Tag', '发布时间'],
+  const { element: headerItem, body } = createPanelItem(t('rh.versionName'), {
+    summary: [t('rh.versionTag'), t('rh.publishedAt')],
     bodyClass: 'mdui-typo',
   });
   const hint = document.createElement('p');
   hint.className = 'mdui-typo';
-  hint.textContent = '我是表头呐~';
+  hint.textContent = t('rh.headerHint');
   body.appendChild(hint);
   return headerItem;
 }
 
 /** 创建 Release 正文的折叠子面板。 */
 function createContentSection(body) {
-  const { element: panelItem, body: bodyContainer } = createPanelItem('内容', { isOpen: true });
+  const { element: panelItem, body: bodyContainer } = createPanelItem(t('rh.content'), { isOpen: true });
 
   // 先显示加载状态，再异步渲染 Markdown
   const contentDiv = createTypoContainer();
-  renderStatus(contentDiv, 'loading', { message: '正在渲染正文……' });
+  renderStatus(contentDiv, 'loading', { message: t('rh.renderingBody') });
   bodyContainer.appendChild(contentDiv);
 
   // 异步渲染 Markdown 正文
@@ -104,14 +105,14 @@ function createContentSection(body) {
 /** 异步渲染 Release 正文。 */
 async function renderReleaseBody(container, body) {
   try {
-    const fragment = await createSafeContent(body || '无发布说明', { type: 'md' });
+    const fragment = await createSafeContent(body || t('rh.noBody'), { type: 'md' });
     // 容器可能已被移除（用户关闭/折叠面板或离开页面），避免更新游离 DOM。
     if (container.isConnected) container.replaceChildren(fragment);
   } catch (error) {
     logError(error, 'Release 正文渲染');
     if (!container.isConnected) return;
     renderStatus(container, 'error', {
-      message: `正文渲染失败：${error.message}`,
+      message: t('rh.bodyRenderError', { message: error.message }),
       onRetry: () => renderReleaseBody(container, body),
     });
   }
@@ -119,11 +120,11 @@ async function renderReleaseBody(container, body) {
 
 /** 创建资源列表的折叠子面板。 */
 function createAssetsSection(assets) {
-  const { element: panelItem, body: bodyContainer } = createPanelItem(`资源（${assets.length}）`);
+  const { element: panelItem, body: bodyContainer } = createPanelItem(t('rh.resources', { count: assets.length }));
 
   if (assets.length === 0) {
     const emptyDiv = createTypoContainer();
-    emptyDiv.textContent = '无资源';
+    emptyDiv.textContent = t('rh.noResources');
     bodyContainer.appendChild(emptyDiv);
   } else {
     // 资源列表改为面板嵌套
@@ -148,11 +149,11 @@ function createAssetPanel(asset) {
   const { wrapper } = createFluidTable();
   wrapper.classList.add('xf-nowrap');
   const tbody = wrapper.querySelector('tbody');
-  addTableRow(tbody, '大小', formatBytes(asset.size) || '');
-  addTableRow(tbody, '内容类型', asset.content_type || '');
-  addTableRow(tbody, '校验', asset.digest || '');
-  addTableRow(tbody, 'GH下载计次', asset.download_count || '');
-  addTableRow(tbody, 'GH下载URL', asset.browser_download_url || '', asset.browser_download_url || '');
+  addTableRow(tbody, t('rh.assetSize'), formatBytes(asset.size) || '');
+  addTableRow(tbody, t('rh.contentType'), asset.content_type || '');
+  addTableRow(tbody, t('rh.checksum'), asset.digest || '');
+  addTableRow(tbody, t('rh.ghDownloadCount'), asset.download_count || '');
+  addTableRow(tbody, t('rh.ghDownloadUrl'), asset.browser_download_url || '', asset.browser_download_url || '');
 
   body.appendChild(wrapper);
   return panelItem;
@@ -167,13 +168,13 @@ function createSummaryPanel(assets) {
   const totalSize = assets.reduce((sum, asset) => sum + (asset.size || 0), 0);
   const allUrls = assets.map((asset) => asset.browser_download_url).filter(Boolean);
 
-  const { element: panelItem, body } = createPanelItem('合计');
+  const { element: panelItem, body } = createPanelItem(t('rh.total'));
 
   const { wrapper } = createFluidTable();
   wrapper.classList.add('xf-nowrap');
   const tbody = wrapper.querySelector('tbody');
-  addTableRow(tbody, '总大小', formatBytes(totalSize));
-  addTableRow(tbody, '所有下载URL', allUrls.join('\n'));
+  addTableRow(tbody, t('rh.totalSize'), formatBytes(totalSize));
+  addTableRow(tbody, t('rh.allUrls'), allUrls.join('\n'));
 
   body.appendChild(wrapper);
   return panelItem;

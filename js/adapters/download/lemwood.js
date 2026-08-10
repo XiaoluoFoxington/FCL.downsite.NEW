@@ -1,4 +1,5 @@
 import { normalizeDownloadItem } from './common.js';
+import { t } from '../../common/i18n.js';
 
 /**
  * Lemwood 线路适配器。
@@ -18,7 +19,7 @@ export function adaptLemwood(payload, context, { latestOnly = false } = {}) {
   // LemwoodLatest 表示接口只希望展示最新条目，而非强制请求另一套数据。
   if (latestOnly) releases = releases.slice(0, 1);
   return releases.map((release, index) => ({
-    name: release.name || release.tag_name || `版本 ${index + 1}`,
+    name: release.name || release.tag_name || t('common.adapters.versionN', { index: index + 1 }),
     default: index === 0,
     children: (release.assets || []).map((asset) => normalizeDownloadItem(asset, context.source, release.name)),
   }));

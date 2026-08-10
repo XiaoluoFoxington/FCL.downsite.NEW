@@ -1,6 +1,7 @@
 import { createDetailController } from './controllers/detailController.js';
 import { getSoftwareId } from './views/commonView.js';
 import { renderDetailError } from './views/detailView.js';
+import { t } from './common/i18n.js';
 
 /**
  * 详情页入口。
@@ -23,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const softwareId = getSoftwareId();
   // 入口处提前拒绝无效参数，避免 repository 访问不存在的 /data/software/NaN。
   if (softwareId === null) {
-    renderDetailError(elements, new Error('未指定有效的软件 ID'));
+    renderDetailError(elements, new Error(t('common.osNotSpecified')));
     return;
   }
   createDetailController(elements, softwareId).load();

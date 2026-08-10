@@ -3,14 +3,15 @@ import { isSafeNavigationUrl } from '../security/content.js';
 import { formatBytes, renderStatus } from './commonView.js';
 import { createExternalLink, createFluidTable, createRaisedButton } from './uiComponents.js';
 import { logWarn } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 // 最终表格会删除所有行均为空的列，列名与下载项统一模型一一对应。
 const COLUMN_DEFINITIONS = [
-  ['操作', 'action'],
-  ['架构', 'architecture'],
-  ['描述', 'description'],
-  ['大小', 'size'],
-  ['显示名称', 'name'],
+  ['common.actions', 'action'],
+  ['common.architecture', 'architecture'],
+  ['common.description', 'description'],
+  ['common.size', 'size'],
+  ['common.displayName', 'name'],
   ['URL', 'url'],
 ];
 
@@ -52,11 +53,11 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     const select = document.createElement('select');
     select.className = 'mdui-select mdui-block';
     // select.setAttribute('mdui-select', '');
-    select.setAttribute('aria-label', `下载选项第 ${level + 1} 级`);
+    select.setAttribute('aria-label', t('common.selectors.levelAria', { level: level + 1 }));
     items.forEach((item, index) => {
       const option = document.createElement('option');
       option.value = String(index);
-      option.textContent = item.name || '(无名称)';
+      option.textContent = item.name || t('common.selectors.noName');
       select.appendChild(option);
     });
     const description = document.createElement('div');
@@ -80,7 +81,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     // 下载地址必须为 http/https；非法项不产生可点击 DOM，避免配置错误变成安全问题。
     const validItems = items.filter((item) => item.downloadUrl && isSafeNavigationUrl(item.downloadUrl, { allowRelative: false }));
     if (!validItems.length) {
-      renderStatus(section, 'empty', { message: '该选项暂无可用的下载地址' });
+      renderStatus(section, 'empty', { message: t('common.noDownloadUrl') });
       return;
     }
 
@@ -113,9 +114,9 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     const { wrapper, table, thead, tbody } = createFluidTable();
     table.classList.add('xf-nowrap');
     const header = document.createElement('tr');
-    visibleColumns.forEach(([label]) => {
+    visibleColumns.forEach(([labelKey]) => {
       const cell = document.createElement('th');
-      cell.textContent = label;
+      cell.textContent = labelKey.startsWith('common.') ? t(labelKey) : labelKey;
       header.appendChild(cell);
     });
     thead.appendChild(header);
@@ -127,7 +128,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
       visibleColumns.forEach(([, key]) => {
         const cell = document.createElement('td');
         if (key === 'action') {
-          const link = createExternalLink(row.item.downloadUrl, row.item.available === false ? '暂不可用' : '下载', {
+          const link = createExternalLink(row.item.downloadUrl, row.item.available === false ? t('common.notAvailable') : t('common.download'), {
             className: 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple',
           });
           // 不可用线路仍展示原因和 URL，但阻止实际跳转，便于用户知情而非直接消失。
@@ -155,7 +156,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     if (matchedArchitecture && rows.some((row) => row.architecture === matchedArchitecture)) {
       const note = document.createElement('p');
       note.className = 'description mdui-typo';
-      note.textContent = '已匹配当前架构，请留意高亮行（仅供参考，安装失败时请选择 all 架构）。';
+      note.textContent = t('common.matchedArchHint');
       section.appendChild(note);
     }
 
@@ -164,7 +165,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
       // 用户主动要求后才展示被规则隐藏的项目，保留"推荐架构优先"的默认体验。
       const showdiv = document.createElement('div');
       showdiv.className = 'description';
-      const show = createRaisedButton(`显示 ${hiddenCount} 个被筛选条件隐藏的项目`, {
+      const show = createRaisedButton(t('common.hiddenItems', { count: hiddenCount }), {
         block: true,
         onClick: () => {
           tbody.querySelectorAll('.xf-filter-hidden').forEach((row) => row.classList.remove('xf-filter-hidden'));

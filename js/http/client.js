@@ -6,6 +6,8 @@
  * options.cache：是否复用本页生命周期内同 URL、同响应类型的 Promise。
  */
 
+import { t } from '../common/i18n.js';
+
 // 仅缓存本页生命周期内的“进行中/成功”请求；刷新页面后由浏览器 HTTP 缓存接管。
 // 键同时包含响应类型，避免同一 URL 被按 JSON 与文本两种方式解析时发生混用。
 const responseCache = new Map();
@@ -46,7 +48,7 @@ function createRequestSignal(callerSignal, timeoutMs) {
   const timeoutId = timeoutMs > 0
     ? window.setTimeout(() => {
       timedOut = true;
-      controller.abort(new DOMException('请求超时', 'TimeoutError'));
+      controller.abort(new DOMException(t('common.http.timeout'), 'TimeoutError'));
     }, timeoutMs)
     : null;
 
@@ -86,7 +88,7 @@ async function request(url, responseType, options = {}) {
       // 所有业务代码只能经由本模块请求，确保 HTTP 状态与解析错误不会被遗漏。
       const response = await fetch(url, { signal: requestSignal.signal });
       if (!response.ok) {
-        throw new HttpError(`HTTP ${response.status}：${response.statusText || '请求失败'}`, {
+        throw new HttpError(t('common.http.error', { status: response.status, statusText: response.statusText || t('common.http.failed') }), {
           kind: 'http',
           url,
           status: response.status,
@@ -96,7 +98,7 @@ async function request(url, responseType, options = {}) {
       try {
         return responseType === 'json' ? await response.json() : await response.text();
       } catch (cause) {
-        throw new HttpError(responseType === 'json' ? '服务器返回的 JSON 格式不正确' : '无法读取响应内容', {
+        throw new HttpError(responseType === 'json' ? t('common.http.invalidJson') : t('common.http.unreadable'), {
           kind: 'parse',
           url,
           cause,
@@ -106,12 +108,12 @@ async function request(url, responseType, options = {}) {
       if (error instanceof HttpError) throw error;
       // 判断顺序不能颠倒：超时同样会触发 abort，需要优先给用户“超时”而非“已取消”。
       if (requestSignal.didTimeOut()) {
-        throw new HttpError(`请求超时：${url}`, { kind: 'timeout', url, cause: error });
+        throw new HttpError(t('common.http.timeoutUrl', { url }), { kind: 'timeout', url, cause: error });
       }
       if (requestSignal.signal.aborted) {
-        throw new HttpError('加载已取消', { kind: 'abort', url, cause: error });
+        throw new HttpError(t('common.http.aborted'), { kind: 'abort', url, cause: error });
       }
-      throw new HttpError(`网络请求失败：${url}`, { kind: 'network', url, cause: error });
+      throw new HttpError(t('common.http.network', { url }), { kind: 'network', url, cause: error });
     } finally {
       requestSignal.cleanup();
     }

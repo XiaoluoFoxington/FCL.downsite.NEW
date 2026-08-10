@@ -2,6 +2,7 @@ import { readPreference, writePreference } from '../domain/preferences.js';
 import { applyTheme } from '../domain/theme.js';
 import { showSnackbar } from '../views/uiComponents.js';
 import { debounce } from '../views/commonView.js';
+import { t } from './i18n.js';
 
 /** 模块级共享的防抖保存提示，避免快速切换多个设置项时重复弹出。 */
 const debouncedShowSaveSuccess = debounce(showSaveSuccess);
@@ -81,5 +82,5 @@ function bindRadioEvent(containerId, name, storageKey) {
  * 显示保存成功的提示。
  */
 export function showSaveSuccess() {
-  showSnackbar('主题应用成功');
+  showSnackbar(t('theme.applySuccess'));
 }

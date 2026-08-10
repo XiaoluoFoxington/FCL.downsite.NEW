@@ -10,16 +10,16 @@
   <link rel="stylesheet" href="/css/mdui.patch.css">
   <link rel="stylesheet" href="/css/xf.css">
   <link rel="icon" href="/data/software/0/icon.avif">
-  <title>资源列表 - FCL下载站</title>
-  <meta name="description" content="浏览FCL下载站所有可用资源，包括Fold Craft Launcher、Zalith Launcher、Pojav Launcher、MobileGlues、HMCL等启动器、渲染器与插件，支持筛选和搜索。">
+  <title data-i18n="list.pageTitle">资源列表 - FCL下载站</title>
+  <meta name="description" data-i18n-attr="content" data-i18n="list.description" content="浏览FCL下载站所有可用资源，包括Fold Craft Launcher、Zalith Launcher、Pojav Launcher、MobileGlues、HMCL等启动器、渲染器与插件，支持筛选和搜索。">
   <meta name="keywords" content="资源列表, 下载列表, FCL, FoldCraftLauncher, 启动器下载, 渲染器, 插件, 我的世界, Android, MobileGlues, ZalithLauncher, PojavLauncher, HMCL">
-  <meta property="og:title" content="资源列表 - FCL下载站">
-  <meta property="og:description" content="浏览并筛选FCL下载站所有可用资源，包含启动器、渲染器、插件等。">
+  <meta property="og:title" data-i18n-attr="content" data-i18n="list.pageTitle" content="资源列表 - FCL下载站">
+  <meta property="og:description" data-i18n-attr="content" data-i18n="list.description" content="浏览并筛选FCL下载站所有可用资源，包含启动器、渲染器、插件等。">
   <meta property="og:image" content="/media/img/thumbnail/thumbnail.webp">
   <meta property="og:type" content="website">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="资源列表 - FCL下载站">
-  <meta name="twitter:description" content="浏览并筛选FCL下载站所有可用资源。">
+  <meta name="twitter:title" data-i18n-attr="content" data-i18n="list.pageTitle" content="资源列表 - FCL下载站">
+  <meta name="twitter:description" data-i18n-attr="content" data-i18n="list.description" content="浏览并筛选FCL下载站所有可用资源。">
   <meta name="twitter:image" content="/media/img/thumbnail/thumbnail.webp">
   <link rel="canonical" href="list.html">
 </head>
@@ -29,7 +29,7 @@
     <div class="mdui-toolbar mdui-color-theme">
       <a href="javascript: window.history.back();" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">arrow_back</i></a>
       <a href="/" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">home</i></a>
-      <a href="" class="mdui-typo-title">资源列表</a>
+      <a href="" class="mdui-typo-title" data-i18n="list.title">资源列表</a>
       <div class="mdui-toolbar-spacer"></div>
       <a href="javascript:void(0);" id="menu_btn" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">menu</i></a>
     </div>
@@ -39,35 +39,35 @@
     <div class="mdui-panel" mdui-panel>
       <div class="mdui-panel-item xf-list-filter-panel-item">
         <div class="mdui-panel-item-header mdui-ripple">
-          <div>筛选<i id="filter-active-indicator" class="mdui-icon material-icons xf-filter-active-indicator xf-hide">filter_list</i></div>
+          <div><span data-i18n="list.filterPanel">筛选</span><i id="filter-active-indicator" class="mdui-icon material-icons xf-filter-active-indicator xf-hide">filter_list</i></div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body mdui-row">
           <div class="mdui-col-xs-12 mdui-col-sm-6">
             <div class="mdui-textfield">
-              <label class="mdui-textfield-label">搜索词</label>
-              <input class="mdui-textfield-input" type="text" placeholder="显示所有" />
+              <label class="mdui-textfield-label" data-i18n="list.searchWord">搜索词</label>
+              <input class="mdui-textfield-input" type="text" placeholder="显示所有" data-i18n="common.searchPlaceholder" data-i18n-attr="placeholder" />
             </div>
             <div class="mdui-typo">
               <p>
-                关系：搜索词
+                <span data-i18n="list.relationLabel">关系：搜索词</span>
                 <select id="relation-between-searchWord-and-tag" class="mdui-select">
-                  <option value="and">与</option>
-                  <option value="or">或</option>
-                  <option value="not">非</option>
+                  <option value="and" data-i18n="list.relationAnd">与</option>
+                  <option value="or" data-i18n="list.relationOr">或</option>
+                  <option value="not" data-i18n="list.relationNot">非</option>
                 </select>
-                标签
+                <span data-i18n="list.tagRelationLabel">标签</span>
                 <select id="relation-between-tag-and-tag" class="mdui-select">
-                  <option value="and">与</option>
-                  <option value="or">或</option>
+                  <option value="and" data-i18n="list.relationAnd">与</option>
+                  <option value="or" data-i18n="list.relationOr">或</option>
                 </select>
-                标签。
+                <span data-i18n="list.tagEnding">标签。</span>
               </p>
             </div>
           </div>
           <div class="mdui-col-xs-12 mdui-col-sm-6">
             <div class="mdui-typo">
-              <p>标签：</p>
+              <p data-i18n="list.tagLabel">标签：</p>
             </div>
             <div id="filter-tag">
               <!-- 将由JS生成，下方为示例 -->
@@ -79,7 +79,7 @@
 
       <div class="mdui-panel-item mdui-panel-item-open">
         <div class="mdui-panel-item-header mdui-ripple">
-          <div>列表</div>
+          <div data-i18n="list.listPanel">列表</div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body">
