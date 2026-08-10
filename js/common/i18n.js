@@ -152,7 +152,12 @@ function loadLanguageOrder() {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed) && parsed.length) return normalizeLanguageOrder(parsed);
+      if (Array.isArray(parsed) && parsed.length) {
+        const order = normalizeLanguageOrder(parsed);
+        // 把清洗后的顺序写回，清除重复/无效项，避免每次加载都重复规范化。
+        writePreference(LANGUAGE_ORDER_KEY, JSON.stringify(order));
+        return order;
+      }
     } catch (error) {
       logWarn(error, '解析语言顺序偏好');
     }
