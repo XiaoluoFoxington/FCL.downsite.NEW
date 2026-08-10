@@ -56,7 +56,8 @@ export function createSortableList(container, { items = [], renderItem, onReorde
   /** 计算插入指示线的边界位置：把“移除被拖项后的插入索引”映射回当前 DOM 的边界。 */
   function boundaryIndex() {
     if (insertIndex === null) return 0;
-    return insertIndex <= draggedIndex ? insertIndex : insertIndex + 1;
+    // k < d 时边界在 k 处；k >= d 时被拖项占住 k 的位置，边界顺延到 k + 1。
+    return insertIndex < draggedIndex ? insertIndex : insertIndex + 1;
   }
 
   function positionIndicator() {
