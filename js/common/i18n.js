@@ -271,6 +271,7 @@ export function applyTranslations(root = document) {
 
       // 收集直接子元素中的 [data-i18n] 占位符并临时移出 DOM。
       // 注意：占位符元素必须在设置 textContent 之前移除，否则会被 textContent 覆盖销毁。
+      // 同名占位符全部移出，后续按 token 出现次数用克隆回插。
       const placeholders = new Map();
       Array.from(el.children).forEach((child) => {
         const childKey = child.getAttribute('data-i18n');
@@ -283,12 +284,11 @@ export function applyTranslations(root = document) {
           // data-i18n="some.key" - 需要翻译的占位符，key 即占位符名
           name = childKey;
         }
-        // FIXME: 同名占位符只移出第一个，后续同名子元素仍留在父节点里，
-        // 会被随后的 el.textContent 赋值直接销毁。应全部移出，并按 token 出现次数用克隆回插。
         if (!placeholders.has(name)) {
-          placeholders.set(name, child);
-          child.remove();
+          placeholders.set(name, []);
         }
+        placeholders.get(name).push(child);
+        child.remove();
       });
 
       const skip = new Set(placeholders.keys());
@@ -296,7 +296,7 @@ export function applyTranslations(root = document) {
 
       // 还原占位符：同一 token 出现多次时用克隆逐个插入，避免 appendChild 移动同一节点导致文本错位；
       // 翻译中完全缺失 token 时追加到末尾兜底，避免子元素（链接等）被永久丢弃。
-      placeholders.forEach((child, name) => {
+      placeholders.forEach((children, name) => {
         const token = `{${name}}`;
         const textNodes = [];
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -305,14 +305,17 @@ export function applyTranslations(root = document) {
           if (node.nodeValue.includes(token)) textNodes.push(node);
         }
         let inserted = false;
+        let childIndex = 0;
         for (const textNode of textNodes) {
           const parts = textNode.nodeValue.split(token);
           const parent = textNode.parentNode;
           const fragment = document.createDocumentFragment();
           parts.forEach((part, index) => {
             if (index > 0) {
+              const child = children[childIndex] || children[0];
               fragment.appendChild(inserted ? child.cloneNode(true) : child);
               inserted = true;
+              childIndex++;
             }
             if (part) fragment.appendChild(document.createTextNode(part));
           });
@@ -320,7 +323,9 @@ export function applyTranslations(root = document) {
         }
         if (!inserted) {
           logWarn(`i18n 翻译缺少占位符 ${token}（键：${el.getAttribute('data-i18n')}），已追加到元素末尾`);
-          el.appendChild(child);
+          for (const child of children) {
+            el.appendChild(child);
+          }
         }
       });
     } catch (error) {
