@@ -160,7 +160,11 @@ export async function getLocalizedText(url, options = {}) {
   try {
     return await getText(localizedPath, options);
   } catch (error) {
+    // 用户主动取消的请求必须继续向上抛出，不会静默回退。
     if (error?.kind === 'abort') throw error;
+    // 只对“资源不存在”类 HTTP 错误（404/403）回退原文；超时/网络失败直接抛出，
+    // 避免先白等一次完整超时再重试，也避免吞掉真实错误。
+    if (error?.kind !== 'http' || (error.status !== 404 && error.status !== 403)) throw error;
     return getText(url, options);
   }
 }
