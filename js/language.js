@@ -6,6 +6,7 @@ import {
   t,
 } from './common/i18n.js';
 import { showSnackbar } from './views/uiComponents.js';
+import { debounce } from './views/commonView.js';
 import { createSortableList } from './views/sortableList.js';
 
 /**
@@ -16,6 +17,11 @@ import { createSortableList } from './views/sortableList.js';
 
 const listContainer = document.getElementById('language-list');
 let sortable = null;
+
+// 保存提示防抖：连续排序时只弹最后一次，避免 Toast 堆叠。
+const debouncedSavedToast = debounce(() => {
+  showSnackbar(t('language.saved'));
+}, 300);
 
 /** 创建单个语言行的操作按钮。 */
 function createActionButton(iconName, ariaLabel, onClick) {
@@ -88,7 +94,7 @@ function buildList() {
     renderItem: (lang, index) => createRow(lang, index, sorted.length),
     onReorder: (nextItems) => {
       setLanguageOrder(nextItems.map((lang) => lang.code), { reload: false });
-      showSnackbar(t('language.saved'));
+      debouncedSavedToast();
     },
   });
 }
