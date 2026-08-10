@@ -159,10 +159,20 @@ export function setLanguageOrder(order, { reload = true } = {}) {
   try {
     writePreference(LANGUAGE_ORDER_KEY, JSON.stringify(normalized));
     document.documentElement.lang = currentLang;
-    applyTranslations();
-    if (reload) window.location.reload();
   } catch (error) {
     logWarn(error, '保存语言顺序');
+  }
+  try {
+    applyTranslations();
+  } catch (error) {
+    logWarn(error, '应用语言翻译');
+  }
+  if (reload) {
+    try {
+      window.location.reload();
+    } catch (error) {
+      logWarn(error, '刷新页面');
+    }
   }
 }
 
