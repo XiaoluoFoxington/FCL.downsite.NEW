@@ -3,7 +3,7 @@ import { readPreference } from '../domain/preferences.js';
 import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { createPanel, createPanelItem, createMaterialIcon } from './uiComponents.js';
-import { t, tOr } from '../common/i18n.js';
+import { t, tOr, escapeKeySegment } from '../common/i18n.js';
 
 /** 防抖：延迟执行 fn，期间再次调用则重新计时。 */
 export function debounce(fn, delay = 500) {
@@ -81,7 +81,7 @@ export function renderMessages(wrapper, container, messages) {
     // 消息类型映射为可读标题：warning/info/success 等 type 直接展示时对中文用户不友好。
     const typeTitle = type === 'message'
       ? t('common.nav.message')
-      : tOr(`common.${type}Message`, type);
+      : tOr(`common.${escapeKeySegment(type)}Message`, type);
     const { element, body } = createPanelItem(typeTitle, { isOpen: msg.panelOpen || true, icon, iconClass: 'mdui-icon' });
     element.classList.add('xf-message');
     if (msg.type) {

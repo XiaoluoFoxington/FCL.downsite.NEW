@@ -1,6 +1,6 @@
 import { renderStatus } from './commonView.js';
 import { createPanel, createPanelItem, showSnackbar } from './uiComponents.js';
-import { t, tOr } from '../common/i18n.js';
+import { t, tOr, escapeKeySegment } from '../common/i18n.js';
 
 /**
  * 行为设置页面 view。
@@ -75,7 +75,7 @@ function renderSelectSetting(container, setting, savedValue, onChange) {
   const labelCol = document.createElement('div');
   labelCol.className = 'mdui-col-xs-6';
   const p = document.createElement('p');
-  p.textContent = tOr(`behavior.setting.${setting.name}`, setting.name);
+  p.textContent = tOr(`behavior.setting.${escapeKeySegment(setting.name)}`, setting.name);
   labelCol.appendChild(p);
 
   const selectCol = document.createElement('div');
@@ -88,7 +88,7 @@ function renderSelectSetting(container, setting, savedValue, onChange) {
   setting.options.forEach((opt) => {
     const option = document.createElement('option');
     option.value = opt.value;
-    option.textContent = tOr(`behavior.option.${setting.name}.${opt.value}`, opt.label);
+    option.textContent = tOr(`behavior.option.${escapeKeySegment(setting.name)}.${escapeKeySegment(opt.value)}`, opt.label);
     if (opt.value === savedValue) option.selected = true;
     select.appendChild(option);
   });
@@ -113,7 +113,7 @@ function renderSwitchSetting(container, setting, savedValue, onChange) {
   const labelCol = document.createElement('div');
   labelCol.className = 'mdui-col-xs-6';
   const p = document.createElement('p');
-  p.textContent = tOr(`behavior.setting.${setting.name}`, setting.name);
+  p.textContent = tOr(`behavior.setting.${escapeKeySegment(setting.name)}`, setting.name);
   labelCol.appendChild(p);
 
   const switchCol = document.createElement('div');
@@ -148,7 +148,7 @@ function renderNumberSetting(container, setting, savedValue, onChange) {
   const labelCol = document.createElement('div');
   labelCol.className = 'mdui-col-xs-6';
   const p = document.createElement('p');
-  p.textContent = tOr(`behavior.setting.${setting.name}`, setting.name);
+  p.textContent = tOr(`behavior.setting.${escapeKeySegment(setting.name)}`, setting.name);
   labelCol.appendChild(p);
 
   const inputCol = document.createElement('div');
@@ -199,7 +199,7 @@ export function renderSettingsTree(container, categories, readPref, onChange) {
 
   categories.forEach((category) => {
     const { element: categoryItem, body: categoryBody } = createPanelItem(
-      tOr(`behavior.category.${category.name}`, category.label || category.name),
+      tOr(`behavior.category.${escapeKeySegment(category.name)}`, category.label || category.name),
       { isOpen: true },
     );
 
@@ -207,7 +207,7 @@ export function renderSettingsTree(container, categories, readPref, onChange) {
 
     (category.children || []).forEach((group) => {
       const { element: groupItem, body: groupBody } = createPanelItem(
-        tOr(`behavior.group.${group.name}`, group.label || group.name),
+        tOr(`behavior.group.${escapeKeySegment(group.name)}`, group.label || group.name),
         { isOpen: true },
       );
 

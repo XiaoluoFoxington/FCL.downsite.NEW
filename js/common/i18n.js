@@ -37,13 +37,15 @@ let initPromise = null;
 
 /**
  * 读取嵌套翻译值。
+ * 键段中的点号可用反斜杠转义（如 tags.MC\\.1.20），避免动态键本身含点时路径断裂。
  * @param {object} pack 语言包
  * @param {string} key 点号分隔的键路径
  * @returns {string|undefined}
  */
 function getNestedValue(pack, key) {
   let value = pack;
-  for (const part of key.split('.')) {
+  const parts = String(key).split(/(?<!\\)\./).map((part) => part.replace(/\\\./g, '.'));
+  for (const part of parts) {
     if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, part)) {
       value = value[part];
     } else {
@@ -51,6 +53,29 @@ function getNestedValue(pack, key) {
     }
   }
   return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * 转义动态键段中的点号与反斜杠，避免被当成路径分隔符。
+ * 例如标签名 "MC 1.20" 应生成 `tags.${escapeKeySegment(name)}`。
+ * @param {string} segment 动态键段
+ * @returns {string}
+ */
+export function escapeKeySegment(segment) {
+  return String(segment).replace(/\\/g, '\\\\').replace(/\./g, '\\.');
+}
+
+/**
+ * 按语言顺序查找翻译；找不到时返回 undefined，供 t/tOr 区分“缺失”与“翻译值恰好等于键名”。
+ * @param {string} key 翻译键
+ * @returns {string|undefined}
+ */
+function lookupTranslation(key) {
+  for (const lang of languageOrder) {
+    const value = getNestedValue(LANGUAGE_PACKS[lang], key);
+    if (value !== undefined) return value;
+  }
+  return undefined;
 }
 
 /**
@@ -77,10 +102,8 @@ function interpolate(text, params, skip) {
  */
 export function t(key, params = {}, skip = null) {
   try {
-    for (const lang of languageOrder) {
-      const value = getNestedValue(LANGUAGE_PACKS[lang], key);
-      if (value !== undefined) return interpolate(value, params, skip);
-    }
+    const value = lookupTranslation(key);
+    if (value !== undefined) return interpolate(value, params, skip);
   } catch (error) {
     logWarn(error, `i18n 翻译失败: ${key}`);
   }
@@ -344,7 +367,7 @@ export function initI18n() {
  */
 export function translateTag(name) {
   if (!name) return name;
-  return tOr(`tags.${name}`, name);
+  return tOr(`tags.${escapeKeySegment(name)}`, name);
 }
 
 /**
@@ -354,8 +377,13 @@ export function translateTag(name) {
  * @returns {string}
  */
 export function tOr(key, fallback) {
-  const translated = t(key);
-  return translated === key ? fallback : translated;
+  try {
+    const value = lookupTranslation(key);
+    if (value !== undefined) return interpolate(value);
+  } catch (error) {
+    logWarn(error, `i18n 翻译失败: ${key}`);
+  }
+  return fallback;
 }
 
 /**
