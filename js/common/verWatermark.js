@@ -1,5 +1,6 @@
 import { getJSON } from "../http/client.js";
 import { createBreak } from "../views/uiComponents.js";
+import { t } from "./i18n.js";
 import { logWarn } from "./logger.js";
 
 /**
@@ -36,7 +37,7 @@ function createContainer(version) {
   const div = document.createElement('div');
   div.id = 'xf-verWatermarkContainer';
   const span = document.createElement('span');
-  span.textContent = 'Commit Hash';
+  span.textContent = t('common.commitHash');
   const spanVersion = document.createElement('span');
   spanVersion.textContent = version;
 

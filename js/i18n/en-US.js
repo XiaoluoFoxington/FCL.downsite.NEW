@@ -6,6 +6,7 @@ const enUS = {
   // Common
   common: {
     siteName: 'FCL Download Station',
+    commitHash: 'Commit Hash',
     idle: 'Waiting to load',
     loading: 'Loading...',
     loadingError: 'Failed to load',

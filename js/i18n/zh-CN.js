@@ -6,6 +6,7 @@ const zhCN = {
   // 通用
   common: {
     siteName: 'FCL 下载站',
+    commitHash: '提交哈希',
     idle: '等待加载',
     loading: '正在加载……',
     loadingError: '加载失败',
