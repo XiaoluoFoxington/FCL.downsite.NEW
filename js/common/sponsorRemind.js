@@ -4,7 +4,7 @@ import { createPanel } from '../views/uiComponents.js';
 import { getText } from '../http/client.js';
 import { createSafeContent } from '../security/content.js';
 import { renderStatus } from '../views/commonView.js';
-import { t, translateDynamicContent } from './i18n.js';
+import { t } from './i18n.js';
 
 /**
  * 赞助提醒，用于在访问次数达到10的倍数时显示赞助提醒
@@ -56,8 +56,12 @@ async function showSponsorRemind(container, visitCount) {
   try {
     container.className = 'mdui-panel-item mdui-panel-item-open xf-sponsorRemind';
     const sponsorHtml = await getText('/data/sponsorRemind.html', { cache: true });
-    container.replaceChildren(await createSafeContent(sponsorHtml));
-    translateDynamicContent(container);
+    // 模板用 {{key}} 标记文案，必须在 DOMPurify 净化前完成翻译：
+    // createSafeContent 配置会剥离 data-* 属性，DOM 级翻译标记无法存活。
+    const localizedHtml = sponsorHtml
+      .replace(/\{\{([\w.]+)\}\}/g, (match, key) => t(key))
+      .replace(/\{count\}/g, '<span id="visitCount"></span>');
+    container.replaceChildren(await createSafeContent(localizedHtml));
     const visitCountEl = container.querySelector('#visitCount');
     const closeBtn = container.querySelector('#sponsorRemindCloseBtn');
     if (!visitCountEl || !closeBtn) {

@@ -196,6 +196,33 @@ const zhCN = {
     'HarmonyOS': 'HarmonyOS',
   },
 
+  // 线路名（data/mirror.json，按线路 id 寻址）
+  mirror: {
+    0: '线路1',
+    1: '线路2',
+    4: '线路5',
+    7: '线路8',
+    8: '线路9',
+    9: '线路10',
+    10: '线路11',
+  },
+
+  // 详情页消息（data/software/*/detail.json 的 message，按 软件ID.序号 寻址）
+  detailMessage: {
+    5: {
+      0: 'Krypton Wrapper 在 0.4.5 版本中更改了应用签名，在安装新版本前需卸载旧版本。',
+    },
+    7: {
+      0: '已停止更新，建议转到新项目：Amethyst。',
+    },
+    10: {
+      0: '已停止更新，建议转到新项目：Fold Craft Launcher。',
+    },
+    11: {
+      0: '从FCL 1.2.7.1版本开始，此工具已集成，基于easytier，可与支持easytier的启动器一起联机。不再推荐额外下载此工具。',
+    },
+  },
+
   // 首页
   home: {
     title: 'FCL下载站 - 我的世界Java版Android启动器与资源下载',
@@ -337,6 +364,35 @@ const zhCN = {
       license: '许可证',
       providedMirrors: '提供 {mirrors}',
     },
+    project: {
+      0: {
+        description: '基于 Material Design 的前端框架。',
+        useDescription: '网站基本样式效果。',
+      },
+      1: {
+        description: '用户代理解析库。',
+        useDescription: '下载页架构选择建议。',
+      },
+      2: {
+        description: 'Markdown 解析器。',
+        useDescription: '文档、版本历史页解析Markdown信息。',
+      },
+      3: {
+        description: 'DOM 节点净化库。',
+        useDescription: '文档、版本历史页净化Markdown内容。',
+      },
+    },
+    contributor: {
+      0: {
+        0: '网站站长',
+      },
+      2: {
+        0: '提供网站域名、服务器',
+      },
+      7: {
+        0: '代码贡献（初版与.mdui版）',
+      },
+    },
   },
 
   // 行为设置页
@@ -349,6 +405,36 @@ const zhCN = {
     empty: '暂无行为设置项',
     saveSuccess: '设置保存成功',
     saveError: '设置保存失败',
+    category: {
+      behavior: '行为设置',
+    },
+    group: {
+      common: '通用设置',
+      log: '日志提示',
+      list: '资源列表',
+      detail: '详情页',
+    },
+    setting: {
+      '字节数格式化前缀': '字节数格式化前缀',
+      '永久关闭赞助提醒': '永久关闭赞助提醒',
+      '赞助提醒计次': '赞助提醒计次',
+      '启用 Toast 提示': '启用 Toast 提示',
+      'Toast 持续时间（ms）': 'Toast 持续时间（ms）',
+      '图标尺寸（px）': '图标尺寸（px）',
+      '资源列表页默认打开方式': '资源列表页默认打开方式',
+    },
+    option: {
+      '字节数格式化前缀': {
+        IEC: '二进制前缀（IEC 前缀）',
+        SI: '十进制前缀（SI 前缀）',
+      },
+      '资源列表页默认打开方式': {
+        detail: '详情页',
+        download: '下载页',
+        doc: '文档页',
+        history: '版本历史页',
+      },
+    },
   },
 
   // 主题设置页
@@ -379,6 +465,7 @@ const zhCN = {
     sampleRwd: '响应式设计（{rwd}）。',
     sampleCode: '这行文本包含内联代码 {code}。',
     sampleKbd: '按下 {kbd} 可以关闭对话框。',
+    sampleTags: 'Android, MCJE相关, 启动器',
     applySuccess: '主题应用成功',
   },
 
@@ -423,6 +510,11 @@ const zhCN = {
     title: '介绍文档',
     pageTitle: '介绍文档 - FCL下载站',
     description: '查看软件的详细介绍和使用说明。',
+    titles: {
+      0: {
+        1: '介绍',
+      },
+    },
     loadingDocList: '正在加载介绍文档列表……',
     noDocs: '暂无介绍文档',
     docN: '文档 {index}',

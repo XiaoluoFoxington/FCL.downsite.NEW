@@ -1,6 +1,6 @@
 import { renderStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
 import { createPanel, createPanelItem } from './uiComponents.js';
-import { t } from '../common/i18n.js';
+import { t, tOr } from '../common/i18n.js';
 
 /** 介绍目录仍在请求时显示的首屏状态。 */
 export function renderIntroLoading(container) {
@@ -33,8 +33,9 @@ export function renderIntroPanels(container, basic, items, onOpen) {
   // 这里只创建折叠外壳；正文请求由 header 点击后的 onOpen 回调延后触发。
   const panel = createPanel();
   items.forEach((item, index) => {
+    const title = item.title ? tOr(`intro.titles.${basic.id}.${index}`, item.title) : t('intro.docN', { index: index + 1 });
     const { element: panelItem, header, body } = createPanelItem(
-      item.title || t('intro.docN', { index: index + 1 }),
+      title,
       { bodyClass: 'mdui-typo' },
     );
     // 空闲提示能让用户理解首次展开可能需要等待，而不是误以为内容丢失。

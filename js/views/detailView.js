@@ -4,7 +4,7 @@ import { isSafeNavigationUrl, joinUrl } from '../security/content.js';
 import { createExternalLink, createGrid, createMaterialIcon } from './uiComponents.js';
 import { isBookmarked, toggleBookmark, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
 import { readPreference } from '../domain/preferences.js';
-import { t, translateTag } from '../common/i18n.js';
+import { t, tOr, translateTag } from '../common/i18n.js';
 
 // 反馈渠道异步请求的取消控制器：renderDetail 成功或再次进入 renderDetailError 时 abort 旧的，
 // 既保护 DOM 不被旧响应写入，也取消进行中的网络请求避免无谓流量。
@@ -145,7 +145,11 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   elements.body.replaceChildren(fragment);
 
   elements.isRandomSelect.textContent = detail.randomSelectMirror ? t('common.yes') : t('common.no');
-  renderMessages(elements.messageWrapper, elements.messageContainer, detail.message);
+  const messages = (detail.message || []).map((msg, index) => ({
+    ...msg,
+    text: tOr(`detailMessage.${id}.${index}`, msg.text),
+  }));
+  renderMessages(elements.messageWrapper, elements.messageContainer, messages);
   renderMirrorInfo(elements.mirrorInfoBody, detail.download, mirrors);
 
   elements.download.href = `/html/down.html?id=${id}`;
@@ -254,7 +258,7 @@ function renderMirrorInfo(body, downloads, mirrors) {
 
     idCell.textContent = download.mirrorId;
     if (mirror) {
-      nameCell.textContent = mirror.name;
+      nameCell.textContent = tOr(`mirror.${mirror.id}`, mirror.name);
       urlCell.appendChild(createExternalLink(joinUrl(mirror.baseUrl, download.key)));
     } else {
       nameCell.textContent = t('common.unknownMirror');

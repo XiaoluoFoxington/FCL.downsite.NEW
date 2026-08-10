@@ -281,6 +281,28 @@ export function waitForI18n() {
  */
 export function translateTag(name) {
   if (!name) return name;
-  const translated = t(`tags.${name}`);
-  return translated.startsWith('tags.') ? name : translated;
+  return tOr(`tags.${name}`, name);
+}
+
+/**
+ * 翻译键存在时返回翻译值，否则回退到原文本（用于数据源里的中文内容）。
+ * @param {string} key 翻译键
+ * @param {string} fallback 键不存在时返回的原文
+ * @returns {string}
+ */
+export function tOr(key, fallback) {
+  const translated = t(key);
+  return translated === key ? fallback : translated;
+}
+
+/**
+ * 生成本地资源的本地化路径；当前为中文或远程地址时返回 null。
+ * 例如 '/data/announcement.html' → '/data/announcement.en-US.html'。
+ * @param {string} path 本地资源路径（以 / 开头）
+ * @returns {string|null}
+ */
+export function getLocalizedPath(path) {
+  if (currentLang === 'zh-CN') return null;
+  if (typeof path !== 'string' || !path.startsWith('/')) return null;
+  return path.replace(/(\.[^.]+)$/, `.${currentLang}$1`);
 }

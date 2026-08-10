@@ -1,6 +1,6 @@
 import { renderStatus, renderTableStatus } from './commonView.js';
 import { createPanelItem, createExternalLink } from './uiComponents.js';
-import { t } from '../common/i18n.js';
+import { t, tOr } from '../common/i18n.js';
 
 /**
  * 关于页面 view。
@@ -51,7 +51,7 @@ export function renderDownloadLines(container, mirrors, contributors) {
   mirrors.forEach((mirror) => {
     const tr = document.createElement('tr');
     const tdName = document.createElement('td');
-    tdName.textContent = mirror.name;
+    tdName.textContent = tOr(`mirror.${mirror.id}`, mirror.name);
     const tdProvider = document.createElement('td');
 
     const ids = mirror.contributeId || [];
@@ -90,7 +90,7 @@ export async function renderContributors(container, contributors, mirrors) {
   mirrors.forEach((m) => {
     (m.contributeId || []).forEach((cid) => {
       if (!contributorMirrors.has(cid)) contributorMirrors.set(cid, []);
-      contributorMirrors.get(cid).push(m.name);
+      contributorMirrors.get(cid).push(tOr(`mirror.${m.id}`, m.name));
     });
   });
 
@@ -158,9 +158,9 @@ export async function renderContributors(container, contributors, mirrors) {
     // content 字段按数组拆分为多条贡献描述
     if (c.content) {
       const lines = c.content.filter((line) => line.trim());
-      lines.forEach((line) => {
+      lines.forEach((line, lineIndex) => {
         const li = document.createElement('li');
-        li.textContent = line.trim();
+        li.textContent = tOr(`about.contributor.${c.id}.${lineIndex}`, line.trim());
         ul.appendChild(li);
       });
     }
@@ -196,17 +196,17 @@ export async function renderContributors(container, contributors, mirrors) {
 export async function renderUsedProjects(container, projects) {
   const fragment = document.createDocumentFragment();
 
-  projects.forEach((p) => {
+  projects.forEach((p, index) => {
     const tr = document.createElement('tr');
 
     const tdName = document.createElement('td');
     tdName.textContent = p.name;
 
     const tdDesc = document.createElement('td');
-    tdDesc.textContent = p.description;
+    tdDesc.textContent = tOr(`about.project.${index}.description`, p.description);
 
     const tdUseDesc = document.createElement('td');
-    tdUseDesc.textContent = p.useDescription;
+    tdUseDesc.textContent = tOr(`about.project.${index}.useDescription`, p.useDescription);
 
     const tdVersion = document.createElement('td');
     tdVersion.textContent = p.useVersion;

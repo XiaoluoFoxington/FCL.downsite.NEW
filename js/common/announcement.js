@@ -1,4 +1,4 @@
-import { getText } from '../http/client.js';
+import { getLocalizedText } from '../http/client.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { renderStatus } from '../views/commonView.js';
 import { createSafeContent } from '../security/content.js';
@@ -87,7 +87,7 @@ async function renderAnnouncement(container, html, hash, isNew) {
  */
 export async function checkNewAnnouncement() {
   try {
-    const html = await getText('/data/announcement.html', { cache: true });
+    const html = await getLocalizedText('/data/announcement.html', { cache: true });
     const hash = simpleHash64(html);
     const storedHash = readPreference(STORAGE_KEY);
     return { html, hash, isNew: hash !== storedHash };

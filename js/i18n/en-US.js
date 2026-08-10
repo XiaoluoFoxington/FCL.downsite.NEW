@@ -196,6 +196,33 @@ const enUS = {
     'HarmonyOS': 'HarmonyOS',
   },
 
+  // Mirror names (data/mirror.json, keyed by mirror id)
+  mirror: {
+    0: 'Mirror 1',
+    1: 'Mirror 2',
+    4: 'Mirror 5',
+    7: 'Mirror 8',
+    8: 'Mirror 9',
+    9: 'Mirror 10',
+    10: 'Mirror 11',
+  },
+
+  // Detail page messages (data/software/*/detail.json message, keyed by softwareId.index)
+  detailMessage: {
+    5: {
+      0: 'Krypton Wrapper changed its app signature in version 0.4.5. You need to uninstall the old version before installing the new one.',
+    },
+    7: {
+      0: 'Discontinued. It is recommended to switch to the new project: Amethyst.',
+    },
+    10: {
+      0: 'Discontinued. It is recommended to switch to the new project: Fold Craft Launcher.',
+    },
+    11: {
+      0: 'Since FCL 1.2.7.1, this tool has been integrated. It is based on EasyTier and can be used with launchers that support EasyTier for multiplayer. Downloading this tool separately is no longer recommended.',
+    },
+  },
+
   // Home page
   home: {
     title: 'FCL Download Station - Minecraft Java Edition Android Launcher & Resources',
@@ -337,6 +364,35 @@ const enUS = {
       license: 'License',
       providedMirrors: 'Provided {mirrors}',
     },
+    project: {
+      0: {
+        description: 'A front-end framework based on Material Design.',
+        useDescription: 'Basic styling of the website.',
+      },
+      1: {
+        description: 'User agent parser library.',
+        useDescription: 'Architecture suggestions on the download page.',
+      },
+      2: {
+        description: 'Markdown parser.',
+        useDescription: 'Parses Markdown content on the documentation and version history pages.',
+      },
+      3: {
+        description: 'DOM sanitization library.',
+        useDescription: 'Sanitizes Markdown content on the documentation and version history pages.',
+      },
+    },
+    contributor: {
+      0: {
+        0: 'Site owner',
+      },
+      2: {
+        0: 'Provides the site domain and server',
+      },
+      7: {
+        0: 'Code contributions (v1 and the .mdui version)',
+      },
+    },
   },
 
   // Behavior settings page
@@ -349,6 +405,36 @@ const enUS = {
     empty: 'No behavior settings available',
     saveSuccess: 'Settings saved successfully',
     saveError: 'Failed to save settings',
+    category: {
+      behavior: 'Behavior Settings',
+    },
+    group: {
+      common: 'General',
+      log: 'Log Notifications',
+      list: 'Resource List',
+      detail: 'Detail Page',
+    },
+    setting: {
+      '字节数格式化前缀': 'Byte Format Prefix',
+      '永久关闭赞助提醒': 'Permanently Disable Sponsor Reminder',
+      '赞助提醒计次': 'Sponsor Reminder Count',
+      '启用 Toast 提示': 'Enable Toast Notifications',
+      'Toast 持续时间（ms）': 'Toast Duration (ms)',
+      '图标尺寸（px）': 'Icon Size (px)',
+      '资源列表页默认打开方式': 'Default Open Method for Resource List',
+    },
+    option: {
+      '字节数格式化前缀': {
+        IEC: 'Binary prefix (IEC)',
+        SI: 'Decimal prefix (SI)',
+      },
+      '资源列表页默认打开方式': {
+        detail: 'Detail Page',
+        download: 'Download Page',
+        doc: 'Documentation Page',
+        history: 'Version History Page',
+      },
+    },
   },
 
   // Theme settings page
@@ -379,6 +465,7 @@ const enUS = {
     sampleRwd: 'Responsive web design ({rwd}).',
     sampleCode: 'This line contains inline code {code}.',
     sampleKbd: 'Press {kbd} to close the dialog.',
+    sampleTags: 'Android, MCJE-related, Launchers',
     applySuccess: 'Theme applied successfully',
   },
 
@@ -423,6 +510,11 @@ const enUS = {
     title: 'Documentation',
     pageTitle: 'Documentation - FCL Download Station',
     description: 'View detailed introduction and usage instructions for the software.',
+    titles: {
+      0: {
+        1: 'Introduction',
+      },
+    },
     loadingDocList: 'Loading document list...',
     noDocs: 'No documents available',
     docN: 'Document {index}',

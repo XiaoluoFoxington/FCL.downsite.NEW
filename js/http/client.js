@@ -6,7 +6,7 @@
  * options.cache：是否复用本页生命周期内同 URL、同响应类型的 Promise。
  */
 
-import { t } from '../common/i18n.js';
+import { t, getLocalizedPath } from '../common/i18n.js';
 
 // 仅缓存本页生命周期内的“进行中/成功”请求；刷新页面后由浏览器 HTTP 缓存接管。
 // 键同时包含响应类型，避免同一 URL 被按 JSON 与文本两种方式解析时发生混用。
@@ -145,6 +145,24 @@ export function getJSON(url, options) {
  */
 export function getText(url, options) {
   return request(url, 'text', options);
+}
+
+/**
+ * 获取本地文本资源；优先请求当前语言的本地化版本，失败时回退到原路径。
+ * 用户主动取消的请求会继续向上抛出，不会静默回退。
+ * @param {string} url 本地资源路径（如 '/data/announcement.html'）
+ * @param {{signal?: AbortSignal, timeoutMs?: number, cache?: boolean}} options 请求控制项
+ * @returns {Promise<string>} 响应文本
+ */
+export async function getLocalizedText(url, options = {}) {
+  const localizedPath = getLocalizedPath(url);
+  if (!localizedPath) return getText(url, options);
+  try {
+    return await getText(localizedPath, options);
+  } catch (error) {
+    if (error?.kind === 'abort') throw error;
+    return getText(url, options);
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { getSoftware } from '../repositories/siteRepository.js';
-import { getText } from '../http/client.js';
+import { getLocalizedText } from '../http/client.js';
 import { createSafeContent } from '../security/content.js';
 import {
   renderDocument,
@@ -39,7 +39,8 @@ export function createIntroController(container, softwareId) {
     try {
       const url = documentUrl(item);
       // 此请求发生在用户展开面板后，因此首屏不会下载 README/截图等非必要内容。
-      const rawContent = await getText(url, { timeoutMs: 20000 });
+      // 本地文档优先取当前语言版本（如 intro.en-US.html），远程 README 保持原文。
+      const rawContent = await getLocalizedText(url, { timeoutMs: 20000 });
       // 返回 DocumentFragment 而非 HTML 字符串，view 可以直接安全地替换正文节点。
       const fragment = await createSafeContent(rawContent, {
         type: item.type === 'md' ? 'md' : 'html',

@@ -4,7 +4,7 @@ import { createDownloadSelectorController } from './downloadSelectorController.j
 import { renderStatus, renderMessages, setErrorTitle, setSoftwareHeader } from '../views/commonView.js';
 import { joinUrl } from '../security/content.js';
 import { logError } from '../common/logger.js';
-import { t } from '../common/i18n.js';
+import { t, tOr } from '../common/i18n.js';
 
 /**
  * 下载页 controller。
@@ -32,7 +32,10 @@ export function createDownloadController(elements, softwareId) {
         detailButton: elements.detailButton,
       });
       renderMessages(elements.messageWrapper, elements.messageContainer, [
-        ...(detail.message || []),
+        ...(detail.message || []).map((msg, index) => ({
+          ...msg,
+          text: tOr(`detailMessage.${softwareId}.${index}`, msg.text),
+        })),
         ...checkOSRequirement(detail.OSRequest, system),
       ]);
       // 通过 ID 建索引，既减少查找复杂度，也能明确检测 detail.json 中的错误 mirrorId。
@@ -43,7 +46,7 @@ export function createDownloadController(elements, softwareId) {
         if (!mirror) throw new Error(t('detail.missingMirror', { id: download.mirrorId }));
         return {
           // name/sourceName 用于 UI 与最终统一下载项中的 source 字段。
-          name: mirror.name,
+          name: tOr(`mirror.${mirror.id}`, mirror.name),
           sourceName: mirror.name,
           nextUrl: joinUrl(mirror.baseUrl, download.key),
           // apiVer 为空时走 plain adapter，允许旧镜像逐步迁移。
