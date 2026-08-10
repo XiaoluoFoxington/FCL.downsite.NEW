@@ -54,7 +54,6 @@ function translateError(error) {
   if (error.status === 403) return t('rh.rateLimited');
   if (error.status === 500) return t('rh.serverError');
 
-  if (msg.includes('超时')) return t('rh.timeout');
-
+  // 不再依赖中文关键字判断超时：所有请求错误都经由 client.js 统一包装为带 kind 的 HttpError。
   return msg || t('rh.unknownError');
 }
