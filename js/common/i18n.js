@@ -191,7 +191,8 @@ export function setLanguageOrder(order, { reload = true } = {}) {
     logWarn(error, '保存语言顺序');
   }
   try {
-    applyTranslations();
+    // applyTranslations();
+    // 注释掉，强行让用户刷新页面
   } catch (error) {
     logWarn(error, '应用语言翻译');
   }

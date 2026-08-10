@@ -21,7 +21,7 @@ let sortable = null;
 // 保存提示防抖：连续排序时只弹最后一次，避免 Toast 堆叠。
 const debouncedSavedToast = debounce(() => {
   showSnackbar(t('language.saved'));
-}, 300);
+}, 500);
 
 /** 创建单个语言行的操作按钮。 */
 function createActionButton(iconName, ariaLabel, onClick) {
