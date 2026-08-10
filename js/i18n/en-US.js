@@ -245,7 +245,7 @@ const enUS = {
     current: 'Current',
     moveUp: 'Move Up',
     moveDown: 'Move Down',
-    saved: 'Language settings saved',
+    saved: 'Language settings saved. Refresh the page to apply fully',
   },
 
   // 404 page

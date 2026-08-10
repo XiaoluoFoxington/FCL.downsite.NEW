@@ -245,7 +245,7 @@ const zhCN = {
     current: '当前',
     moveUp: '上移',
     moveDown: '下移',
-    saved: '语言设置已保存',
+    saved: '语言设置已保存，刷新页面后完整生效',
   },
 
   // 404 页面
