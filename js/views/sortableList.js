@@ -6,6 +6,8 @@
  * 顺序变化是“把被拖项插入到指针所在项的前/后半区”，指针位于项的下半区表示插到该项之后。
  */
 
+import { logWarn } from '../common/logger.js';
+
 /**
  * 计算拖拽释放后的插入位置（相对于移除被拖项之后的数组）。
  * @param {number} itemCount 当前 DOM 中的列表项数量（含被拖项）
@@ -30,6 +32,9 @@ export function resolveInsertIndex(itemCount, draggedIndex, pointerIndex, after)
  * @returns {{render: () => void, move: (from: number, to: number) => void, getItems: () => Array<*>}}
  */
 export function createSortableList(container, { items = [], renderItem, onReorder } = {}) {
+  // 同一容器重复挂载时直接返回既有实例，避免叠加指示线与重复监听。
+  if (container._sortableList) return container._sortableList;
+
   let order = [...items];
   let draggedIndex = null;
   let insertIndex = null;
@@ -81,7 +86,9 @@ export function createSortableList(container, { items = [], renderItem, onReorde
     itemElements().forEach((el) => el.remove());
     indicator.hidden = true;
     order.forEach((item, index) => {
-      const el = renderItem ? renderItem(item, index) : document.createElement('div');
+      let el = renderItem ? renderItem(item, index) : document.createElement('div');
+      // renderItem 返回空值时兜底为空行，保证索引对齐且不抛错。
+      if (!el || typeof el.appendChild !== 'function') el = document.createElement('div');
       el.classList.add('sortable-list-item');
       el.draggable = true;
       el.dataset.sortableIndex = String(index);
@@ -105,8 +112,14 @@ export function createSortableList(container, { items = [], renderItem, onReorde
     const changed = next.some((item, index) => item !== order[index]);
     if (!changed) return;
     order = next;
-    if (typeof onReorder === 'function') onReorder([...next]);
-    render();
+    try {
+      if (typeof onReorder === 'function') onReorder([...next]);
+    } catch (error) {
+      logWarn(error, '可排序列表排序回调');
+    } finally {
+      // 无论回调是否异常都重绘，保证组件内部状态与 DOM 一致。
+      render();
+    }
   }
 
   container.addEventListener('dragover', (event) => {
@@ -154,10 +167,12 @@ export function createSortableList(container, { items = [], renderItem, onReorde
     commitOrder(next);
   }
 
-  render();
-  return {
+  const api = {
     render,
     move,
     getItems: () => [...order],
   };
+  container._sortableList = api;
+  render();
+  return api;
 }
