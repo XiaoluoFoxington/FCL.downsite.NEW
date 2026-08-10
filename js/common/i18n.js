@@ -207,9 +207,13 @@ export function setLang(lang) {
  */
 export function applyTranslations(root = document) {
   if (!root || typeof root.querySelectorAll !== 'function') return;
-  let elements;
+  let elements = [];
   try {
-    elements = root.querySelectorAll('[data-i18n]');
+    // 先处理 root 自身（若它带有 data-i18n），再处理其全部后代。
+    if (typeof root.matches === 'function' && root.matches('[data-i18n]')) {
+      elements.push(root);
+    }
+    elements.push(...root.querySelectorAll('[data-i18n]'));
   } catch (error) {
     logWarn(error, 'i18n 扫描 DOM');
     return;
