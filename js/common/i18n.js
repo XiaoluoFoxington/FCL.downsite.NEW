@@ -244,22 +244,33 @@ export function applyTranslations(root = document) {
       const skip = new Set(placeholders.keys());
       el.textContent = t(key, params, skip);
 
+      // 还原占位符：同一 token 出现多次时用克隆逐个插入，避免 appendChild 移动同一节点导致文本错位；
+      // 翻译中完全缺失 token 时追加到末尾兜底，避免子元素（链接等）被永久丢弃。
       placeholders.forEach((child, name) => {
         const token = `{${name}}`;
+        const textNodes = [];
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
         let node;
         while ((node = walker.nextNode())) {
-          if (node.nodeValue.includes(token)) {
-            const parts = node.nodeValue.split(token);
-            const parent = node.parentNode;
-            const fragment = document.createDocumentFragment();
-            parts.forEach((part, index) => {
-              if (index > 0) fragment.appendChild(child);
-              if (part) fragment.appendChild(document.createTextNode(part));
-            });
-            parent.replaceChild(fragment, node);
-            break;
-          }
+          if (node.nodeValue.includes(token)) textNodes.push(node);
+        }
+        let inserted = false;
+        for (const textNode of textNodes) {
+          const parts = textNode.nodeValue.split(token);
+          const parent = textNode.parentNode;
+          const fragment = document.createDocumentFragment();
+          parts.forEach((part, index) => {
+            if (index > 0) {
+              fragment.appendChild(inserted ? child.cloneNode(true) : child);
+              inserted = true;
+            }
+            if (part) fragment.appendChild(document.createTextNode(part));
+          });
+          parent.replaceChild(fragment, textNode);
+        }
+        if (!inserted) {
+          logWarn(`i18n 翻译缺少占位符 ${token}（键：${el.getAttribute('data-i18n')}），已追加到元素末尾`);
+          el.appendChild(child);
         }
       });
     } catch (error) {
