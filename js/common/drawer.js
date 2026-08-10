@@ -5,7 +5,7 @@ import { showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
 import { mountBookmarkList } from '../views/bookmarkView.js';
 import { logError } from './logger.js';
-import { t, translateDynamicContent, getCurrentLang, setLang } from './i18n.js';
+import { t, translateDynamicContent } from './i18n.js';
 
 /**
 * 所有页面共用的右侧抽屉。
@@ -75,15 +75,6 @@ async function loadDrawerContent(drawer) {
 
     const feedbackContainer = drawer.querySelector('#drawer-feedback');
     if (feedbackContainer) loadFeedback(feedbackContainer);
-
-    // 语言选择器：切换语言后保存偏好并刷新页面，保证所有动态视图一致
-    const languageSelect = drawer.querySelector('#language-select');
-    if (languageSelect) {
-      languageSelect.value = getCurrentLang();
-      languageSelect.addEventListener('change', () => {
-        setLang(languageSelect.value);
-      }, { signal: ac.signal });
-    }
 
     const runtimeEl = drawer.querySelector('#drawer-runtime');
     if (runtimeEl) {

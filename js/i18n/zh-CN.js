@@ -91,6 +91,7 @@ const zhCN = {
       siteSettings: '网站设置',
       behaviorSettings: '行为设置',
       themeSettings: '主题设置',
+      languageSettings: '语言设置',
       pageActions: '页面操作',
       hardRefresh: '硬刷新',
       oldVersion: '回到旧版',
@@ -233,6 +234,19 @@ const zhCN = {
     direct: '开门见山',
     welcomeHighlight: '欢迎来到这个由玩家社区搭建的非官方 FCL 下载站！',
     welcomeSite: '',
+  },
+
+  // 语言设置页
+  language: {
+    title: '语言设置',
+    pageTitle: '语言设置 - FCL下载站',
+    description: '设置FCL下载站的界面语言与回退顺序。',
+    order: '语言顺序',
+    hint: '列表顺序即语言优先级：排在最前的语言为界面显示语言，其余语言在翻译缺失时按顺序依次回退。拖动或使用上下按钮调整顺序，修改后立即保存。',
+    current: '当前',
+    moveUp: '上移',
+    moveDown: '下移',
+    saved: '语言设置已保存',
   },
 
   // 404 页面

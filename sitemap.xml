@@ -40,4 +40,8 @@
     <loc>https://foldcraftlauncher.cn/html/theme.html</loc>
     <priority>0.3</priority>
   </url>
+  <url>
+    <loc>https://foldcraftlauncher.cn/html/language.html</loc>
+    <priority>0.3</priority>
+  </url>
 </urlset>

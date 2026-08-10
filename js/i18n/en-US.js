@@ -91,6 +91,7 @@ const enUS = {
       siteSettings: 'Site Settings',
       behaviorSettings: 'Behavior Settings',
       themeSettings: 'Theme Settings',
+      languageSettings: 'Language Settings',
       pageActions: 'Page Actions',
       hardRefresh: 'Hard Refresh',
       oldVersion: 'Back to Old Version',
@@ -233,6 +234,19 @@ const enUS = {
     direct: 'Quick Download',
     welcomeHighlight: 'Welcome to this unofficial FCL download station built by the player community!',
     welcomeSite: '',
+  },
+
+  // Language settings page
+  language: {
+    title: 'Language Settings',
+    pageTitle: 'Language Settings - FCL Download Station',
+    description: 'Configure the interface language and fallback order for FCL Download Station.',
+    order: 'Language Order',
+    hint: 'The list order defines language priority: the first language is used for the interface, and the rest are used as fallbacks in order when translations are missing. Drag or use the up/down buttons to reorder; changes are saved immediately.',
+    current: 'Current',
+    moveUp: 'Move Up',
+    moveDown: 'Move Down',
+    saved: 'Language settings saved',
   },
 
   // 404 page

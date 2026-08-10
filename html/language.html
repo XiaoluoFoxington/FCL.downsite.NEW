@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-cn">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="https://unpkg.com/mdui@1.0.2/dist/css/mdui.min.css" integrity="sha384-wuqJ3gKnD2BDa/kF14f6SECESfcvVTsNruuVi3BOAk2mNDIOn/uvHdd+eMK7FY0b" crossorigin="anonymous">
+  <link rel="stylesheet" href="/css/mdui.theme.enhanced.css">
+  <link rel="stylesheet" href="/css/mdui.patch.css">
+  <link rel="stylesheet" href="/css/xf.css">
+  <link rel="icon" href="/data/software/0/icon.avif">
+  <title data-i18n="language.pageTitle">语言设置 - FCL下载站</title>
+  <meta name="description" data-i18n-attr="content" data-i18n="language.description" content="设置FCL下载站的界面语言与回退顺序。">
+  <meta property="og:title" data-i18n-attr="content" data-i18n="language.pageTitle" content="语言设置 - FCL下载站">
+  <meta property="og:description" data-i18n-attr="content" data-i18n="language.description" content="设置FCL下载站的界面语言与回退顺序。">
+  <meta property="og:image" content="/media/img/thumbnail/thumbnail.webp">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" data-i18n-attr="content" data-i18n="language.pageTitle" content="语言设置 - FCL下载站">
+  <meta name="twitter:description" data-i18n-attr="content" data-i18n="language.description" content="设置FCL下载站的界面语言与回退顺序。">
+  <meta name="twitter:image" content="/media/img/thumbnail/thumbnail.webp">
+  <link rel="canonical" href="language.html">
+</head>
+
+<body class="mdui-appbar-with-toolbar mdui-container-fluid mdui-theme-layout-auto">
+  <div class="mdui-appbar mdui-appbar-fixed">
+    <div class="mdui-toolbar mdui-color-theme">
+      <a href="javascript: window.history.back();" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">arrow_back</i></a>
+      <a href="/" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">home</i></a>
+      <a href="" class="mdui-typo-title" data-i18n="language.title">语言设置</a>
+      <div class="mdui-toolbar-spacer"></div>
+      <a href="javascript:void(0);" id="menu_btn" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">menu</i></a>
+    </div>
+  </div>
+
+  <div>
+    <div class="mdui-panel" mdui-panel>
+      <div class="mdui-panel-item mdui-panel-item-open">
+        <div class="mdui-panel-item-header mdui-ripple">
+          <div data-i18n="language.order">语言顺序</div>
+          <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+        </div>
+        <div class="mdui-panel-item-body">
+          <div class="mdui-typo">
+            <p data-i18n="language.hint">列表顺序即语言优先级：排在最前的语言为界面显示语言，其余语言在翻译缺失时按顺序依次回退。拖动或使用上下按钮调整顺序，修改后立即保存。</p>
+          </div>
+          <div id="language-list" class="mdui-list"></div>
+        </div>
+      </div>
+      <div id="sponsorRemindContainer"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/mdui@1.0.2/dist/js/mdui.min.js" integrity="sha384-Iw/ABpFbyL5jmtL3QSGm+kpo+Rnj0Cs4NoQm69VmGC7j4pcv5MbN55KVNMMyB4J6" crossorigin="anonymous"></script>
+  <script type="module" src="/js/common.js"></script>
+  <script type="module" src="/js/language.js"></script>
+
+</body>
+
+</html>

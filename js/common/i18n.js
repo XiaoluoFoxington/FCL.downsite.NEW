@@ -2,9 +2,9 @@
  * i18n 国际化核心模块
  *
  * 设计目标：绝不影响站点可用性。
- * - 翻译键缺失时回退到另一种语言，再回退到键本身，绝不抛错；
+ * - 翻译键缺失时按用户设置的语言顺序依次回退，再回退到键本身，绝不抛错；
  * - 所有 DOM 翻译逐元素容错，单个元素失败不影响其他元素；
- * - 语言切换只保存偏好并刷新页面，不做复杂的实时 DOM 重建；
+ * - 语言顺序保存在本地偏好中，语言设置页可实时排序预览；
  * - 默认简体中文，未检测到支持的语言时保持中文。
  */
 
@@ -13,8 +13,11 @@ import enUS from '../i18n/en-US.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { logWarn } from './logger.js';
 
-/** 语言偏好存储键 */
+/** 语言偏好存储键（旧版单值） */
 const LANGUAGE_KEY = 'fdn-language';
+
+/** 语言顺序偏好存储键（数组：第一位为界面语言，其余为回退顺序） */
+const LANGUAGE_ORDER_KEY = 'fdn-language-order';
 
 /** 支持的语言包 */
 const LANGUAGE_PACKS = {
@@ -28,13 +31,8 @@ export const LANGUAGE_NAMES = {
   'en-US': 'English',
 };
 
-/** 各语言的回退顺序 */
-const FALLBACK_ORDER = {
-  'zh-CN': ['zh-CN', 'en-US'],
-  'en-US': ['en-US', 'zh-CN'],
-};
-
 let currentLang = 'zh-CN';
+let languageOrder = ['zh-CN', 'en-US'];
 let initPromise = null;
 
 /**
@@ -79,8 +77,7 @@ function interpolate(text, params, skip) {
  */
 export function t(key, params = {}, skip = null) {
   try {
-    const order = FALLBACK_ORDER[currentLang] || FALLBACK_ORDER['zh-CN'];
-    for (const lang of order) {
+    for (const lang of languageOrder) {
       const value = getNestedValue(LANGUAGE_PACKS[lang], key);
       if (value !== undefined) return interpolate(value, params, skip);
     }
@@ -99,6 +96,77 @@ export function getCurrentLang() {
 }
 
 /**
+ * 获取当前语言顺序列表（第一位为界面语言，其余为回退顺序）。
+ * @returns {Array<string>} 语言代码数组
+ */
+export function getLanguageOrder() {
+  return [...languageOrder];
+}
+
+/**
+ * 规范化语言顺序：只保留支持的语言、去重，并把缺失的支持语言补到末尾。
+ * @param {Array<string>} list 原始顺序
+ * @returns {Array<string>}
+ */
+function normalizeLanguageOrder(list) {
+  const normalized = [];
+  const supported = Object.keys(LANGUAGE_PACKS);
+  for (const code of Array.isArray(list) ? list : []) {
+    if (LANGUAGE_PACKS[code] && !normalized.includes(code)) normalized.push(code);
+  }
+  for (const code of supported) {
+    if (!normalized.includes(code)) normalized.push(code);
+  }
+  return normalized;
+}
+
+/**
+ * 读取语言顺序偏好；兼容旧版单值偏好，无任何偏好时按浏览器语言生成默认顺序。
+ * @returns {Array<string>}
+ */
+function loadLanguageOrder() {
+  const saved = readPreference(LANGUAGE_ORDER_KEY);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length) return normalizeLanguageOrder(parsed);
+    } catch (error) {
+      logWarn(error, '解析语言顺序偏好');
+    }
+  }
+  const legacy = readPreference(LANGUAGE_KEY);
+  if (legacy && LANGUAGE_PACKS[legacy]) {
+    const order = normalizeLanguageOrder([legacy]);
+    writePreference(LANGUAGE_ORDER_KEY, JSON.stringify(order));
+    return order;
+  }
+  const order = normalizeLanguageOrder([detectBrowserLang()]);
+  writePreference(LANGUAGE_ORDER_KEY, JSON.stringify(order));
+  return order;
+}
+
+/**
+ * 设置语言顺序并保存偏好。
+ * 列表第一位为界面显示语言；翻译键缺失时按列表顺序依次回退。
+ * @param {Array<string>} order 语言代码数组
+ * @param {{reload?: boolean}} [options] reload=true 时切换后刷新页面（默认）
+ */
+export function setLanguageOrder(order, { reload = true } = {}) {
+  const normalized = normalizeLanguageOrder(order);
+  if (!normalized.length) return;
+  languageOrder = normalized;
+  currentLang = normalized[0];
+  try {
+    writePreference(LANGUAGE_ORDER_KEY, JSON.stringify(normalized));
+    document.documentElement.lang = currentLang;
+    applyTranslations();
+    if (reload) window.location.reload();
+  } catch (error) {
+    logWarn(error, '保存语言顺序');
+  }
+}
+
+/**
  * 获取所有支持的语言列表。
  * @returns {Array<{code: string, name: string}>}
  */
@@ -111,23 +179,12 @@ export function getSupportedLanguages() {
 
 /**
  * 设置语言并保存偏好。为保证所有动态视图一致，切换后刷新页面。
+ * 等价于把该语言移到顺序列表第一位。
  * @param {string} lang 语言代码
  */
 export function setLang(lang) {
-  if (!LANGUAGE_PACKS[lang]) {
-    logWarn(`不支持的语言: ${lang}`);
-    return;
-  }
-  if (currentLang === lang) return;
-  currentLang = lang;
-  try {
-    writePreference(LANGUAGE_KEY, lang);
-    document.documentElement.lang = lang;
-    applyTranslations();
-    window.location.reload();
-  } catch (error) {
-    logWarn(error, '切换语言');
-  }
+  if (!LANGUAGE_PACKS[lang]) return;
+  setLanguageOrder([lang, ...languageOrder.filter((code) => code !== lang)]);
 }
 
 /**
@@ -239,9 +296,8 @@ export function initI18n() {
 
   initPromise = new Promise((resolve) => {
     try {
-      const savedLang = readPreference(LANGUAGE_KEY);
-      const detected = savedLang || detectBrowserLang();
-      currentLang = LANGUAGE_PACKS[detected] ? detected : 'zh-CN';
+      languageOrder = loadLanguageOrder();
+      currentLang = languageOrder[0] || 'zh-CN';
       document.documentElement.lang = currentLang;
     } catch (error) {
       logWarn(error, '初始化 i18n');
