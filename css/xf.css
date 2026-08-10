@@ -387,17 +387,8 @@ html[data-xf-theme="dark"] .toast {
   border-bottom: none;
 }
 
-.language-list-item .mdui-icon {
+.language-drag-handle {
   cursor: grab;
-}
-
-.language-list-item.language-dragging {
-  opacity: 0.5;
-}
-
-.language-list-item.language-drop-target {
-  outline: 2px dashed var(--mdui-color-theme, #009688);
-  outline-offset: -2px;
 }
 
 .language-list-info {
@@ -426,4 +417,24 @@ html[data-xf-theme="dark"] .toast {
 .language-actions {
   display: flex;
   gap: 4px;
+}
+
+/* ==================== 可排序列表组件 ==================== */
+.sortable-list {
+  position: relative;
+}
+
+.sortable-list-indicator {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--mdui-color-theme, #009688);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.sortable-list-item.sortable-dragging {
+  opacity: 0.5;
 }
