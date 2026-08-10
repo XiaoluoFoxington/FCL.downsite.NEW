@@ -4,16 +4,17 @@
 }
 
 * {
-  scrollbar-width: thin;
+  /* scrollbar-width: thin; */
   scrollbar-color: #80808080 transparent;
 }
 
 *:hover {
-  scrollbar-width: unset;
+  /* scrollbar-width: unset; */
 }
 
 *::-webkit-scrollbar {
-  width: 5px;
+  /* width: 5px; */
+  /* 为啥加上这个属性后在手机Gecko上<html>会带神奇的边距？ */
 }
 
 *::-webkit-scrollbar-track {
@@ -25,8 +26,9 @@
 }
 
 *:hover::-webkit-scrollbar {
-  width: unset;
+  /* width: unset; */
 }
+/* 已取消鼠标移上去后滚动条变宽的效果，原因：没啥用，且这个网站的主要用户是手机 */
 
 
 body {
