@@ -1,7 +1,7 @@
 // 每页共用的入口脚本。新增共用 ES Module 请在此处 import。
 import './common/logger.js';
 import { logWarn } from './common/logger.js';
-import { initI18n } from './common/i18n.js';
+import { initI18n, t } from './common/i18n.js';
 import './common/a11y.js';
 import './common/theme.js';
 import './common/drawer.js';
@@ -24,10 +24,10 @@ initI18n();
     if (typeof LA !== 'undefined' && typeof LA.init === 'function') {
       LA.init({ id: '3Qf548Mk9X7m1VlP', ck: '3Qf548Mk9X7m1VlP' });
     } else {
-      logWarn('统计脚本加载成功，但 LA 对象未定义');
+      logWarn(t('logger.context.analyticsNoLA'));
     }
   };
   script.onerror = function () {
-    logWarn('统计脚本加载失败');
+    logWarn(t('logger.context.analyticsLoadFailed'));
   };
 })();

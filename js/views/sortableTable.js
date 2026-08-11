@@ -172,24 +172,14 @@ export function createSortableTable(container, { items = [], columns = [], rende
         try {
           tr.setPointerCapture(event.pointerId);
         } catch (_) {
-          // 个别环境不支持指针捕获，元素仍在文档内，后续 move/up 监听依然有效。
+          // 个别环境不支持指针捕获：move/up/cancel 已委托到容器级监听（见下方），
+          // 指针只要仍在容器内，拖拽与落位依然可用。
         }
       });
       // 鼠标交给 HTML5 拖拽：拖拽接管时浏览器会派发 pointercancel，若这里误清 draggedIndex，
       // 会让 dragover 不再 preventDefault，drop 被浏览器取消（拖得动却放不下）。
-      // 因此 pointer 路径全部只响应触屏/手写笔（pointerType 非 mouse）。
-      tr.addEventListener('pointermove', (event) => {
-        if (event.pointerType === 'mouse' || draggedIndex !== index) return;
-        updateInsertPosition(event.clientY);
-      });
-      tr.addEventListener('pointerup', (event) => {
-        if (event.pointerType === 'mouse' || draggedIndex !== index) return;
-        commitDrop();
-      });
-      tr.addEventListener('pointercancel', (event) => {
-        if (event.pointerType === 'mouse' || draggedIndex !== index) return;
-        resetDrag();
-      });
+      // 因此 pointer 路径全部只响应触屏/手写笔（pointerType 非 mouse），
+      // 且 move/up/cancel 绑定在容器级而非单行，指针移出行后指示线仍能更新。
       tbody.appendChild(tr);
     });
   }
@@ -222,6 +212,23 @@ export function createSortableTable(container, { items = [], columns = [], rende
     if (draggedIndex === null) return;
     event.preventDefault();
     commitDrop();
+  });
+
+  // 触屏/手写笔拖拽：move/up/cancel 委托到容器级监听。
+  // 绑定在容器上而非单行上，指针移出起始行后指示线仍能更新；
+  // 且 setPointerCapture 失败的个别环境（见 pointerdown 的 catch）下，
+  // 指针只要仍在容器内松手，就能正常提交排序。
+  container.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'mouse' || draggedIndex === null) return;
+    updateInsertPosition(event.clientY);
+  });
+  container.addEventListener('pointerup', (event) => {
+    if (event.pointerType === 'mouse' || draggedIndex === null) return;
+    commitDrop();
+  });
+  container.addEventListener('pointercancel', (event) => {
+    if (event.pointerType === 'mouse' || draggedIndex === null) return;
+    resetDrag();
   });
 
   function move(from, to) {

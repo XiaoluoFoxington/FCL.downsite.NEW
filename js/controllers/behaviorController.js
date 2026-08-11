@@ -1,6 +1,7 @@
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { getSettings } from '../repositories/siteRepository.js';
 import { debounce } from '../views/commonView.js';
+import { t } from '../common/i18n.js';
 import {
   isValidOption,
   isValidSwitchValue,
@@ -44,7 +45,7 @@ export function createBehaviorController(elements) {
    */
   function savePreference(setting, value) {
     if (!isValidValue(setting, value)) {
-      logWarn(`尝试保存无效的设置值: ${setting.storageKey}=${value}`);
+      logWarn(t('logger.context.invalidSettingValue', { key: setting.storageKey, value }));
       debouncedShowSaveError();
       return;
     }

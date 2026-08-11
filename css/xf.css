@@ -159,6 +159,11 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
 .xf-filter-active-indicator {
   margin-right: 8px;
 }
+/* 图标元素带 mdui-icon/material-icons 类，其 display:inline-block 会覆盖 HTML hidden 属性；
+   此处提高特异性，确保 hidden 属性真正隐藏图标。 */
+.xf-filter-active-indicator[hidden] {
+  display: none;
+}
 
 /* MDUI select 键盘导航时的高亮项：提高特异性覆盖 mdui-select-menu-item 默认背景 */
 .mdui-select-menu-item.xf-select-highlighted {

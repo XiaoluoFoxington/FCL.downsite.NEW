@@ -23,7 +23,7 @@ export function createDetailController(elements, softwareId) {
       // 在渲染前验证外键，避免把孤立的 tagId 默默展示成数字。
       const knownTags = new Set(tags.map((tag) => tag.id));
       basic.tagIds.forEach((id) => {
-        if (!knownTags.has(id)) throw new Error(t('common.repository.unknownTag', { id }));
+        if (!knownTags.has(id)) throw new Error(t('common.repository.unknownTag', { itemId: basic.id, id }));
       });
       renderDetail(elements, softwareId, basic, detail, tags, mirrors);
     } catch (error) {

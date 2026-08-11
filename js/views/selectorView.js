@@ -96,7 +96,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
             try {
               return new RegExp(pattern).test(item.downloadUrl);
             } catch (_) {
-              logWarn(_, `筛选正则表达式无效，已跳过: ${pattern}`);
+              logWarn(_, { key: 'logger.context.invalidFilterRegex', params: { pattern } });
               return false;
             }
           }),

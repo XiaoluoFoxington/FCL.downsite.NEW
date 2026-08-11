@@ -181,7 +181,7 @@ const zhCN = {
     context: {
       '获取最新版本失败，使用镜像返回的版本': '获取最新版本失败，使用镜像返回的版本',
       '反馈渠道': '反馈渠道',
-      '可排序列表排序回调': '可排序列表排序回调',
+      '可拖拽表格排序回调': '可拖拽表格排序回调',
       '版本历史': '版本历史',
       '资源列表': '资源列表',
       '介绍文档': '介绍文档',
@@ -210,6 +210,12 @@ const zhCN = {
       writePreference: '保存设置 {key}',
       i18nTranslateError: 'i18n 翻译失败: {key}',
       i18nApplyError: 'i18n 应用翻译失败: {key}',
+      invalidFilterRegex: '筛选正则表达式无效，已跳过: {pattern}',
+      invalidSettingValue: '尝试保存无效的设置值: {key}={value}',
+      analyticsNoLA: '统计脚本加载成功，但 LA 对象未定义',
+      analyticsLoadFailed: '统计脚本加载失败',
+      invalidI18nParams: '解析 i18n 参数失败: {params}',
+      i18nMissingPlaceholder: 'i18n 翻译缺少占位符 {token}（键：{key}），已追加到元素末尾',
     },
   },
 

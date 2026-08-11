@@ -289,7 +289,7 @@ export function applyTranslations(root = document) {
         try {
           params = JSON.parse(paramsStr) || {};
         } catch (_) {
-          logWarn(`解析 i18n 参数失败: ${paramsStr}`);
+          logWarn(t('logger.context.invalidI18nParams', { params: paramsStr }));
         }
       }
 
@@ -352,7 +352,7 @@ export function applyTranslations(root = document) {
           parent.replaceChild(fragment, textNode);
         }
         if (!inserted) {
-          logWarn(`i18n 翻译缺少占位符 ${token}（键：${el.getAttribute('data-i18n')}），已追加到元素末尾`);
+          logWarn(t('logger.context.i18nMissingPlaceholder', { token, key: el.getAttribute('data-i18n') }));
           for (const child of children) {
             el.appendChild(child);
           }

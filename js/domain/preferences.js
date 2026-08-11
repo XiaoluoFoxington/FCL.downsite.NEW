@@ -15,7 +15,7 @@ export function readPreference(key, defaultValue = null) {
   try {
     return localStorage.getItem(key) ?? defaultValue;
   } catch (error) {
-    logWarn(error, `读取设置 ${key}`);
+    logWarn(error, { key: 'logger.context.readPreference', params: { key } });
     return defaultValue;
   }
 }

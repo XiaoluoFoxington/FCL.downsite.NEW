@@ -180,7 +180,7 @@ const enUS = {
     context: {
       '获取最新版本失败，使用镜像返回的版本': 'Failed to fetch the latest version; using the version returned by the mirror',
       '反馈渠道': 'Feedback channels',
-      '可排序列表排序回调': 'Sortable list reorder callback',
+      '可拖拽表格排序回调': 'Sortable table reorder callback',
       '版本历史': 'Version history',
       '资源列表': 'Resource list',
       '介绍文档': 'Introduction document',
@@ -209,6 +209,12 @@ const enUS = {
       writePreference: 'Saving setting {key}',
       i18nTranslateError: 'i18n translation failed: {key}',
       i18nApplyError: 'Failed to apply i18n translation: {key}',
+      invalidFilterRegex: 'Invalid filter regex, skipped: {pattern}',
+      invalidSettingValue: 'Attempted to save an invalid setting value: {key}={value}',
+      analyticsNoLA: 'Analytics script loaded, but the LA object is undefined',
+      analyticsLoadFailed: 'Failed to load analytics script',
+      invalidI18nParams: 'Failed to parse i18n params: {params}',
+      i18nMissingPlaceholder: 'i18n translation missing placeholder {token} (key: {key}), appended to element end',
     },
   },
 
