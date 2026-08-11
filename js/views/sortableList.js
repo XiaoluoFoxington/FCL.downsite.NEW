@@ -82,6 +82,34 @@ export function createSortableList(container, { items = [], renderItem, onReorde
     indicator.style.top = `${y - containerRect.top}px`;
   }
 
+  /** 计算指针位置对应的插入索引并更新指示线（HTML5 拖拽与触屏拖拽共用）。 */
+  function updateInsertPosition(clientY) {
+    const els = itemElements();
+    if (!els.length) return;
+    let pointerIndex = els.length - 1;
+    let after = true;
+    for (let i = 0; i < els.length; i += 1) {
+      const rect = els[i].getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        pointerIndex = i;
+        after = false;
+        break;
+      }
+    }
+    insertIndex = resolveInsertIndex(els.length, draggedIndex, pointerIndex, after);
+    positionIndicator();
+  }
+
+  /** 结束拖拽：把被拖项移到插入位置并提交新顺序。 */
+  function commitDrop() {
+    if (draggedIndex === null) return;
+    const next = [...order];
+    const [moved] = next.splice(draggedIndex, 1);
+    next.splice(insertIndex ?? draggedIndex, 0, moved);
+    resetDrag();
+    commitOrder(next);
+  }
+
   function render() {
     itemElements().forEach((el) => el.remove());
     indicator.hidden = true;
@@ -90,8 +118,8 @@ export function createSortableList(container, { items = [], renderItem, onReorde
       // renderItem 返回空值时兜底为空行，保证索引对齐且不抛错。
       if (!el || typeof el.appendChild !== 'function') el = document.createElement('div');
       el.classList.add('sortable-list-item');
-      // TODO: HTML5 拖拽在触屏设备上不可用，移动端目前只能依赖上下按钮排序；
-      // 如需触屏拖拽，需另行实现 pointer/touch 事件方案。
+      // 桌面端用 HTML5 拖拽；触屏/手写笔设备不触发 HTML5 拖拽，改用 Pointer Events 模拟
+      //（见下方 pointer 事件监听）。触屏拖拽从手柄开始，避免与页面滚动手势冲突。
       el.draggable = true;
       el.dataset.sortableIndex = String(index);
       el.addEventListener('dragstart', (event) => {
@@ -106,6 +134,37 @@ export function createSortableList(container, { items = [], renderItem, onReorde
         }
       });
       el.addEventListener('dragend', resetDrag);
+      el.addEventListener('pointerdown', (event) => {
+        // 鼠标保留 HTML5 拖拽；触屏/手写笔才走 Pointer Events，且一次只拖一项。
+        if (event.pointerType === 'mouse' || draggedIndex !== null) return;
+        // 若项内声明了拖拽手柄，只有从手柄按下才启动拖拽，行内其余区域留给页面滚动。
+        const handle = el.querySelector('[data-sortable-handle]');
+        if (handle && !handle.contains(event.target)) return;
+        event.preventDefault();
+        draggedIndex = index;
+        insertIndex = index;
+        el.classList.add('sortable-dragging');
+        try {
+          el.setPointerCapture(event.pointerId);
+        } catch (_) {
+          // 个别环境不支持指针捕获，元素仍在文档内，后续 move/up 监听依然有效。
+        }
+      });
+      // 鼠标交给 HTML5 拖拽：拖拽接管时浏览器会派发 pointercancel，若这里误清 draggedIndex，
+      // 会让 dragover 不再 preventDefault，drop 被浏览器取消（拖得动却放不下）。
+      // 因此 pointer 路径全部只响应触屏/手写笔（pointerType 非 mouse）。
+      el.addEventListener('pointermove', (event) => {
+        if (event.pointerType === 'mouse' || draggedIndex !== index) return;
+        updateInsertPosition(event.clientY);
+      });
+      el.addEventListener('pointerup', (event) => {
+        if (event.pointerType === 'mouse' || draggedIndex !== index) return;
+        commitDrop();
+      });
+      el.addEventListener('pointercancel', (event) => {
+        if (event.pointerType === 'mouse' || draggedIndex !== index) return;
+        resetDrag();
+      });
       container.appendChild(el);
     });
   }
@@ -127,20 +186,7 @@ export function createSortableList(container, { items = [], renderItem, onReorde
   container.addEventListener('dragover', (event) => {
     if (draggedIndex === null) return;
     event.preventDefault();
-    const els = itemElements();
-    if (!els.length) return;
-    let pointerIndex = els.length - 1;
-    let after = true;
-    for (let i = 0; i < els.length; i += 1) {
-      const rect = els[i].getBoundingClientRect();
-      if (event.clientY < rect.top + rect.height / 2) {
-        pointerIndex = i;
-        after = false;
-        break;
-      }
-    }
-    insertIndex = resolveInsertIndex(els.length, draggedIndex, pointerIndex, after);
-    positionIndicator();
+    updateInsertPosition(event.clientY);
   });
 
   container.addEventListener('dragleave', (event) => {
@@ -150,11 +196,7 @@ export function createSortableList(container, { items = [], renderItem, onReorde
   container.addEventListener('drop', (event) => {
     if (draggedIndex === null) return;
     event.preventDefault();
-    const next = [...order];
-    const [moved] = next.splice(draggedIndex, 1);
-    next.splice(insertIndex ?? draggedIndex, 0, moved);
-    resetDrag();
-    commitOrder(next);
+    commitDrop();
   });
 
   function move(from, to) {

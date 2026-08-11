@@ -391,6 +391,11 @@ html[data-xf-theme="dark"] .toast {
   cursor: grab;
 }
 
+/* 触屏拖拽手柄：禁止浏览器接管手势（否则 pointermove 会被滚动打断）。 */
+.sortable-list [data-sortable-handle] {
+  touch-action: none;
+}
+
 .language-list-info {
   flex: 1;
   display: flex;

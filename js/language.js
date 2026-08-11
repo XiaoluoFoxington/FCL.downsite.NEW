@@ -46,6 +46,8 @@ function createRow(lang, index, total) {
   dragHandle.className = 'mdui-icon material-icons language-drag-handle';
   dragHandle.textContent = 'drag_handle';
   dragHandle.setAttribute('aria-hidden', 'true');
+  // 触屏拖拽的起点：只有按住手柄才能拖动，行内其余区域保留页面滚动。
+  dragHandle.setAttribute('data-sortable-handle', '');
 
   const info = document.createElement('div');
   info.className = 'language-list-info';
