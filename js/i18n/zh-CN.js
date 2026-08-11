@@ -1,12 +1,9 @@
 /**
  * 简体中文语言包
- * 翻译键按模块组织：common、home、list、detail、down、about、behavior、theme、rh、intro、sponsor、notFound、template
+ * TODO: 清理死键
  */
 const zhCN = {
   // 通用
-  // TODO: 死键（全仓库无引用，可清理）：confirm、cancel、noData、name、id、tags、bookmark、bookmarkYes、bookmarkNo、
-  // downloadResource、intro、history、detail、search、relationAnd、relationOr、relationNot、list、filter、randomSelect、
-  // available、forceStop、feedbackLoadFailed
   common: {
     siteName: 'FCL 下载站',
     commitHash: '提交哈希',
@@ -14,14 +11,11 @@ const zhCN = {
     loading: '正在加载……',
     loadingError: '加载失败',
     retry: '重试',
-    confirm: '确认',
-    cancel: '取消',
     yes: '是',
     no: '否',
     unknown: '未知',
     unknownSize: '未知',
     noContent: '暂无内容',
-    noData: '没有符合条件的软件',
     error: '错误',
     status: '状态',
     actions: '操作',
@@ -29,12 +23,6 @@ const zhCN = {
     description: '描述',
     size: '大小',
     displayName: '显示名称',
-    name: '名称',
-    id: 'ID',
-    tags: '标签',
-    bookmark: '收藏',
-    bookmarkYes: '是',
-    bookmarkNo: '否',
     bookmarkAdd: '加入收藏',
     bookmarkRemove: '取消收藏',
     download: '下载',
@@ -84,7 +72,6 @@ const zhCN = {
     downloadFcl: '下载 Fold Craft Launcher',
     loadingSponsorRemind: '正在加载赞助提醒……',
     separator: '、',
-    // TODO: 死键（全仓库无引用，可清理）：sponsorHint、newTab、systemRequirements、osReq、basicInfo、linePreview、operation、addBookmark、noDetail
     nav: {
       announcement: '网站公告',
       bookmarks: '资源收藏',
@@ -231,7 +218,6 @@ const zhCN = {
   },
 
   // 首页
-  // TODO: 死键（全仓库无引用，可清理）：home.nav、home.welcomeHighlight、home.welcomeSite
   home: {
     title: 'FCL下载站 - 我的世界Java版Android启动器与资源下载',
     description: '这是由玩家社区自发搭建的提供FCL启动器等众多相关资源下载站，提供包括但不限于启动器、渲染器、驱动等软件与插件的下载，帮助您在Android设备上游玩我的世界Java版。',
@@ -273,7 +259,6 @@ const zhCN = {
   },
 
   // 列表页
-  // TODO: 死键（全仓库无引用，可清理）：list.loadingError、list.tagRelation、list.header.id、list.header.sortByName、list.header.sortById
   list: {
     title: '资源列表',
     pageTitle: '资源列表 - FCL下载站',
@@ -319,7 +304,6 @@ const zhCN = {
     linePreview: '线路预览',
     randomSelectLabel: '随机选择线路：',
     value: '值',
-    // TODO: 死键（全仓库无引用，可清理）：basicInfoTable.id、basicInfoTable.tags
     basicInfoTable: {
       name: '名称',
       icon: '图标',
@@ -336,7 +320,6 @@ const zhCN = {
   },
 
   // 下载页
-  // TODO: 死键（全仓库无引用，可清理）：down.loadingError
   down: {
     title: '下载资源',
     pageTitle: '下载资源 - FCL下载站',
@@ -349,8 +332,6 @@ const zhCN = {
   },
 
   // 关于页
-  // TODO: 死键（全仓库无引用，可清理）：about.developers、about.usedProjects、about.loading、about.loadingError、about.unknown、
-  // about.projects.name、about.projects.description、about.projects.usage、about.projects.version、about.projects.link、about.projects.license
   about: {
     title: '关于网站',
     pageTitle: '关于网站 - FCL下载站',

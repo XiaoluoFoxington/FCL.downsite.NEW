@@ -1,12 +1,8 @@
 /**
  * English (US) Language Pack
- * Translation keys organized by module: common, home, list, detail, down, about, behavior, theme, rh, intro, sponsor, notFound, template
  */
 const enUS = {
   // Common
-  // TODO: 死键（全仓库无引用，可清理）：confirm、cancel、noData、name、id、tags、bookmark、bookmarkYes、bookmarkNo、
-  // downloadResource、intro、history、detail、search、relationAnd、relationOr、relationNot、list、filter、randomSelect、
-  // available、forceStop、feedbackLoadFailed
   common: {
     siteName: 'FCL Download Station',
     commitHash: 'Commit Hash',
@@ -14,14 +10,11 @@ const enUS = {
     loading: 'Loading...',
     loadingError: 'Failed to load',
     retry: 'Retry',
-    confirm: 'Confirm',
-    cancel: 'Cancel',
     yes: 'Yes',
     no: 'No',
     unknown: 'Unknown',
     unknownSize: 'Unknown',
     noContent: 'No content',
-    noData: 'No matching software found',
     error: 'Error',
     status: 'Status',
     actions: 'Actions',
@@ -29,12 +22,6 @@ const enUS = {
     description: 'Description',
     size: 'Size',
     displayName: 'Display Name',
-    name: 'Name',
-    id: 'ID',
-    tags: 'Tags',
-    bookmark: 'Bookmark',
-    bookmarkYes: 'Yes',
-    bookmarkNo: 'No',
     bookmarkAdd: 'Add to Bookmarks',
     bookmarkRemove: 'Remove from Bookmarks',
     download: 'Download',
@@ -84,7 +71,6 @@ const enUS = {
     downloadFcl: 'Download Fold Craft Launcher',
     loadingSponsorRemind: 'Loading sponsor reminder...',
     separator: ', ',
-    // TODO: 死键（全仓库无引用，可清理）：sponsorHint、newTab、systemRequirements、osReq、basicInfo、linePreview、operation、addBookmark、noDetail
     nav: {
       announcement: 'Announcements',
       bookmarks: 'Saved Resources',
@@ -231,7 +217,6 @@ const enUS = {
   },
 
   // Home page
-  // TODO: 死键（全仓库无引用，可清理）：home.nav、home.welcomeHighlight、home.welcomeSite
   home: {
     title: 'FCL Download Station - Minecraft Java Edition Android Launcher & Resources',
     description: 'An unofficial FCL download station built by the player community, providing downloads for launchers, renderers, drivers and more to help you play Minecraft Java Edition on Android devices.',
@@ -273,7 +258,6 @@ const enUS = {
   },
 
   // List page
-  // TODO: 死键（全仓库无引用，可清理）：list.loadingError、list.tagRelation、list.header.id、list.header.sortByName、list.header.sortById
   list: {
     title: 'Resource List',
     pageTitle: 'Resource List - FCL Download Station',
@@ -319,7 +303,6 @@ const enUS = {
     linePreview: 'Mirror Preview',
     randomSelectLabel: 'Random Mirror Selection:',
     value: 'Value',
-    // TODO: 死键（全仓库无引用，可清理）：basicInfoTable.id、basicInfoTable.tags
     basicInfoTable: {
       name: 'Name',
       icon: 'Icon',
@@ -336,7 +319,6 @@ const enUS = {
   },
 
   // Download page
-  // TODO: 死键（全仓库无引用，可清理）：down.loadingError
   down: {
     title: 'Download Resource',
     pageTitle: 'Download Resource - FCL Download Station',
@@ -349,7 +331,6 @@ const enUS = {
   },
 
   // About page
-  // TODO: 死键（全仓库无引用，可清理）：about.developers、about.usedProjects、about.loading、about.loadingError、about.unknown、
   // about.projects.name、about.projects.description、about.projects.usage、about.projects.version、about.projects.link、about.projects.license
   about: {
     title: 'About',
