@@ -585,7 +585,6 @@ const enUS = {
     sponsorSite: 'Sponsor the Site Developer',
     sponsorSiteDesc1: 'Download bandwidth costs are high, and we remain committed to keeping this site non-profit. If you find this site helpful, please consider sponsoring me below.',
     sponsorSiteDesc2: 'I regularly share sponsorship proceeds with other developers who contribute to this site. You can check it below.',
-    sponsorSplit: 'See the sponsorship distribution details at the link below: {link}',
     disclaimer1: 'I {sponsor.m1} use all of the sponsorship I receive for this site\'s development.',
     m1: 'may NOT',
     disclaimer2: 'Sponsorship is {sponsor.voluntary}. You can use the website normally without sponsoring. Please consider your financial situation before deciding whether to sponsor. Sponsorships are {sponsor.nonRefundable}.',
