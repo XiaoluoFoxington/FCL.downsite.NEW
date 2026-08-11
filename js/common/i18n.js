@@ -36,17 +36,46 @@ let languageOrder = ['zh-CN', 'en-US'];
 let initPromise = null;
 
 /**
- * 读取嵌套翻译值。
- * 键段中的点号可用反斜杠转义（如 tags.MC\\.1.20），避免动态键本身含点时路径断裂。
+ * 读取嵌套翻译值。键段中的点号可用反斜杠转义（如 tags.MC\\.1.20），
+ * 避免动态键本身含点时路径断裂。
  * @param {object} pack 语言包
  * @param {string} key 点号分隔的键路径
  * @returns {string|undefined}
  */
 function getNestedValue(pack, key) {
+  // 参数基本校验
+  if (pack == null || typeof pack !== 'object' || key == null) {
+    return undefined;
+  }
+
+  // 手动解析 key，按未被转义的点号分割，并还原转义的点号
+  const parts = [];
+  let currentPart = '';
+  let escaped = false;
+
+  const keyStr = String(key);
+  for (let i = 0; i < keyStr.length; i++) {
+    const ch = keyStr[i];
+    if (escaped) {
+      // 前一个字符是反斜杠，当前字符原样追加（包括点号）
+      currentPart += ch;
+      escaped = false;
+    } else if (ch === '\\') {
+      // 遇到反斜杠，标记转义，但不追加反斜杠本身
+      escaped = true;
+    } else if (ch === '.') {
+      // 未转义的点号：分割
+      parts.push(currentPart);
+      currentPart = '';
+    } else {
+      currentPart += ch;
+    }
+  }
+  // 处理最后一个片段（若 key 以反斜杠结尾，则 escaped 为 true，此时应追加反斜杠？但这种情况不合法，忽略）
+  parts.push(currentPart);
+
+  // 沿路径逐级查找
   let value = pack;
-  // TODO: 兼容性：正则后行断言 (?<!\\) 在 Safari < 16.4 / 较老 WebView 中解析即抛 SyntaxError，
-  // 会拖垮整个 i18n 模块。如需兼容老浏览器，请改用 split + indexOf 的循环实现。
-  const parts = String(key).split(/(?<!\\)\./).map((part) => part.replace(/\\\./g, '.'));
   for (const part of parts) {
     if (value && typeof value === 'object' && Object.prototype.hasOwnProperty.call(value, part)) {
       value = value[part];
@@ -54,6 +83,8 @@ function getNestedValue(pack, key) {
       return undefined;
     }
   }
+
+  // 仅当最终值为字符串时返回，否则 undefined
   return typeof value === 'string' ? value : undefined;
 }
 
