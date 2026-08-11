@@ -1,5 +1,6 @@
 import { showToast } from "./toast.js";
 import { escapeHtml } from "../security/content.js";
+import { escapeKeySegment, tOr } from "./i18n.js";
 
 // =========================== 配置 ===========================
 /** 默认配置（当用户设置未配置时使用） */
@@ -69,16 +70,32 @@ const ICON_MAP = {
 };
 
 /**
+ * 翻译 context 前缀，支持两种形式：
+ * - string：按语言包 `logger.context.<文本>` 精确匹配，未收录时原样返回；
+ * - { key, params }：按翻译键与参数渲染（用于含动态变量的 context，如“读取设置 {key}”）。
+ * @param {string | { key: string, params?: object }} [context]
+ * @returns {string}
+ */
+function translateContext(context) {
+  if (!context) return '';
+  if (typeof context === 'object' && context !== null) {
+    const { key, params } = context;
+    if (typeof key !== 'string' || !key) return '';
+    return tOr(key, key, params);
+  }
+  return tOr(`logger.context.${escapeKeySegment(String(context))}`, String(context));
+}
+
+/**
  * 内部通用日志发送
  * @param {'info' | 'warn' | 'error'} level
  * @param {any} err 可转换为 Error 的任何值
- * @param {string} [context] 上下文描述
+ * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
  */
 function _log(level, err, context) {
   const error = extractError(err);
-  // TODO: context 前缀未国际化：英文界面下 Toast 仍会显示中文语境（如“读取设置”）。
-  // 若要彻底国际化，需为各调用点提供翻译键或统一去掉前缀。
-  const prefix = context ? `${context}: ` : '';
+  const contextText = translateContext(context);
+  const prefix = contextText ? `${contextText}: ` : '';
   const message = error.message;
   const toastConfig = getToastConfig();
 
@@ -107,7 +124,7 @@ function _log(level, err, context) {
 // =========================== 导出 API ===========================
 /** 记录信息日志
  * @param {any} err 可转换为 Error 的任何值
- * @param {string} [context] 上下文描述
+ * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
  */
 export function logInfo(err, context) {
   _log('info', err, context);
@@ -115,14 +132,14 @@ export function logInfo(err, context) {
 
 /** 记录警告日志
  * @param {any} err 可转换为 Error 的任何值
- * @param {string} [context] 上下文描述
+ * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
  */
 export function logWarn(err, context) {
   _log('warn', err, context);
 }
 /** 记录错误日志
  * @param {any} err 可转换为 Error 的任何值
- * @param {string} [context] 上下文描述
+ * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
  */
 export function logError(err, context) {
   _log('error', err, context);

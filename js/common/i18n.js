@@ -139,7 +139,7 @@ export function t(key, params = {}, skip = null) {
     const value = lookupTranslation(key);
     if (value !== undefined) return interpolate(value, params, skip);
   } catch (error) {
-    logWarn(error, `i18n 翻译失败: ${key}`);
+    logWarn(error, { key: 'logger.context.i18nTranslateError', params: { key } });
   }
   return key;
 }
@@ -359,7 +359,7 @@ export function applyTranslations(root = document) {
         }
       });
     } catch (error) {
-      logWarn(error, `i18n 应用翻译失败: ${el.getAttribute('data-i18n')}`);
+      logWarn(error, { key: 'logger.context.i18nApplyError', params: { key: el.getAttribute('data-i18n') } });
     }
   });
 }
@@ -436,14 +436,15 @@ export function translateTag(name) {
  * 翻译键存在时返回翻译值，否则回退到原文本（用于数据源里的中文内容）。
  * @param {string} key 翻译键
  * @param {string} fallback 键不存在时返回的原文
+ * @param {object} [params] 参数替换 {name: value}
  * @returns {string}
  */
-export function tOr(key, fallback) {
+export function tOr(key, fallback, params = null) {
   try {
     const value = lookupTranslation(key);
-    if (value !== undefined) return interpolate(value);
+    if (value !== undefined) return interpolate(value, params);
   } catch (error) {
-    logWarn(error, `i18n 翻译失败: ${key}`);
+    logWarn(error, { key: 'logger.context.i18nTranslateError', params: { key } });
   }
   return fallback;
 }

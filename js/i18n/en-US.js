@@ -174,6 +174,44 @@ const enUS = {
     },
   },
 
+  // Log contexts (js/common/logger.js context prefixes)
+  // Static contexts are keyed by the Chinese source text; dynamic ones use dedicated keys with {params}.
+  logger: {
+    context: {
+      '获取最新版本失败，使用镜像返回的版本': 'Failed to fetch the latest version; using the version returned by the mirror',
+      '反馈渠道': 'Feedback channels',
+      '可排序列表排序回调': 'Sortable list reorder callback',
+      '版本历史': 'Version history',
+      '资源列表': 'Resource list',
+      '介绍文档': 'Introduction document',
+      '介绍页': 'Introduction page',
+      '下载选项': 'Download options',
+      '下载页初始化': 'Download page initialization',
+      'Release 正文渲染': 'Release body rendering',
+      '读取收藏': 'Reading bookmarks',
+      '保存收藏': 'Saving bookmarks',
+      '详情页': 'Detail page',
+      '行为设置': 'Behavior settings',
+      '关于页': 'About page',
+      '版本水印': 'Version watermark',
+      '抽屉导航栏': 'Drawer navigation',
+      '公告': 'Announcement',
+      'JS运行时致命错误': 'Fatal JS runtime error',
+      '未捕获的Promise错误': 'Uncaught Promise rejection',
+      '解析语言顺序偏好': 'Parsing language order preference',
+      '保存语言顺序': 'Saving language order',
+      '应用语言翻译': 'Applying language translations',
+      '刷新页面': 'Refreshing page',
+      'i18n 扫描 DOM': 'i18n DOM scan',
+      '初始化 i18n': 'Initializing i18n',
+      '应用初始翻译': 'Applying initial translations',
+      readPreference: 'Reading setting {key}',
+      writePreference: 'Saving setting {key}',
+      i18nTranslateError: 'i18n translation failed: {key}',
+      i18nApplyError: 'Failed to apply i18n translation: {key}',
+    },
+  },
+
   // Tag names
   tags: {
     'MCJE相关': 'MCJE-related',

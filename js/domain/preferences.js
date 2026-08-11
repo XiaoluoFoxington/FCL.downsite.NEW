@@ -29,6 +29,6 @@ export function writePreference(key, value) {
   try {
     localStorage.setItem(key, value);
   } catch (error) {
-    logWarn(error, `保存设置 ${key}`);
+    logWarn(error, { key: 'logger.context.writePreference', params: { key } });
   }
 }
