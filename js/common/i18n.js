@@ -48,7 +48,7 @@ function getNestedValue(pack, key) {
     return undefined;
   }
 
-  // 手动解析 key，按未被转义的点号分割，并还原转义的点号
+  // 手动解析 key，按未被转义的点号分割，并还原转义的点号与反斜杠
   const parts = [];
   let currentPart = '';
   let escaped = false;
@@ -57,7 +57,7 @@ function getNestedValue(pack, key) {
   for (let i = 0; i < keyStr.length; i++) {
     const ch = keyStr[i];
     if (escaped) {
-      // 前一个字符是反斜杠，当前字符原样追加（包括点号）
+      // 前一个字符是反斜杠：还原转义（\\ → \，\. → .）
       currentPart += ch;
       escaped = false;
     } else if (ch === '\\') {
@@ -91,11 +91,10 @@ function getNestedValue(pack, key) {
 /**
  * 转义动态键段中的点号与反斜杠，避免被当成路径分隔符。
  * 例如标签名 "MC 1.20" 应生成 `tags.${escapeKeySegment(name)}`。
+ * 转义规则：\ → \\，. → \.；getNestedValue 负责反向还原。
  * @param {string} segment 动态键段
  * @returns {string}
  */
-// TODO: 转义不对称：getNestedValue 只还原 \.，键段本身含字面反斜杠时会往返成双反斜杠。
-// 当前数据源无此场景（只需转义点号），如要支持请让 getNestedValue 同时把 \\ 还原为 \。
 export function escapeKeySegment(segment) {
   return String(segment).replace(/\\/g, '\\\\').replace(/\./g, '\\.');
 }
@@ -228,7 +227,7 @@ export function setLanguageOrder(order, { reload = true } = {}) {
   // TODO: 死代码：applyTranslations 已注释、try/catch 空转，可整段删除（当前设计为保存后强制刷新）。
   try {
     // applyTranslations();
-    // 注释掉，强行让用户刷新页面
+    // 注释掉，强行让用户自己刷新页面
   } catch (error) {
     logWarn(error, '应用语言翻译');
   }
