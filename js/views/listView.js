@@ -4,22 +4,28 @@ import { isBookmarked, toggleBookmark } from '../domain/bookmarks.js';
 import { t, translateTag } from '../common/i18n.js';
 
 /** 切换筛选面板标题中“已有筛选条件”图标的显示。 */
-export function setFilterIndicator(element, active) {
-  element?.classList.toggle('xf-hide', !active);
+export function setFilterIndicator(on, off, active) {
+  if (active) {
+    on?.removeAttribute('hidden');
+    off?.setAttribute('hidden', '');
+  } else {
+    on?.setAttribute('hidden', '');
+    off?.removeAttribute('hidden');
+  }
 }
 
 /** 同时显示目录与标签两个并行请求的加载状态。 */
 export function renderListLoading(elements) {
   renderStatus(elements.list, 'loading', { message: t('list.loadingCatalog') });
   renderStatus(elements.tags, 'loading', { message: t('list.loadingTags') });
-  setFilterIndicator(elements.filterIndicator, false);
+  setFilterIndicator(elements.filterIndicatorOn, elements.filterIndicatorOff, false);
 }
 
 /** 目录失败时清空标签区，防止保留上一次加载的筛选按钮。 */
 export function renderListError(elements, error, onRetry) {
   renderStatus(elements.list, 'error', { message: error.message, onRetry });
   elements.tags.replaceChildren();
-  setFilterIndicator(elements.filterIndicator, false);
+  setFilterIndicator(elements.filterIndicatorOn, elements.filterIndicatorOff, false);
 }
 
 /**

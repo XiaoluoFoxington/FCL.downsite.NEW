@@ -45,7 +45,7 @@ export function createListController(elements) {
       return matchesSearch && matchesTags;
     });
     // 关系下拉框只决定组合方式，本身不算筛选条件；只有搜索词或选中标签存在时才亮起图标。
-    setFilterIndicator(elements.filterIndicator, searchActive || tagsActive);
+    setFilterIndicator(elements.filterIndicatorOn, elements.filterIndicatorOff, searchActive || tagsActive);
     renderSoftwareList(elements.list, visible, tagMap, openMethod);
   }
 

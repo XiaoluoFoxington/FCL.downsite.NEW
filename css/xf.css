@@ -157,8 +157,7 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
 }
 
 .xf-filter-active-indicator {
-  color: #ff0;
-  margin-left: 8px;
+  margin-right: 8px;
 }
 
 /* MDUI select 键盘导航时的高亮项：提高特异性覆盖 mdui-select-menu-item 默认背景 */

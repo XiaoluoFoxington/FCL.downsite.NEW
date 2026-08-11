@@ -96,7 +96,7 @@ function buildList() {
   ];
   sortable = createSortableTable(listContainer, {
     columns: [
-      { icon: 'touch_app', className: 'language-handle-cell' },
+      { icon: 'drag_indicator', className: 'language-handle-cell' },
       { title: t('language.tableHeaderLanguage'), className: 'language-name-cell' },
       { title: t('language.tableHeaderCode'), className: 'language-code-cell' },
       { title: t('language.current'), className: 'language-current-cell' },
