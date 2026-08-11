@@ -170,7 +170,7 @@ const enUS = {
       softwareNotFound: 'Software with ID {id} not found',
       detailInvalid: 'Detail data of software {id} is invalid',
       settingsInvalid: 'Settings data format is invalid: expected an array',
-      unknownTag: 'Software references a non-existent tag {id}',
+      unknownTag: 'Software (ID: {itemId}) references a non-existent tag (ID: {id})',
     },
   },
 

@@ -171,7 +171,7 @@ const zhCN = {
       softwareNotFound: '找不到 ID 为 {id} 的软件',
       detailInvalid: '软件 {id} 的详情数据格式不正确',
       settingsInvalid: '设置数据格式不正确：应为数组',
-      unknownTag: '软件引用了不存在的标签 {id}',
+      unknownTag: '软件（ID：{itemId}）引用了不存在的标签（ID：{id}）',
     },
   },
 
@@ -373,12 +373,12 @@ const zhCN = {
   about: {
     title: '关于网站',
     pageTitle: '关于网站 - FCL下载站',
-    description: '了解FCL下载站的开发贡献者、下载线路提供者和使用的开源项目。',
+    description: '了解FCL下载站——由玩家社区搭建的我的世界Java版Android启动器与资源公益下载站。查看网站背景、贡献者名单、下载线路提供者及使用的开源项目。',
     about: '关于',
     aiUsage: 'AI 使用说明',
     aiUsageText1: '此站在开发过程中使用了 AI 辅助，包括部分代码、文档与图像。',
     aiUsageText2: '我们将 AI 视为工具而不是工人，不会让 AI 全权负责网站的运营与维护。',
-    mirrorList: '下载线路对照表',
+    mirrorList: '线路对照表',
     mirror: '线路',
     provider: '提供者',
     contributors: '网站开发贡献者列表（排名不分先后）',
@@ -575,7 +575,7 @@ const zhCN = {
   sponsor: {
     title: '赞助站长',
     pageTitle: '赞助支持 - FCL下载站',
-    description: '支持FCL下载站及其背后的开源项目开发者。',
+    description: '支持FCL下载站及其背后的开发者。赞助本站或Fold Craft Launcher、Zalith Launcher、Pojav Launcher、MobileGlues等开源项目开发者。',
     sponsorDevs: '赞助其他开发者',
     sponsorDevsDesc: '相比起此下载站，背后的开发者们作出了比此站更多的努力。如果您想赞助的不是此站，请在下方选择您想赞助的项目。',
     table: '表格',

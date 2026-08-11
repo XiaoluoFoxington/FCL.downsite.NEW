@@ -56,7 +56,7 @@ export function createListController(elements) {
       const [software, tags] = await Promise.all([getSoftwareCatalog(), getTags()]);
       const knownTags = new Set(tags.map((tag) => tag.id));
       software.forEach((item) => item.tagIds.forEach((id) => {
-    if (!knownTags.has(id)) throw new Error(t('common.repository.unknownTag', { id }));
+        if (!knownTags.has(id)) throw new Error(t('common.repository.unknownTag', { itemId: item.id, id }));
       }));
       catalog = software;
       tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
