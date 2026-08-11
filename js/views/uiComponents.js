@@ -165,6 +165,20 @@ export function createHR() {
 }
 
 /**
+ * 创建一个 span 元素。
+ * @param {string} text 文本内容
+ * @param {object} [options]
+ * @param {string} [options.className] 额外类名
+ * @returns {HTMLSpanElement}
+ */
+export function createSpan(text, { className } = {}) {
+  const span = document.createElement('span');
+  if (className) span.className = className;
+  span.textContent = text;
+  return span;
+}
+
+/**
  * 显示一条 Toast 临时消息。
  * （直接复制过来的调用，为了兼容已有代码）
  *

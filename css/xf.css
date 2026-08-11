@@ -374,17 +374,17 @@ html[data-xf-theme="dark"] .toast {
  */
 
 /* ==================== 语言设置页 ==================== */
-.language-list-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 4px;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+.language-table-row {
   user-select: none;
 }
 
-.language-list-item:last-child {
-  border-bottom: none;
+.sortable-table .language-handle-cell {
+  width: 0;
+}
+
+.sortable-table .language-actions-cell {
+  width: 96px;
+  /* 刚好容纳2个操作按钮 */
 }
 
 .language-drag-handle {
@@ -392,29 +392,16 @@ html[data-xf-theme="dark"] .toast {
 }
 
 /* 触屏拖拽手柄：禁止浏览器接管手势（否则 pointermove 会被滚动打断）。 */
-.sortable-list [data-sortable-handle] {
+.sortable-table [data-sortable-handle] {
   touch-action: none;
 }
 
-.language-list-info {
-  flex: 1;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-}
-
-.language-actions {
-  display: flex;
-  gap: 4px;
-}
-
-/* ==================== 可排序列表组件 ==================== */
-.sortable-list {
+/* ==================== 可拖拽表格组件 ==================== */
+.sortable-table-container {
   position: relative;
 }
 
-.sortable-list-indicator {
+.sortable-table-indicator {
   position: absolute;
   left: 0;
   right: 0;
@@ -423,10 +410,10 @@ html[data-xf-theme="dark"] .toast {
   pointer-events: none;
   z-index: 2;
 }
-html[data-xf-theme="light"] .sortable-list-indicator {
+html[data-xf-theme="light"] .sortable-table-indicator {
   background: var(--mdui-color-theme-accent, #000);
 }
 
-.sortable-list-item.sortable-dragging {
+.sortable-table-row.sortable-dragging {
   opacity: 0.5;
 }
