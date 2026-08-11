@@ -94,7 +94,7 @@ const zhCN = {
       siteInfo: '网站信息',
       siteRuntime: '这坨屎山已经非常松弛地运行了{runtime}。',
       openSource: '此网站是完全开源的，GH仓库见下方链接。',
-      statsNotice: '此网站使用 {stats} 统计访问信息，公开的详细报表见下方链接。',
+      statsNotice: '此网站使用 {common.nav.statsAlt} 统计访问信息，公开的详细报表见下方链接。',
       statsAlt: '51la网站统计',
       welcome: '欢迎来到这个',
       welcomeHighlight: '由玩家社区搭建的',

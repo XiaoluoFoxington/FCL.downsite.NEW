@@ -93,7 +93,7 @@ const enUS = {
       siteInfo: 'Site Info',
       siteRuntime: 'This mountain of spaghetti code has been running for {runtime}.',
       openSource: 'This website is completely open source. See the GitHub repository link below.',
-      statsNotice: 'This website uses {stats} to track visitor statistics. For the public detailed reports, see the link below.',
+      statsNotice: 'This website uses {common.nav.statsAlt} to track visitor statistics. For the public detailed reports, see the link below.',
       statsAlt: '51la statistics',
       welcome: 'Welcome to the',
       welcomeHighlight: 'player-community-built',
