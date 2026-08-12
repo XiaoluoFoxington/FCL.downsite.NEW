@@ -10,6 +10,7 @@
 
 import zhCN from '../i18n/zh-CN.js';
 import enUS from '../i18n/en-US.js';
+import jaJP from '../i18n/ja-JP.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { logWarn } from './logger.js';
 
@@ -23,16 +24,18 @@ const LANGUAGE_ORDER_KEY = 'fdn-language-order';
 export const LANGUAGE_PACKS = {
   'zh-CN': zhCN,
   'en-US': enUS,
+  'ja-JP': jaJP,
 };
 
 /** 语言显示名称（用于语言选择器） */
 export const LANGUAGE_NAMES = {
   'zh-CN': '简体中文',
   'en-US': 'English',
+  'ja-JP': '日本語',
 };
 
 let currentLang = 'zh-CN';
-let languageOrder = ['zh-CN', 'en-US'];
+let languageOrder = ['zh-CN', 'en-US', 'ja-JP'];
 let initPromise = null;
 
 /**
@@ -381,6 +384,7 @@ function detectBrowserLang() {
     const lang = String(navigator.language || navigator.userLanguage || 'zh-CN').toLowerCase();
     if (lang.startsWith('zh')) return 'zh-CN';
     if (lang.startsWith('en')) return 'en-US';
+    if (lang.startsWith('ja')) return 'ja-JP';
   } catch (_) {
     // 忽略检测异常
   }
