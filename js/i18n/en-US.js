@@ -287,6 +287,17 @@ const enUS = {
     moveUp: 'Move Up',
     moveDown: 'Move Down',
     saved: 'Language settings saved. Refresh the page to apply fully',
+    table: 'Language comparison table',
+    tableHint: 'Click the button below to load the language comparison table, it will take some times.',
+    loadTable: 'Load language comparison table',
+    tableKey: 'key',
+    tableSearchPlaceholder: 'Filter by key or translation',
+    tableNewLangPlaceholder: 'New language code, e.g. ja-JP',
+    tableDownload: 'Download language pack',
+    tableDownloadSuccess: 'Downloaded {file}',
+    tableDownloadFail: 'Download failed',
+    tableNewLangCodeInvalid: 'Enter a valid language code, e.g. ja-JP',
+    tableNoMatch: 'No matching results',
   },
 
   // 404 page

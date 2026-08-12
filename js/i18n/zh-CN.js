@@ -288,6 +288,17 @@ const zhCN = {
     moveUp: '上移',
     moveDown: '下移',
     saved: '语言设置已保存，刷新页面后完整生效',
+    table: '语言比较表',
+    tableHint: '点击下方按钮以加载语言比较表，可能会需要一些时间。',
+    loadTable: '加载语言比较表',
+    tableKey: 'key',
+    tableSearchPlaceholder: '按键名或翻译内容过滤',
+    tableNewLangPlaceholder: '新语言代码，如 ja-JP',
+    tableDownload: '下载语言包',
+    tableDownloadSuccess: '已下载 {file}',
+    tableDownloadFail: '下载失败',
+    tableNewLangCodeInvalid: '请输入有效的语言代码，如 ja-JP',
+    tableNoMatch: '无匹配结果',
   },
 
   // 404 页面

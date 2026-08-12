@@ -421,3 +421,26 @@ html[data-xf-theme="light"] .sortable-table-indicator {
 .sortable-table-row.sortable-dragging {
   opacity: 0.5;
 }
+
+/* ==================== 语言比较表 ==================== */
+.language-compare-search {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.language-compare-key {
+}
+
+.language-compare-langcol{
+  min-width: 300px;
+}
+
+.language-compare-newcode {
+  min-width: 300px;
+}
+
+.language-compare-empty td {
+  text-align: center;
+  padding: 16px;
+  font-style: italic;
+}

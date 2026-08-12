@@ -19,8 +19,8 @@ const LANGUAGE_KEY = 'fdn-language';
 /** 语言顺序偏好存储键（数组：第一位为界面语言，其余为回退顺序） */
 const LANGUAGE_ORDER_KEY = 'fdn-language-order';
 
-/** 支持的语言包 */
-const LANGUAGE_PACKS = {
+/** 支持的语言包（比较表等场景需要直接读取语言包内容） */
+export const LANGUAGE_PACKS = {
   'zh-CN': zhCN,
   'en-US': enUS,
 };
