@@ -288,7 +288,7 @@ const enUS = {
     moveDown: 'Move Down',
     saved: 'Language settings saved. Refresh the page to apply fully',
     table: 'Language comparison table',
-    tableHint: 'Click the button below to load the language comparison table, it will take some times.',
+    tableHint: 'Click the button below to load the language comparison table, it will take some time.',
     loadTable: 'Load language comparison table',
     tableKey: 'key',
     tableSearchPlaceholder: 'Filter by key or translation',

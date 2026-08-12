@@ -178,7 +178,7 @@ export function createSpan(text, { className } = {}) {
   return span;
 }
 
-// TODO: 这是新函数，看看有没有能复用的地方
+// TODO: 这是新函数，看看有没有能被消费的地方
 /**
  * 创建 MDUI 文本输入框。
  * @param {object} [options]

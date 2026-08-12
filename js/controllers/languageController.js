@@ -1,4 +1,5 @@
 import {
+  escapeKeySegment,
   getSupportedLanguages,
   getLanguageOrder,
   setLanguageOrder,
@@ -55,7 +56,7 @@ export function createLanguageController(elements) {
     const result = {};
     for (const key of Object.keys(pack)) {
       const value = pack[key];
-      const fullKey = prefix ? `${prefix}.${escapeKey(key)}` : escapeKey(key);
+      const fullKey = prefix ? `${prefix}.${escapeKeySegment(key)}` : escapeKeySegment(key);
       if (value && typeof value === 'object' && !Array.isArray(value)) {
         Object.assign(result, flattenPack(value, fullKey));
       } else if (typeof value === 'string') {
@@ -63,12 +64,6 @@ export function createLanguageController(elements) {
       }
     }
     return result;
-  }
-
-  /** 转义键段中的点号与反斜杠，与 i18n.js 中 escapeKeySegment 逻辑一致。 */
-  // TODO: 一致？那就导出然后复用啊
-  function escapeKey(name) {
-    return String(name).replace(/\\/g, '\\\\').replace(/\./g, '\\.');
   }
 
   /**
@@ -114,7 +109,8 @@ export function createLanguageController(elements) {
     a.href = url;
     a.download = filename;
     a.click();
-    URL.revokeObjectURL(url);
+    // 延迟撤销，避免 Safari 等浏览器在下载开始前就撤销 blob URL 导致下载失败。
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   /** 下载已有语言包（从 LANGUAGE_PACKS 重建 JS 文件）。 */

@@ -26,7 +26,7 @@ const OPEN_METHOD_PAGE_MAP = {
 export function createBookmarkButton(item) {
   const btn = document.createElement('a');
   btn.className = 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple';
-  const openMethod = readPreference(BOOKMARK_OPEN_METHOD_KEY) || 'download';
+  const openMethod = readPreference(BOOKMARK_OPEN_METHOD_KEY, 'download');
   const pagePath = OPEN_METHOD_PAGE_MAP[openMethod] || OPEN_METHOD_PAGE_MAP.download;
   btn.href = `${pagePath}?id=${item.id}`;
 
