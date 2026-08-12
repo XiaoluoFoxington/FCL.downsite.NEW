@@ -13,7 +13,7 @@ import { ensureDefaultBookmarks } from './domain/bookmarks.js';
 // 放在其他共用模块之前执行，保证动态渲染也能读取到正确的语言。
 initI18n();
 
-// 收藏夹为空（首次访问）时自动收藏 FCL 与 MG，作为"快速访问"的替代。
+// 收藏夹为空（首次访问）时自动收藏 FCL 与 MG，作为"开门见山"的替代。
 // 在所有收藏渲染/交互之前执行，保证列表页与详情页的收藏状态一致。
 ensureDefaultBookmarks();
 

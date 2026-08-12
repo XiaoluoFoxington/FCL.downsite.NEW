@@ -206,6 +206,8 @@ const zhCN = {
       '应用初始翻译': '应用初始翻译',
       readPreference: '读取设置 {key}',
       writePreference: '保存设置 {key}',
+      writeDefaultBookmarks: '写入默认收藏',
+      wroteDefaultBookmarks: '收藏为空，已写入 FCL 与 MG 到收藏',
       i18nTranslateError: 'i18n 翻译失败: {key}',
       i18nApplyError: 'i18n 应用翻译失败: {key}',
       invalidFilterRegex: '筛选正则表达式无效，已跳过: {pattern}',

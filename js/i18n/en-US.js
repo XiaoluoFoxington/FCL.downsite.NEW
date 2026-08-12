@@ -205,6 +205,7 @@ const enUS = {
       '应用初始翻译': 'Applying initial translations',
       readPreference: 'Reading setting {key}',
       writePreference: 'Saving setting {key}',
+      wroteDefaultBookmarks: 'Bookmarks folder is empty, wrote FCL and MG to bookmarks',
       i18nTranslateError: 'i18n translation failed: {key}',
       i18nApplyError: 'Failed to apply i18n translation: {key}',
       invalidFilterRegex: 'Invalid filter regex, skipped: {pattern}',
