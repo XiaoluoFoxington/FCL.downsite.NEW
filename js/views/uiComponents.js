@@ -179,6 +179,66 @@ export function createSpan(text, { className } = {}) {
 }
 
 /**
+ * 创建 MDUI 文本输入框。
+ * @param {object} [options]
+ * @param {boolean} [options.isFloatingLabel=false] 是否为浮动标签
+ * @param {array} [options.divClassName=[]] 容器额外类名
+ * @param {string} [options.inputType='text'] 文本框类型
+ * @param {array} [options.inputClassName=[]] 输入框额外类名
+ * @param {string} [options.pattern] 输入框模式
+ * @param {boolean} [options.required=false] 是否必填
+ * @param {number} [options.maxlength] 最大输入长度
+ * @param {string} [options.inputPlaceholder] 输入框占位文本
+ * @param {string} [options.label] 标签文本
+ * @param {array} [options.labelClassName=[]] 标签额外类名
+ * @param {boolean} [options.disabled=false] 是否禁用
+ * @param {boolean} [options.multiLine=false] 是否为多行输入框
+ * @param {number} [options.rows=3] 多行输入框高度，单位行，默认3
+ * @param {string} [options.helpText] 帮助文本
+ * @param {string} [options.icon] 图标
+ * @returns {HTMLDivElement}
+ */
+export function createTextField({ isFloatingLabel, divClassName = [], pattern, required, maxlength, inputType = 'text',
+    inputClassName = [], inputPlaceholder, label, labelClassName = [], disabled, multiLine, rows = 3, helpText, icon
+  } = {}) {
+  const div = document.createElement('div');
+  div.classList.add('mdui-textfield', ...divClassName);
+  if (isFloatingLabel) div.classList.add('mdui-textfield-floating-label');
+
+  if (icon) {
+    const iconEl = createMaterialIcon(icon);
+    div.appendChild(iconEl);
+  }
+
+  if (label) {
+    const labelEl = document.createElement('label');
+    labelEl.classList.add('mdui-textfield-label', ...labelClassName);
+    labelEl.textContent = label;
+    div.appendChild(labelEl);
+  }
+
+  const input = document.createElement(multiLine ? 'textarea' : 'input');
+  input.classList.add('mdui-textfield-input', ...inputClassName);
+  if (!multiLine) input.type = inputType;
+  if (pattern && !multiLine) input.pattern = pattern;
+  if (required) input.required = true;
+  if (maxlength) input.maxlength = maxlength;
+  if (multiLine) input.rows = rows;
+  if (inputPlaceholder) input.placeholder = inputPlaceholder;
+  if (disabled) input.disabled = true;
+  div.appendChild(input);
+
+  if (helpText) {
+    const help = document.createElement('div');
+    help.classList.add('mdui-textfield-helper');
+    help.textContent = helpText;
+    div.appendChild(help);
+  }
+
+  return div;
+}
+
+/**
  * 显示一条 Toast 临时消息。
  * （直接复制过来的调用，为了兼容已有代码）
  *
