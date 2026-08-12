@@ -392,7 +392,7 @@ html[data-xf-theme="dark"] .toast {
 }
 
 .language-drag-handle {
-  cursor: grab;
+  cursor: row-resize;
 }
 
 /* 触屏拖拽手柄：禁止浏览器接管手势（否则 pointermove 会被滚动打断）。 */
@@ -409,7 +409,7 @@ html[data-xf-theme="dark"] .toast {
   position: absolute;
   left: 0;
   right: 0;
-  height: 2px;
+  height: 3px;
   background: var(--mdui-color-theme-accent, #fff);
   pointer-events: none;
   z-index: 2;

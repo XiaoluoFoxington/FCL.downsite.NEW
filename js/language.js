@@ -37,7 +37,7 @@ function createActionButton(iconName, ariaLabel, onClick) {
   return button;
 }
 
-/** 创建单个语言行（表格行：手柄 / 名称 / 代码 / 当前 / 操作五列）。 */
+/** 创建单个语言行（表格行：手柄 / 操作 / 名称 / 代码 / 当前五列）。 */
 function createRow(lang, index, total) {
   const row = document.createElement('tr');
   row.className = 'language-table-row';
@@ -51,6 +51,18 @@ function createRow(lang, index, total) {
   // 触屏拖拽的起点：只有按住手柄才能拖动，行内其余区域保留页面滚动。
   dragHandle.setAttribute('data-sortable-handle', '');
   handleCell.appendChild(dragHandle);
+  
+  const actionsCell = document.createElement('td');
+  actionsCell.className = 'language-actions-cell';
+  const upButton = createActionButton('arrow_upward', t('language.moveUp'), () => {
+    sortable?.move(index, index - 1);
+  });
+  const downButton = createActionButton('arrow_downward', t('language.moveDown'), () => {
+    sortable?.move(index, index + 1);
+  });
+  if (index === 0) upButton.disabled = true;
+  if (index === total - 1) downButton.disabled = true;
+  actionsCell.append(upButton, downButton);
 
   const nameCell = document.createElement('td');
   nameCell.className = 'language-name-cell';
@@ -68,19 +80,7 @@ function createRow(lang, index, total) {
     currentCell.appendChild(badge);
   }
 
-  const actionsCell = document.createElement('td');
-  actionsCell.className = 'language-actions-cell';
-  const upButton = createActionButton('arrow_upward', t('language.moveUp'), () => {
-    sortable?.move(index, index - 1);
-  });
-  const downButton = createActionButton('arrow_downward', t('language.moveDown'), () => {
-    sortable?.move(index, index + 1);
-  });
-  if (index === 0) upButton.disabled = true;
-  if (index === total - 1) downButton.disabled = true;
-  actionsCell.append(upButton, downButton);
-
-  row.append(handleCell, nameCell, codeCell, currentCell, actionsCell);
+  row.append(handleCell, actionsCell, nameCell, codeCell, currentCell);
   return row;
 }
 
@@ -97,10 +97,10 @@ function buildList() {
   sortable = createSortableTable(listContainer, {
     columns: [
       { icon: 'drag_indicator', className: 'language-handle-cell' },
+      { title: t('language.tableHeaderActions'), className: 'language-actions-cell' },
       { title: t('language.tableHeaderLanguage'), className: 'language-name-cell' },
       { title: t('language.tableHeaderCode'), className: 'language-code-cell' },
       { title: t('language.current'), className: 'language-current-cell' },
-      { title: t('language.tableHeaderActions'), className: 'language-actions-cell' },
     ],
     items: sorted,
     renderRow: (lang, index) => createRow(lang, index, sorted.length),

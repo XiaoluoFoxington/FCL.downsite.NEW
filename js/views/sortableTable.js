@@ -42,7 +42,7 @@ export function createSortableTable(container, { items = [], columns = [], rende
   let draggedIndex = null;
   let insertIndex = null;
 
-  container.classList.add('sortable-table-container');
+  container.classList.add('sortable-table-container', 'mdui-table-fluid', 'xf-nowrap');
 
   const table = document.createElement('table');
   // 基础样式用 MDUI 的 .mdui-table（含项目在 mdui.patch.css 中的主题适配），
@@ -104,7 +104,9 @@ export function createSortableTable(container, { items = [], columns = [], rende
       y = (els[boundary - 1].getBoundingClientRect().bottom + els[boundary].getBoundingClientRect().top) / 2;
     }
     indicator.hidden = false;
-    indicator.style.top = `${y - containerRect.top}px`;
+    indicator.style.top = `${y - containerRect.top - 3}px`;
+    // TODO:
+    // 3px 是指示线的高度。加上.mdui-table-fluid后当指示线在最后一个（最底下）项目的下方时高度会溢出，导致无法看到指示线。现加粗指示线到3px以露出一部分，但高度还是会溢出。
   }
 
   /** 计算指针位置对应的插入索引并更新指示线（HTML5 拖拽与触屏拖拽共用）。 */
