@@ -67,8 +67,6 @@ const enUS = {
     dependencyMissing: 'Dependency loaded but {name} was not found',
     dependencyLoadFailed: 'Failed to load dependency: {src}',
     osNotSpecified: 'No valid software ID specified',
-    clickToDownload: 'Click the button below to jump directly',
-    downloadFcl: 'Download Fold Craft Launcher',
     loadingSponsorRemind: 'Loading sponsor reminder...',
     separator: ', ',
     nav: {
@@ -267,7 +265,6 @@ const enUS = {
     welcomeTitle: '🎉 FCL Download Station 🎉',
     nav: 'Website Navigation',
     bookmarks: 'Saved Resources',
-    direct: 'Quick Download',
     welcomeHighlight: 'Welcome to this unofficial FCL download station built by the player community!',
     welcomeSite: '',
   },

@@ -68,8 +68,6 @@ const zhCN = {
     dependencyMissing: '依赖加载后未找到 {name}',
     dependencyLoadFailed: '无法加载依赖：{src}',
     osNotSpecified: '未指定有效的软件 ID',
-    clickToDownload: '想直接下载Fold Craft Launcher？点击下方按钮直接跳转。',
-    downloadFcl: '下载 Fold Craft Launcher',
     loadingSponsorRemind: '正在加载赞助提醒……',
     separator: '、',
     nav: {
@@ -268,7 +266,6 @@ const zhCN = {
     welcomeTitle: '🎉 FCL 下载站 🎉',
     nav: '网站导航',
     bookmarks: '资源收藏',
-    direct: '开门见山',
     welcomeHighlight: '欢迎来到这个由玩家社区搭建的非官方 FCL 下载站！',
     welcomeSite: '',
   },
