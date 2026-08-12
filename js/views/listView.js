@@ -320,7 +320,7 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
 
   // 后续：只更新表头指示符和 tbody
   updateSortIndicators(table.querySelector('thead'));
-  const iconSize = readPreference('fdn-list-icon-size', 64);
+  const iconSize = readPreference('fdn-list-icon-size', 32);
   renderTableBody(table.querySelector('tbody'), iconSize);
 }
 

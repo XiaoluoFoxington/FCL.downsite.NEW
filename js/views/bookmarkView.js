@@ -5,16 +5,30 @@
  */
 
 import { getBookmarks, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
+import { readPreference } from '../domain/preferences.js';
+
+/** 书签默认打开方式偏好键。 */
+const BOOKMARK_OPEN_METHOD_KEY = 'fdn-bookmark-open-method';
+/** 打开方式值到页面路径的映射。 */
+const OPEN_METHOD_PAGE_MAP = {
+  detail: '/html/detail.html',
+  download: '/html/down.html',
+  doc: '/html/intro.html',
+  history: '/html/rh.html',
+};
 
 /**
  * 创建单个收藏按钮链接。
+ * 跳转页面由行为设置中的"书签默认打开方式"决定，未设置时默认为下载页。
  * @param {{id: number, name: string, icon?: string}} item
  * @returns {HTMLAnchorElement}
  */
 export function createBookmarkButton(item) {
   const btn = document.createElement('a');
   btn.className = 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple';
-  btn.href = `/html/detail.html?id=${item.id}`;
+  const openMethod = readPreference(BOOKMARK_OPEN_METHOD_KEY) || 'download';
+  const pagePath = OPEN_METHOD_PAGE_MAP[openMethod] || OPEN_METHOD_PAGE_MAP.download;
+  btn.href = `${pagePath}?id=${item.id}`;
 
   const img = document.createElement('img');
   img.className = 'xf-bookmark-icon';

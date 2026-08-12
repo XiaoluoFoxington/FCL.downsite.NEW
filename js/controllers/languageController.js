@@ -66,6 +66,7 @@ export function createLanguageController(elements) {
   }
 
   /** 转义键段中的点号与反斜杠，与 i18n.js 中 escapeKeySegment 逻辑一致。 */
+  // TODO: 一致？那就导出然后复用啊
   function escapeKey(name) {
     return String(name).replace(/\\/g, '\\\\').replace(/\./g, '\\.');
   }

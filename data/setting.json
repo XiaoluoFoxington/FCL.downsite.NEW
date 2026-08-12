@@ -25,6 +25,31 @@
             "storageKey": "fdn-default-format-prefix"
           },
           {
+            "id": 9,
+            "name": "书签默认打开方式",
+            "type": "select",
+            "options": [
+              {
+                "value": "detail",
+                "label": "详情页"
+              },
+              {
+                "value": "download",
+                "label": "下载页",
+                "default": true
+              },
+              {
+                "value": "doc",
+                "label": "文档页"
+              },
+              {
+                "value": "history",
+                "label": "版本历史页"
+              }
+            ],
+            "storageKey": "fdn-bookmark-open-method"
+          },
+          {
             "id": 2,
             "name": "永久关闭赞助提醒",
             "type": "switch",
@@ -73,7 +98,7 @@
             "name": "图标尺寸（px）",
             "type": "number",
             "min": 1,
-            "default": 64,
+            "default": 32,
             "storageKey": "fdn-list-icon-size"
           },
           {

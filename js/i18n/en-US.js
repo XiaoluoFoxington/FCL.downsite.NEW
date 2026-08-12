@@ -489,6 +489,7 @@ const enUS = {
       'Toast 持续时间（ms）': 'Toast Duration (ms)',
       '图标尺寸（px）': 'Icon Size (px)',
       '资源列表页默认打开方式': 'Default Open Method for Resource List',
+      '书签默认打开方式': 'Default Open Method for Bookmarks',
     },
     option: {
       '字节数格式化前缀': {
@@ -496,6 +497,12 @@ const enUS = {
         SI: 'Decimal prefix (SI)',
       },
       '资源列表页默认打开方式': {
+        detail: 'Detail Page',
+        download: 'Download Page',
+        doc: 'Documentation Page',
+        history: 'Version History Page',
+      },
+      '书签默认打开方式': {
         detail: 'Detail Page',
         download: 'Download Page',
         doc: 'Documentation Page',
