@@ -4,7 +4,7 @@
 const enUS = {
   // Common
   common: {
-    siteName: 'FCL Download Station',
+    siteName: 'FCL Download Site',
     commitHash: 'Commit Hash',
     idle: 'Waiting to load',
     loading: 'Loading...',
@@ -29,7 +29,7 @@ const enUS = {
     intro: 'Documentation',
     history: 'Version History',
     detail: 'Details',
-    search: 'Search',
+    search: 'Search Term',
     searchPlaceholder: 'Show All',
     relationAnd: 'AND',
     relationOr: 'OR',
@@ -42,16 +42,16 @@ const enUS = {
     mirrorId: 'Mirror ID',
     mirrorName: 'Mirror Name',
     mirrorUrl: 'Full API URL',
-    joinRandom: 'Join Random',
+    joinRandom: 'Join Random Selection',
     available: 'Available',
     notAvailable: 'Unavailable',
     forceStop: 'Force Stop Loading',
-    matchedArchHint: 'Current architecture matched. Please note the highlighted row (for reference only; select the all architecture if installation fails).',
+    matchedArchHint: 'The current architecture has been matched. Please note the highlighted row (for reference only; select the "all" architecture if installation fails).',
     hiddenItems: 'Show {count} hidden items',
     noDownloadUrl: 'No available download URLs for this option',
-    errorMessage: 'Error',
-    infoMessage: 'Info',
-    warningMessage: 'Warning',
+    errorMessage: 'Error Message',
+    infoMessage: 'Information',
+    warningMessage: 'Warning Message',
     successMessage: 'Success',
     dangerMessage: 'Danger',
     unknownMirror: 'Unknown Mirror',
@@ -71,7 +71,7 @@ const enUS = {
     separator: ', ',
     nav: {
       announcement: 'Announcements',
-      bookmarks: 'Saved Resources',
+      bookmarks: 'Bookmarks',
       websiteNav: 'Website Navigation',
       resourceList: 'Resource List',
       sponsorSite: 'Sponsor the Site',
@@ -83,19 +83,19 @@ const enUS = {
       pageActions: 'Page Actions',
       hardRefresh: 'Hard Refresh',
       goOldVersion: 'Back to Old Version',
-      oldVersionDesc: 'The old website will no longer be updated. Not recommended, only for memorial purposes.',
-      oldVersion: 'Old Version',
+      oldVersionDesc: 'The old website will no longer be updated. Not recommended; kept only for remembrance.',
+      oldVersion: 'Initial Version',
       NEXTVersion: 'NEXT Version',
       mduiVersion: 'mdui Version',
       feedbackSuggest: 'Feedback',
       siteInfo: 'Site Info',
-      siteRuntime: 'This mountain of spaghetti code has been running for {runtime}.',
+      siteRuntime: 'This mountain of spaghetti code has been running very leisurely for {runtime}.',
       openSource: 'This website is completely open source. See the GitHub repository link below.',
       statsNotice: 'This website uses {common.nav.statsAlt} to track visitor statistics. For the public detailed reports, see the link below.',
       statsAlt: '51la statistics',
       welcome: 'Welcome to the',
       welcomeHighlight: 'player-community-built',
-      welcomeSite: 'unofficial FCL download station!',
+      welcomeSite: 'unofficial FCL download site!',
       availableResources: 'Here you can download:',
       launcher: 'Various launchers (FCL, ZL(2), Amethyst-android, etc.)',
       renderer: 'Renderer plugins',
@@ -142,7 +142,7 @@ const enUS = {
       unreadable: 'Unable to read the response',
       timeout: 'Request timed out',
       timeoutUrl: 'Request timed out: {url}',
-      aborted: 'Loading cancelled',
+      aborted: 'Loading canceled',
       network: 'Network request failed: {url}',
     },
     selectors: {
@@ -205,6 +205,7 @@ const enUS = {
       '应用初始翻译': 'Applying initial translations',
       readPreference: 'Reading setting {key}',
       writePreference: 'Saving setting {key}',
+      writeDefaultBookmarks: 'Writing default bookmarks',
       wroteDefaultBookmarks: 'Bookmarks folder is empty, wrote FCL and MG to bookmarks',
       i18nTranslateError: 'i18n translation failed: {key}',
       i18nApplyError: 'Failed to apply i18n translation: {key}',
@@ -261,23 +262,23 @@ const enUS = {
 
   // Home page
   home: {
-    title: 'FCL Download Station - Minecraft Java Edition Android Launcher & Resources',
-    description: 'An unofficial FCL download station built by the player community, providing downloads for launchers, renderers, drivers and more to help you play Minecraft Java Edition on Android devices.',
-    welcomeTitle: '🎉 FCL Download Station 🎉',
+    title: 'FCL Download Site - Minecraft Java Edition Android Launcher & Resources',
+    description: 'An unofficial FCL download site built by the player community, providing downloads for launchers, renderers, drivers and more to help you play Minecraft Java Edition on Android devices.',
+    welcomeTitle: '🎉 FCL Download Site 🎉',
     nav: 'Website Navigation',
-    bookmarks: 'Saved Resources',
-    welcomeHighlight: 'Welcome to this unofficial FCL download station built by the player community!',
+    bookmarks: 'Bookmarks',
+    welcomeHighlight: 'Welcome to this unofficial FCL download site built by the player community!',
     welcomeSite: '',
   },
 
   // Language settings page
   language: {
     title: 'Language Settings',
-    pageTitle: 'Language Settings - FCL Download Station',
-    description: 'Configure the interface language and fallback order for FCL Download Station.',
+    pageTitle: 'Language Settings - FCL Download Site',
+    description: 'Configure the interface language and fallback order for FCL Download Site.',
     order: 'Language Order',
     hint: 'The list order defines language priority: the first language is used for the interface, and the rest are used as fallbacks in order when translations are missing. Drag or use the up/down buttons to reorder; changes require a page refresh to apply fully.',
-    warning: 'Note: languages except Simplified Chinese are translated by AI, and may not be completely accurate.',
+    warning: 'Note: all languages except Simplified Chinese are AI translations and may not be fully accurate.',
     current: 'Current',
     isCurrent: 'Yes',
     tableHeaderLanguage: 'Language',
@@ -291,8 +292,8 @@ const enUS = {
   // 404 page
   notFound: {
     title: '404 Not Found',
-    pageTitle: '404 Not Found - FCL Download Station',
-    description: 'You visited a resource that does not exist on FCL Download Station.',
+    pageTitle: '404 Not Found - FCL Download Site',
+    description: 'You visited a resource that does not exist on FCL Download Site.',
     what: 'What does this mean?',
     whatDesc: 'The HTTP status code {code} means the server could not find the requested resource. The resource may have been deleted, moved, or never existed.',
     references: 'See: {notFound.mdnLink}, {notFound.wikipediaLink}.',
@@ -306,10 +307,10 @@ const enUS = {
   // List page
   list: {
     title: 'Resource List',
-    pageTitle: 'Resource List - FCL Download Station',
-    description: 'Browse all available resources from FCL Download Station, including Fold Craft Launcher, Zalith Launcher, Pojav Launcher, MobileGlues, HMCL launchers, renderers, and plugins. Supports filtering and searching.',
+    pageTitle: 'Resource List - FCL Download Site',
+    description: 'Browse all available resources from FCL Download Site, including Fold Craft Launcher, Zalith Launcher, Pojav Launcher, MobileGlues, HMCL launchers, renderers, and plugins. Supports filtering and searching.',
     filterPanel: 'Filter',
-    searchWord: 'Search',
+    searchWord: 'Search Term',
     relationLabel: 'Relation: Search term',
     relationAnd: 'AND',
     relationOr: 'OR',
@@ -337,8 +338,8 @@ const enUS = {
   // Detail page
   detail: {
     title: 'Resource Details',
-    pageTitle: 'Resource Details - FCL Download Station',
-    description: 'View detailed information about resources on FCL Download Station, including version numbers, supported Android versions, download mirror configuration, and more.',
+    pageTitle: 'Resource Details - FCL Download Site',
+    description: 'View detailed information about resources on FCL Download Site, including version numbers, supported Android versions, download mirror configuration, and more.',
     operations: 'Operations',
     downloadResource: 'Download Resource',
     introDoc: 'Documentation',
@@ -367,8 +368,8 @@ const enUS = {
   // Download page
   down: {
     title: 'Download Resource',
-    pageTitle: 'Download Resource - FCL Download Station',
-    description: 'High-speed download of Fold Craft Launcher and other Minecraft Java Edition Android launchers, renderers, drivers, and plugins from FCL Download Station.',
+    pageTitle: 'Download Resource - FCL Download Site',
+    description: 'High-speed download of Fold Craft Launcher and other Minecraft Java Edition Android launchers, renderers, drivers, and plugins from FCL Download Site.',
     message: 'Messages',
     download: 'Download',
     forceStop: 'Force Stop Loading',
@@ -377,11 +378,10 @@ const enUS = {
   },
 
   // About page
-  // about.projects.name、about.projects.description、about.projects.usage、about.projects.version、about.projects.link、about.projects.license
   about: {
     title: 'About',
-    pageTitle: 'About - FCL Download Station',
-    description: 'Learn about the contributors, mirror providers, and open-source projects used in FCL Download Station.',
+    pageTitle: 'About - FCL Download Site',
+    description: 'Learn about FCL Download Site — a player-community-built, non-profit download site for Minecraft Java Edition Android launchers and resources. View the site background, contributor list, mirror providers, and open-source projects used.',
     about: 'About',
     aiUsage: 'AI Usage Notice',
     aiUsageText1: 'AI assistance was used during the development of this website, including parts of the code, documentation, and images.',
@@ -399,9 +399,9 @@ const enUS = {
     license: 'License',
     p1: 'As a highly free-form sandbox game, Minecraft has an extremely large player ecosystem. From launchers, modpacks, and shader packs, to world saves, gameplay videos, and tutorials, the community has produced a rich variety of content. However, the largest group is still ordinary players. Yet the other side of high freedom is a higher entry barrier, directly or indirectly. We hope to do our best to help ordinary players avoid detours and focus more on the game itself.',
     p2: 'As phone performance improves, more and more people want to play Minecraft: Java Edition on Android devices. Against this backdrop, many developers have created numerous open-source, free launcher projects out of passion.',
-    p3: 'Fold Craft Launcher Download Station is a non-profit, unofficial download station. We sincerely thank every developer and every player who supports us.',
+    p3: 'Fold Craft Launcher Download Site is a non-profit, unofficial download site. We sincerely thank every developer and every player who supports us.',
     p4: '{about.devName}, the site owner, maintains this website and also provides the mirror 1 download source; developers like Wanmeng have made contributions that built this site up; {about.hahaName} and others provided additional mirror sources that greatly relieved bandwidth pressure; {about.ningName} provided this site\'s domain. In addition, we are grateful for the sponsorship, support, and encouragement of many kind friends!',
-    p5: 'We stand on the shoulders of giants. Compared to this website, the launcher and software developers behind it have it even harder - they invested more time and effort, and most chose to open-source everything without reservation. Their spirit of selfless contribution and open-source sharing deserves our praise and respect. Thank you again for their efforts!',
+    p5: 'We stand on the shoulders of giants. Compared to this website, the launcher and software developers behind it have it even harder - they invested more time and effort, and most chose to open-source everything without reservation. Their spirit of selfless contribution and open-source sharing deserves our praise and is something we should learn from. Thank you again for their efforts!',
     p6: 'This site is not the official Minecraft website, nor the official website of any launcher. It has no affiliation with Mojang, Microsoft, or the developers of any launcher. This site is only a non-profit resource aggregation and sharing site, aiming to provide convenient download services for ordinary players.',
     devName: 'XiaoluoFoxington',
     hahaName: 'haha252',
@@ -454,8 +454,8 @@ const enUS = {
   // Behavior settings page
   behavior: {
     title: 'Behavior Settings',
-    pageTitle: 'Behavior Settings - FCL Download Station',
-    description: 'Customize the behavior of FCL Download Station, including default open method, list icon size, and other options.',
+    pageTitle: 'Behavior Settings - FCL Download Site',
+    description: 'Customize the behavior of FCL Download Site, including default open method, list icon size, and other options.',
     loading: 'Loading settings...',
     loadingError: 'Failed to load settings',
     empty: 'No behavior settings available',
@@ -496,8 +496,8 @@ const enUS = {
   // Theme settings page
   theme: {
     title: 'Theme Settings',
-    pageTitle: 'Theme Settings - FCL Download Station',
-    description: 'Customize the appearance theme of FCL Download Station, including light/dark mode and accent color.',
+    pageTitle: 'Theme Settings - FCL Download Site',
+    description: 'Customize the appearance theme of FCL Download Site, including light/dark mode and accent color.',
     theme: 'Theme',
     primary: 'Primary Color',
     accent: 'Accent Color',
@@ -528,7 +528,7 @@ const enUS = {
   // Version history page
   rh: {
     title: 'Version History',
-    pageTitle: 'Version History - FCL Download Station',
+    pageTitle: 'Version History - FCL Download Site',
     description: 'View the version history of the software.',
     loadingHistory: 'Loading version history...',
     emptyHistory: 'No version records',
@@ -564,7 +564,7 @@ const enUS = {
   // Introduction page
   intro: {
     title: 'Documentation',
-    pageTitle: 'Documentation - FCL Download Station',
+    pageTitle: 'Documentation - FCL Download Site',
     description: 'View detailed introduction and usage instructions for the software.',
     titles: {
       0: {
@@ -581,11 +581,11 @@ const enUS = {
 
   // Sponsor page
   sponsor: {
-    title: 'Sponsor',
-    pageTitle: 'Sponsor - FCL Download Station',
-    description: 'Support FCL Download Station and the open-source project developers behind it.',
+    title: 'Sponsor the Site Owner',
+    pageTitle: 'Sponsor & Support - FCL Download Site',
+    description: 'Support FCL Download Site and the developers behind it. Sponsor this site or the developers of open-source projects such as Fold Craft Launcher, Zalith Launcher, Pojav Launcher, and MobileGlues.',
     sponsorDevs: 'Sponsor Other Developers',
-    sponsorDevsDesc: 'Compared to this download station, the developers behind it have put in much more effort. If you want to sponsor someone other than this site, please choose the project you would like to sponsor below.',
+    sponsorDevsDesc: 'Compared to this download site, the developers behind it have put in much more effort. If you want to sponsor someone other than this site, please choose the project you would like to sponsor below.',
     table: 'Table',
     developer: 'Developer',
     project: 'Representative Project',
@@ -615,8 +615,8 @@ const enUS = {
   // Template page
   template: {
     title: 'Template',
-    pageTitle: 'Template - FCL Download Station',
-    description: 'FCL Download Station page template.',
+    pageTitle: 'Template - FCL Download Site',
+    description: 'FCL Download Site page template.',
   },
 };
 
