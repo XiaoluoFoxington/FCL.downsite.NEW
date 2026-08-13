@@ -225,6 +225,11 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   background-color: #00FF0040 !important;
 }
 
+/* 404 页面的警示面板。 */
+.xf-404-danger {
+  background-color: #ff000040;
+}
+
 .xf-bookmark-link {
   cursor: pointer;
 }
