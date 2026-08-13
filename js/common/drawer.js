@@ -17,7 +17,7 @@ import { t, translateDynamicContent, isRTLLang, getCurrentLang } from './i18n.js
 
 /**
  * 创建抽屉外壳（立即完成），显示加载状态，返回 drawer 元素和 MDUI 实例。
- * @returns {{drawer: HTMLElement, instance: object}} 抽屉元素和 MDUI Drawer 实例
+ * @returns {{drawer: HTMLElement|null, instance: object|null}} 抽屉元素和 MDUI Drawer 实例；mdui 缺失时两者均为 null
  */
 function createDrawerShell() {
   // RTL 语言下抽屉镜像到左侧：MDUI 的位置逻辑由 mdui-drawer-left/right 类决定。
@@ -25,6 +25,15 @@ function createDrawerShell() {
   const drawer = document.createElement('aside');
   drawer.className = `mdui-drawer mdui-drawer-${side} mdui-container-fluid`;
   drawer.setAttribute('aria-label', t('common.nav.websiteNav'));
+
+  // mdui 未加载（CDN 故障/被拦截）时无法实例化 Drawer：Snackbar 提示一次，避免整页脚本崩溃。
+  if (!window.mdui?.Drawer) {
+    if (!createDrawerShell._mduiMissingNotified) {
+      createDrawerShell._mduiMissingNotified = true;
+      showSnackbar(t('common.dependencyLoadFailed', { src: 'mdui.min.js' }));
+    }
+    return { drawer: null, instance: null };
+  }
 
   // 统一状态机：在抽屉容器内显示加载状态
   renderStatus(drawer, 'loading', { message: t('common.loading') });
@@ -158,8 +167,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const shell = createDrawerShell();
       drawerInstance = shell.instance;
       drawerElement = shell.drawer;
-      // 异步加载内容，不阻塞抽屉弹出
-      loadDrawerContent(drawerElement);
+      // mdui 缺失时 instance 为 null：错误提示已在抽屉内渲染，跳过内容加载即可。
+      if (drawerInstance) {
+        // 异步加载内容，不阻塞抽屉弹出
+        loadDrawerContent(drawerElement);
+      }
     }
     return drawerInstance;
   };
@@ -179,6 +191,8 @@ document.addEventListener('DOMContentLoaded', () => {
   button.addEventListener('click', () => {
     const wasCreated = !drawerInstance;
     const instance = ensureDrawer();
+    // mdui 缺失时无法切换抽屉（错误提示已渲染在抽屉内），直接返回。
+    if (!instance) return;
     if (wasCreated) {
       // 单帧延迟确保抽屉 DOM 已挂载，然后触发动画
       // 单帧不行！还是得双rAF！！
