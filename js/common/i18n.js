@@ -261,13 +261,6 @@ export function setLanguageOrder(order, { reload = true } = {}) {
   } catch (error) {
     logWarn(error, '保存语言顺序');
   }
-  // TODO: 死代码：applyTranslations 已注释、try/catch 空转，可整段删除（当前设计为保存后强制刷新）。
-  try {
-    // applyTranslations();
-    // 注释掉，强行让用户自己刷新页面
-  } catch (error) {
-    logWarn(error, '应用语言翻译');
-  }
   if (reload) {
     try {
       window.location.reload();
