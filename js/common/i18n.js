@@ -11,6 +11,7 @@
 import zhCN from '../i18n/zh-CN.js';
 import enUS from '../i18n/en-US.js';
 import jaJP from '../i18n/ja-JP.js';
+import frFR from '../i18n/fr-FR.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { logWarn } from './logger.js';
 
@@ -25,6 +26,7 @@ export const LANGUAGE_PACKS = {
   'zh-CN': zhCN,
   'en-US': enUS,
   'ja-JP': jaJP,
+  'fr-FR': frFR,
 };
 
 /** 语言显示名称（用于语言选择器） */
@@ -32,10 +34,11 @@ export const LANGUAGE_NAMES = {
   'zh-CN': '简体中文',
   'en-US': 'English',
   'ja-JP': '日本語',
+  'fr-FR': 'Français',
 };
 
 let currentLang = 'zh-CN';
-let languageOrder = ['zh-CN', 'en-US', 'ja-JP'];
+let languageOrder = ['zh-CN', 'en-US', 'ja-JP', 'fr-FR'];
 let initPromise = null;
 
 /**
@@ -149,7 +152,7 @@ export function t(key, params = {}, skip = null) {
 
 /**
  * 获取当前语言代码。
- * @returns {string} 'zh-CN' | 'en-US'
+ * @returns {string} 'zh-CN' | 'en-US' | 'ja-JP' | 'fr-FR'
  */
 export function getCurrentLang() {
   return currentLang;
@@ -385,6 +388,7 @@ function detectBrowserLang() {
     if (lang.startsWith('zh')) return 'zh-CN';
     if (lang.startsWith('en')) return 'en-US';
     if (lang.startsWith('ja')) return 'ja-JP';
+    if (lang.startsWith('fr')) return 'fr-FR';
   } catch (_) {
     // 忽略检测异常
   }
