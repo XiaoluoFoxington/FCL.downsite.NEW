@@ -96,7 +96,7 @@ const jaJP = {
       mduiVersion: 'mdui版',
       feedbackSuggest: 'フィードバック・ご意見',
       siteInfo: 'サイト情報',
-      siteRuntime: 'この無理やりなコードは、{runtime} の間、ゆるゆると動作しています。',
+      siteRuntime: 'このクソコードの山は、{runtime} の間、ゆるゆると動作しています。',
       openSource: 'このサイトは完全にオープンソースです。GitHubリポジトリへのリンクは下部にあります。',
       statsNotice: 'このサイトではアクセス解析のために {common.nav.statsAlt} を使用しています。公開されている詳細レポートは下部のリンクをご覧ください。',
       statsAlt: '51laサイト統計',
