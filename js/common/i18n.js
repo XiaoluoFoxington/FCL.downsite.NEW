@@ -12,6 +12,7 @@ import zhCN from '../i18n/zh-CN.js';
 import enUS from '../i18n/en-US.js';
 import jaJP from '../i18n/ja-JP.js';
 import frFR from '../i18n/fr-FR.js';
+import ar from '../i18n/ar.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { logWarn } from './logger.js';
 
@@ -21,12 +22,16 @@ const LANGUAGE_KEY = 'fdn-language';
 /** 语言顺序偏好存储键（数组：第一位为界面语言，其余为回退顺序） */
 const LANGUAGE_ORDER_KEY = 'fdn-language-order';
 
+/** 从右到左（RTL）书写方向的语言主代码集合。新增 RTL 语言时在此登记。 */
+const RTL_BASE_LANGS = new Set(['ar', 'he', 'fa', 'ur', 'ps', 'dv', 'ku', 'sd']);
+
 /** 支持的语言包（比较表等场景需要直接读取语言包内容） */
 export const LANGUAGE_PACKS = {
   'zh-CN': zhCN,
   'en-US': enUS,
   'ja-JP': jaJP,
   'fr-FR': frFR,
+  'ar': ar,
 };
 
 /** 语言显示名称（用于语言选择器） */
@@ -35,10 +40,11 @@ export const LANGUAGE_NAMES = {
   'en-US': 'English',
   'ja-JP': '日本語',
   'fr-FR': 'Français',
+  'ar': 'العربية',
 };
 
 let currentLang = 'zh-CN';
-let languageOrder = ['zh-CN', 'en-US', 'ja-JP', 'fr-FR'];
+let languageOrder = ['zh-CN', 'en-US', 'ja-JP', 'fr-FR', 'ar'];
 let initPromise = null;
 
 /**
@@ -152,10 +158,34 @@ export function t(key, params = {}, skip = null) {
 
 /**
  * 获取当前语言代码。
- * @returns {string} 'zh-CN' | 'en-US' | 'ja-JP' | 'fr-FR'
+ * @returns {string} 'zh-CN' | 'en-US' | 'ja-JP' | 'fr-FR' | 'ar'
  */
 export function getCurrentLang() {
   return currentLang;
+}
+
+/**
+ * 判断语言是否为从右到左（RTL）书写方向。
+ * 支持的语言代码（如 'ar'）或带区域的代码（如 'ar-SA'）均可判断。
+ * @param {string} code 语言代码
+ * @returns {boolean}
+ */
+export function isRTLLang(code) {
+  if (typeof code !== 'string' || !code) return false;
+  const base = code.split('-')[0].toLowerCase();
+  return RTL_BASE_LANGS.has(base);
+}
+
+/**
+ * 根据当前语言设置 <html dir> 书写方向（rtl/ltr）。
+ * 语言切换后需刷新页面，因此仅需在初始化与保存顺序时调用。
+ */
+function applyDirection() {
+  try {
+    document.documentElement.dir = isRTLLang(currentLang) ? 'rtl' : 'ltr';
+  } catch (error) {
+    logWarn(error, '应用书写方向');
+  }
 }
 
 /**
@@ -227,6 +257,7 @@ export function setLanguageOrder(order, { reload = true } = {}) {
   try {
     writePreference(LANGUAGE_ORDER_KEY, JSON.stringify(normalized));
     document.documentElement.lang = currentLang;
+    applyDirection();
   } catch (error) {
     logWarn(error, '保存语言顺序');
   }
@@ -389,6 +420,7 @@ function detectBrowserLang() {
     if (lang.startsWith('en')) return 'en-US';
     if (lang.startsWith('ja')) return 'ja-JP';
     if (lang.startsWith('fr')) return 'fr-FR';
+    if (lang.startsWith('ar')) return 'ar';
   } catch (_) {
     // 忽略检测异常
   }
@@ -407,6 +439,7 @@ export function initI18n() {
       languageOrder = loadLanguageOrder();
       currentLang = languageOrder[0] || 'zh-CN';
       document.documentElement.lang = currentLang;
+      applyDirection();
     } catch (error) {
       logWarn(error, '初始化 i18n');
     }

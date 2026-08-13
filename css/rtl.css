@@ -1,0 +1,178 @@
+/*
+ * RTL（从右到左）书写方向支持。
+ *
+ * MDUI 1.0.2 与本站样式均按 LTR 硬编码，此文件在 <html dir="rtl"> 时镜像关键布局。
+ * 书写方向由 i18n 模块根据当前语言写入 <html dir>（见 js/common/i18n.js 的 applyDirection）。
+ *
+ * 选择器全部带 [dir="rtl"] 前缀以提升特异性，且本文件必须在
+ * mdui.min.css / mdui.patch.css / xf.css 之后加载。
+ */
+
+/* ==================== 字体：阿拉伯语字形回退 ==================== */
+/* 'mojangles' 无阿拉伯语字形，按字形回退到系统阿拉伯字体，拉丁字符仍用 mojangles 保持站点风格。 */
+[dir="rtl"] body {
+  font-family: 'mojangles', 'Segoe UI', 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Tahoma', sans-serif;
+}
+
+/* ==================== MDUI 组件镜像 ==================== */
+
+/* 面板展开/收起箭头：从右侧镜像到左侧 */
+[dir="rtl"] .mdui-panel-item-arrow {
+  right: auto;
+  left: 12px;
+}
+
+[dir="rtl"] .mdui-panel-item-open > .mdui-panel-item-header .mdui-panel-item-arrow {
+  right: auto;
+  left: 12px;
+}
+
+[dir="rtl"] .mdui-panel-item-summary + .mdui-panel-item-arrow {
+  left: auto;
+  right: 0;
+}
+
+/* 面板操作栏：按钮排到左侧（镜像），按钮间距边改为右侧 */
+[dir="rtl"] .mdui-panel-item-actions {
+  text-align: left;
+}
+
+[dir="rtl"] .mdui-panel-item-actions .mdui-btn {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+[dir="rtl"] .mdui-panel-item-actions .mdui-btn:first-child {
+  margin-right: 0;
+}
+
+/* 表格：列边框由右边框镜像为左边框（末列在 RTL 中位于最左，无边框），文本右对齐 */
+[dir="rtl"] .mdui-table th,
+[dir="rtl"] .mdui-table td {
+  text-align: right;
+  border-right: none !important;
+  /* 增强特异性，不然会被`mdui.patch.css`覆盖 */
+  border-left: 1px solid rgba(0, 0, 0, .12);
+}
+
+html[dir="rtl"][data-xf-theme="dark"] .mdui-table th,
+html[dir="rtl"][data-xf-theme="dark"] .mdui-table td {
+  border-right: none !important;
+  border-left: 1px solid rgba(255, 255, 255, .12);
+}
+
+[dir="rtl"] .mdui-table th:last-child,
+[dir="rtl"] .mdui-table td:last-child {
+  border-left: none !important;
+  border-right: none !important;
+}
+
+/* 排版（mdui-typo）中的表头右对齐 */
+[dir="rtl"] .mdui-typo caption,
+[dir="rtl"] .mdui-typo th {
+  text-align: right;
+}
+
+/* 对话框：标题右对齐、操作按钮排到左侧 */
+[dir="rtl"] .mdui-dialog-title {
+  text-align: right;
+}
+
+[dir="rtl"] .mdui-dialog-actions {
+  text-align: left;
+}
+
+[dir="rtl"] .mdui-dialog-actions .mdui-btn {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+/* 提示框文本右对齐 */
+[dir="rtl"] .mdui-tooltip {
+  text-align: right;
+}
+
+/* 下拉选择菜单：负右边距镜像为负左边距 */
+[dir="rtl"] .mdui-select-menu {
+  margin: 0 0 0 -24px;
+}
+
+/* 圆形进度条（spinner）：圆环片段用 left/right/width 同时绝对定位（over-constrained），
+ * RTL 文档中浏览器按规范忽略 left 改用 right，导致半圆片段全部错位、转得乱七八糟。
+ * spinner 是方向无关的旋转指示器，强制 ltr 让物理定位按 LTR 语义解析（Material 官方同款处理）。 */
+[dir="rtl"] .mdui-spinner {
+  direction: ltr;
+}
+
+/* 列表项（flex 顺序已由 dir 自动翻转，这里镜像显式水平边距） */
+[dir="rtl"] .mdui-list-item-icon ~ .mdui-list-item-content,
+[dir="rtl"] .mdui-list-item-avatar ~ .mdui-list-item-content,
+[dir="rtl"] .mdui-checkbox ~ .mdui-list-item-content,
+[dir="rtl"] .mdui-radio ~ .mdui-list-item-content,
+[dir="rtl"] .mdui-switch ~ .mdui-list-item-content {
+  margin-left: 0;
+}
+
+[dir="rtl"] .mdui-list-item-icon ~ .mdui-list-item-content {
+  margin-right: 32px;
+}
+
+[dir="rtl"] .mdui-checkbox ~ .mdui-list-item-content,
+[dir="rtl"] .mdui-radio ~ .mdui-list-item-content,
+[dir="rtl"] .mdui-switch ~ .mdui-list-item-content {
+  margin-right: 20px;
+}
+
+[dir="rtl"] .mdui-list-item-avatar ~ .mdui-list-item-content {
+  margin-right: 16px;
+}
+
+[dir="rtl"] .mdui-list-item-content ~ .mdui-list-item-icon,
+[dir="rtl"] .mdui-list-item-content ~ .mdui-list-item-avatar,
+[dir="rtl"] .mdui-list-item-content ~ .mdui-checkbox,
+[dir="rtl"] .mdui-list-item-content ~ .mdui-radio,
+[dir="rtl"] .mdui-list-item-content ~ .mdui-switch {
+  margin-left: 0;
+  margin-right: 16px;
+}
+
+[dir="rtl"] .mdui-list-item-content ~ .mdui-checkbox,
+[dir="rtl"] .mdui-list-item-content ~ .mdui-radio {
+  padding-left: 0;
+  padding-right: 24px;
+}
+
+[dir="rtl"] .mdui-list .mdui-subheader-inset::before {
+  left: auto;
+  right: 72px;
+}
+
+/* 文本对齐工具类互换 */
+[dir="rtl"] .mdui-text-left {
+  text-align: right !important;
+}
+
+[dir="rtl"] .mdui-text-right {
+  text-align: left !important;
+}
+
+/* ==================== 本站样式镜像 ==================== */
+
+/* 版本水印：右下角镜像到左下角 */
+[dir="rtl"] #xf-verWatermarkContainer {
+  right: auto;
+  left: 0;
+  text-align: left;
+}
+
+/* 筛选激活指示器：右边距镜像为左边距 */
+[dir="rtl"] .xf-filter-active-indicator {
+  margin-right: 0;
+  margin-left: 8px;
+}
+
+/* 新公告徽标：左边距镜像为右边距 */
+[dir="rtl"] .xf-new-announcement-badge {
+  margin-left: 0;
+  margin-right: 8px;
+}

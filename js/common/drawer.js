@@ -5,10 +5,10 @@ import { showSnackbar } from '../views/uiComponents.js';
 import { getRunTime } from '../domain/siteInfo.js';
 import { mountBookmarkList } from '../views/bookmarkView.js';
 import { logError } from './logger.js';
-import { t, translateDynamicContent } from './i18n.js';
+import { t, translateDynamicContent, isRTLLang, getCurrentLang } from './i18n.js';
 
 /**
-* 所有页面共用的右侧抽屉。
+* 所有页面共用的抽屉（LTR 在右侧，RTL 镜像到左侧）。
 * 本模块只在页面存在 #menu_btn 时工作；窄屏下创建抽屉推迟到首次点击，宽屏则立即创建以适配 MDUI 持久展开。
 * 抽屉静态结构从 /html/drawer.html 加载，动态内容（公告、反馈、运行时间）在 JS 中注入。
 *
@@ -20,15 +20,17 @@ import { t, translateDynamicContent } from './i18n.js';
  * @returns {{drawer: HTMLElement, instance: object}} 抽屉元素和 MDUI Drawer 实例
  */
 function createDrawerShell() {
+  // RTL 语言下抽屉镜像到左侧：MDUI 的位置逻辑由 mdui-drawer-left/right 类决定。
+  const side = isRTLLang(getCurrentLang()) ? 'left' : 'right';
   const drawer = document.createElement('aside');
-  drawer.className = 'mdui-drawer mdui-drawer-right mdui-container-fluid';
+  drawer.className = `mdui-drawer mdui-drawer-${side} mdui-container-fluid`;
   drawer.setAttribute('aria-label', t('common.nav.websiteNav'));
 
   // 统一状态机：在抽屉容器内显示加载状态
   renderStatus(drawer, 'loading', { message: t('common.loading') });
 
   document.body.appendChild(drawer);
-  document.body.classList.add('mdui-drawer-body-right');
+  document.body.classList.add(`mdui-drawer-body-${side}`);
   window.mdui?.mutation();
 
   return { drawer, instance: new window.mdui.Drawer(drawer) };

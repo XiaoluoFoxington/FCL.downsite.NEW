@@ -10,6 +10,10 @@
   <link rel="stylesheet" href="/css/mdui.theme.enhanced.css">
   <link rel="stylesheet" href="/css/mdui.patch.css">
   <link rel="stylesheet" href="/css/xf.css">
+  <link rel="stylesheet" href="/css/rtl.css">
+  <script>/* 提前按已保存的语言偏好设置 lang 与 RTL 方向，避免加载后布局翻转闪烁。RTL 语言代码与 js/common/i18n.js 保持一致。 */
+  try { var o = JSON.parse(localStorage.getItem('fdn-language-order') || 'null'); var l = (o && o[0]) || localStorage.getItem('fdn-language') || ''; if (l) { document.documentElement.lang = l; if (/^(ar|he|fa|ur|ps|dv|ku|sd)(-|$)/i.test(l)) { document.documentElement.dir = 'rtl'; } } } catch (e) {}
+  </script>
   <link rel="icon" href="/data/software/0/icon.avif">
   <title data-i18n="behavior.pageTitle">行为设置 - FCL下载站</title>
   <meta name="description" data-i18n-attr="content" data-i18n="behavior.description" content="配置FCL下载站的行为偏好，包括字节数格式化前缀、资源列表默认打开方式、赞助提醒等个性化设置。">
