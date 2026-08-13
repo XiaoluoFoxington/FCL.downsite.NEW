@@ -43,18 +43,22 @@ jobs:
           }
           EOF
 
+          # 刷新 sitemap.xml 全部 <lastmod> 为当天日期（UTC，避免时区差异导致日期跳变）
+          TODAY=$(date -u +%Y-%m-%d)
+          sed -i "s|<lastmod>[^<]*</lastmod>|<lastmod>${TODAY}</lastmod>|g" sitemap.xml
+
           # 配置 Git 用户信息
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # 添加文件
-          git add data/verInfo.json
+          git add data/verInfo.json sitemap.xml
 
           # 获取短哈希用于提交消息
           SHORT_HASH=$(git rev-parse --short HEAD)
 
           # 提交变更
-          git commit -m "[GHA] 内容：更新：verInfo.json：${SHORT_HASH}呜~"
+          git commit -m "[GHA] 内容：更新：${SHORT_HASH}：verInfo.json与sitemap.xml呜~"
 
           # 设置远程地址，使用 GITHUB_TOKEN 认证
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
