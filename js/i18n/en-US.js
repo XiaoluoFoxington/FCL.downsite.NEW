@@ -69,6 +69,13 @@ const enUS = {
     osNotSpecified: 'No valid software ID specified',
     loadingSponsorRemind: 'Loading sponsor reminder...',
     separator: ', ',
+    a11y: {
+      menu: 'Open menu',
+      home: 'Go to homepage',
+      back: 'Go back',
+      list: 'Resource list',
+      info: 'View details',
+    },
     nav: {
       announcement: 'Announcements',
       bookmarks: 'Bookmarks',

@@ -69,6 +69,13 @@ const jaJP = {
     osNotSpecified: '有効なソフトウェアIDが指定されていません',
     loadingSponsorRemind: 'スポンサーリマインダーを読み込み中……',
     separator: '、',
+    a11y: {
+      menu: 'メニューを開く',
+      home: 'ホームページへ',
+      back: '前のページへ戻る',
+      list: 'リソース一覧',
+      info: '詳細を見る',
+    },
     nav: {
       announcement: 'サイトのお知らせ',
       bookmarks: 'お気に入りリソース',

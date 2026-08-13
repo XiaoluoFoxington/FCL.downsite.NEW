@@ -70,6 +70,13 @@ const zhCN = {
     osNotSpecified: '未指定有效的软件 ID',
     loadingSponsorRemind: '正在加载赞助提醒……',
     separator: '、',
+    a11y: {
+      menu: '打开菜单',
+      home: '访问主页',
+      back: '返回上一页',
+      list: '资源列表',
+      info: '查看详情',
+    },
     nav: {
       announcement: '网站公告',
       bookmarks: '资源收藏',

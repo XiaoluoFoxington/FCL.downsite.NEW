@@ -2,6 +2,8 @@
  * MDUI 组件的可访问性增强模块。
  * 为面板（Panel）、下拉选择器（Select）和抽屉（Drawer）添加键盘导航、ARIA 属性和焦点管理。
  */
+import { t } from './i18n.js';
+
 (function () {
   'use strict';
 
@@ -320,6 +322,42 @@
     }
   });
 
+  // ---------- Material Icons 可访问性处理 ----------
+
+  /** 图标名 → 翻译键映射（纯图标按钮的 aria-label 用）。 */
+  const ICON_LABEL_KEYS = {
+    menu: 'common.a11y.menu',
+    home: 'common.a11y.home',
+    arrow_back: 'common.a11y.back',
+    list: 'common.a11y.list',
+    info: 'common.a11y.info',
+  };
+
+  /**
+   * 处理 Material Icons：
+   * ① 兜底给装饰性图标补 aria-hidden（静态 HTML 已加，翻译插件在 JS 执行前就会跳过这些内容）；
+   * ② 为纯图标按钮（除图标外无其他文本的 <a>/<button>）注入 aria-label，
+   *    避免屏幕阅读器只读出无意义的图标名（如 "menu"、"home"）。
+   * @param {HTMLElement|Document} container 扫描容器
+   */
+  function enhanceMaterialIcons(container = document) {
+    container.querySelectorAll('.mdui-icon.material-icons').forEach(icon => {
+      // ① 兜底：确保图标对屏幕阅读器与翻译插件不可见
+      if (!icon.hasAttribute('aria-hidden')) icon.setAttribute('aria-hidden', 'true');
+
+      // ② 仅处理纯图标按钮：父元素是链接/按钮，且除图标外无其他可读文本
+      const host = icon.parentElement;
+      if (!host || !host.matches('a, button')) return;
+      if (host.hasAttribute('aria-label')) return;
+      if (host.textContent.trim() !== icon.textContent.trim()) return;
+
+      const labelKey = ICON_LABEL_KEYS[icon.textContent.trim()];
+      if (!labelKey) return;
+      const label = t(labelKey);
+      if (label && label !== labelKey) host.setAttribute('aria-label', label);
+    });
+  }
+
   // ---------- 防抖 MutationObserver 处理 ----------
   let pendingMutations = [];
   let rafId = null;
@@ -352,6 +390,7 @@
       if (node.querySelectorAll) {
         initAllPanels(node);
         enhanceAllSelects(node);
+        enhanceMaterialIcons(node);
       }
     }
   }
@@ -364,6 +403,7 @@
   function bootstrap() {
     initAllPanels(document);
     enhanceAllSelects(document);
+    enhanceMaterialIcons(document);
 
     // MDUI 的 select 初始化时机不稳定（取决于 CDN/缓存），轮询增强直到找到
     if (!document.querySelectorAll('div.mdui-select').length) {

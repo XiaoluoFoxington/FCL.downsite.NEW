@@ -28,13 +28,13 @@
 <body class="mdui-appbar-with-toolbar mdui-container-fluid mdui-theme-layout-auto">
   <div class="mdui-appbar mdui-appbar-fixed">
     <div class="mdui-toolbar mdui-color-theme">
-      <a href="javascript: window.history.back();" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">arrow_back</i></a>
-      <a href="/" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">home</i></a>
-      <a href="list.html" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">list</i></a>
+      <a href="javascript: window.history.back();" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons" aria-hidden="true">arrow_back</i></a>
+      <a href="/" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons" aria-hidden="true">home</i></a>
+      <a href="list.html" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons" aria-hidden="true">list</i></a>
       <a href="" class="mdui-btn mdui-btn-icon mdui-ripple"><img src="" class="mdui-img-fluid" id="icon"></a>
       <a href="" class="mdui-typo-title" id="title" data-i18n="detail.title">详情</a>
       <div class="mdui-toolbar-spacer"></div>
-      <a href="javascript:void(0);" id="menu_btn" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons">menu</i></a>
+      <a href="javascript:void(0);" id="menu_btn" class="mdui-btn mdui-btn-icon mdui-ripple"><i class="mdui-icon material-icons" aria-hidden="true">menu</i></a>
     </div>
   </div>
 
@@ -50,16 +50,16 @@
             <div class="mdui-row">
               <div class="mdui-col-xs-12 mdui-col-sm-3">
                 <!-- 禁用是因为此时还未初始化下载控制器，直接点击会报错未提供软件ID。MDUI 已处理 <a disabled> 的样式与交互。 -->
-                <a id="btn-download" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/down.html" disabled><i class="mdui-icon material-icons">file_download</i> <span data-i18n="detail.downloadResource">下载资源</span></a>
+                <a id="btn-download" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/down.html" disabled><i class="mdui-icon material-icons" aria-hidden="true">file_download</i> <span data-i18n="detail.downloadResource">下载资源</span></a>
               </div>
               <div class="mdui-col-xs-12 mdui-col-sm-3">
-                <a id="btn-intro" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/intro.html" disabled><i class="mdui-icon material-icons">description</i> <span data-i18n="detail.introDoc">介绍文档</span></a>
+                <a id="btn-intro" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/intro.html" disabled><i class="mdui-icon material-icons" aria-hidden="true">description</i> <span data-i18n="detail.introDoc">介绍文档</span></a>
               </div>
               <div class="mdui-col-xs-12 mdui-col-sm-3">
-                <a id="btn-history" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/rh.html" disabled><i class="mdui-icon material-icons">track_changes</i> <span data-i18n="detail.versionHistory">版本历史</span></a>
+                <a id="btn-history" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="/html/rh.html" disabled><i class="mdui-icon material-icons" aria-hidden="true">track_changes</i> <span data-i18n="detail.versionHistory">版本历史</span></a>
               </div>
               <div class="mdui-col-xs-12 mdui-col-sm-3">
-                <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="#" disabled><i class="mdui-icon material-icons">bookmark</i> <span data-i18n="detail.addBookmark">加入收藏</span></a>
+                <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="#" disabled><i class="mdui-icon material-icons" aria-hidden="true">bookmark</i> <span data-i18n="detail.addBookmark">加入收藏</span></a>
               </div>
             </div>
           </div>

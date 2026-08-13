@@ -69,6 +69,13 @@ const frFR = {
     osNotSpecified: 'Aucun ID de logiciel valide spécifié',
     loadingSponsorRemind: 'Chargement du rappel de sponsoring…',
     separator: ', ',
+    a11y: {
+      menu: 'Ouvrir le menu',
+      home: "Aller à l'accueil",
+      back: 'Revenir en arrière',
+      list: 'Liste des ressources',
+      info: 'Voir les détails',
+    },
     nav: {
       announcement: 'Annonces du site',
       bookmarks: 'Favoris',
