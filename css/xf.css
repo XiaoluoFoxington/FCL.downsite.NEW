@@ -411,16 +411,29 @@ html[data-xf-theme="dark"] .toast {
 }
 
 .sortable-table-indicator {
+  --indicator-color: var(--mdui-color-theme-accent, #fff);
   position: absolute;
   left: 0;
   right: 0;
   height: 3px;
-  background: var(--mdui-color-theme-accent, #fff);
+  background: var(--indicator-color);
   pointer-events: none;
   z-index: 2;
 }
 html[data-xf-theme="light"] .sortable-table-indicator {
-  background: var(--mdui-color-theme-accent, #000);
+  --indicator-color: var(--mdui-color-theme-accent, #000);
+}
+
+/* 指示线左端的小箭头：箭头尖指向右（表示从该线向右为插入位置），颜色与指示线一致（跟随主题）。 */
+.sortable-table-indicator::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid var(--indicator-color);
 }
 
 .sortable-table-row.sortable-dragging {
