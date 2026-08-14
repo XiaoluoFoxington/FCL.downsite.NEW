@@ -41,6 +41,7 @@ export function createSortableTable(container, { items = [], columns = [], rende
   let order = [...items];
   let draggedIndex = null;
   let insertIndex = null;
+  let indicatorBoundary = null;
 
   container.classList.add('sortable-table-container', 'mdui-table-fluid', 'xf-nowrap');
 
@@ -79,22 +80,20 @@ export function createSortableTable(container, { items = [], columns = [], rende
   function resetDrag() {
     draggedIndex = null;
     insertIndex = null;
+    indicatorBoundary = null;
     indicator.hidden = true;
     itemElements().forEach((tr) => tr.classList.remove('sortable-dragging'));
   }
 
-  /** 计算插入指示线的边界位置：把“移除被拖行后的插入索引”映射回当前 DOM 的边界。 */
-  function boundaryIndex() {
-    if (insertIndex === null) return 0;
-    // k < d 时边界在 k 处；k >= d 时被拖行占住 k 的位置，边界顺延到 k + 1。
-    return insertIndex < draggedIndex ? insertIndex : insertIndex + 1;
-  }
-
+  /** 计算插入指示线的边界位置：直接使用指针所在空隙（当前 DOM 中的空隙索引）。 */
   function positionIndicator() {
     const els = itemElements();
     if (!els.length) return;
     const containerRect = container.getBoundingClientRect();
-    const boundary = boundaryIndex();
+    // 空隙索引即“第 boundary 行顶部”所在位置：0 = 第一行顶部，els.length = 最后一行底部。
+    // 注意不能用 insertIndex 反推——insertIndex 等于被拖行原位（draggedIndex）时，
+    // 无法区分“其上方空隙”与“其下方空隙”，会把指示线统一显示到被拖行下方。
+    const boundary = indicatorBoundary;
     let y;
     if (boundary <= 0) {
       y = els[0].getBoundingClientRect().top;
@@ -124,6 +123,9 @@ export function createSortableTable(container, { items = [], columns = [], rende
       }
     }
     insertIndex = resolveInsertIndex(els.length, draggedIndex, pointerIndex, after);
+    // 指示线直接显示在指针所在空隙（当前 DOM 中第 pointerIndex 行顶/底部的空隙），
+    // 与落位结果一致，见 positionIndicator 的说明。
+    indicatorBoundary = pointerIndex + (after ? 1 : 0);
     positionIndicator();
   }
 
