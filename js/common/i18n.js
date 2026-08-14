@@ -12,6 +12,7 @@ import zhCN from '../i18n/zh-CN.js';
 import enUS from '../i18n/en-US.js';
 import jaJP from '../i18n/ja-JP.js';
 import frFR from '../i18n/fr-FR.js';
+import ruRU from '../i18n/ru-RU.js';
 import ar from '../i18n/ar.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { logWarn } from './logger.js';
@@ -31,6 +32,7 @@ export const LANGUAGE_PACKS = {
   'en-US': enUS,
   'ja-JP': jaJP,
   'fr-FR': frFR,
+  'ru-RU': ruRU,
   'ar': ar,
 };
 
@@ -40,11 +42,12 @@ export const LANGUAGE_NAMES = {
   'en-US': 'English',
   'ja-JP': '日本語',
   'fr-FR': 'Français',
+  'ru-RU': 'Русский',
   'ar': 'العربية',
 };
 
 let currentLang = 'zh-CN';
-let languageOrder = ['zh-CN', 'en-US', 'ja-JP', 'fr-FR', 'ar'];
+let languageOrder = ['zh-CN', 'en-US', 'ja-JP', 'fr-FR', 'ru-RU', 'ar'];
 let initPromise = null;
 
 /**
@@ -158,7 +161,7 @@ export function t(key, params = {}, skip = null) {
 
 /**
  * 获取当前语言代码。
- * @returns {string} 'zh-CN' | 'en-US' | 'ja-JP' | 'fr-FR' | 'ar'
+ * @returns {string} 'zh-CN' | 'en-US' | 'ja-JP' | 'fr-FR' | 'ru-RU' | 'ar'
  */
 export function getCurrentLang() {
   return currentLang;
@@ -413,6 +416,7 @@ function detectBrowserLang() {
     if (lang.startsWith('en')) return 'en-US';
     if (lang.startsWith('ja')) return 'ja-JP';
     if (lang.startsWith('fr')) return 'fr-FR';
+    if (lang.startsWith('ru')) return 'ru-RU';
     if (lang.startsWith('ar')) return 'ar';
   } catch (_) {
     // 忽略检测异常
