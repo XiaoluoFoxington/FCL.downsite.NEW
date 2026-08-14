@@ -14,6 +14,7 @@ import jaJP from '../i18n/ja-JP.js';
 import frFR from '../i18n/fr-FR.js';
 import ruRU from '../i18n/ru-RU.js';
 import ar from '../i18n/ar.js';
+import esES from '../i18n/es-ES.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { logWarn } from './logger.js';
 
@@ -34,6 +35,7 @@ export const LANGUAGE_PACKS = {
   'fr-FR': frFR,
   'ru-RU': ruRU,
   'ar': ar,
+  'es-ES': esES,
 };
 
 /** 语言显示名称（用于语言选择器） */
@@ -44,10 +46,11 @@ export const LANGUAGE_NAMES = {
   'fr-FR': 'Français',
   'ru-RU': 'Русский',
   'ar': 'العربية',
+  'es-ES': 'Español',
 };
 
 let currentLang = 'zh-CN';
-let languageOrder = ['zh-CN', 'en-US', 'ja-JP', 'fr-FR', 'ru-RU', 'ar'];
+let languageOrder = ['zh-CN', 'en-US', 'ja-JP', 'fr-FR', 'ru-RU', 'ar', 'es-ES'];
 let initPromise = null;
 
 /**
@@ -161,7 +164,7 @@ export function t(key, params = {}, skip = null) {
 
 /**
  * 获取当前语言代码。
- * @returns {string} 'zh-CN' | 'en-US' | 'ja-JP' | 'fr-FR' | 'ru-RU' | 'ar'
+ * @returns {string} 'zh-CN' | 'en-US' | 'ja-JP' | 'fr-FR' | 'ru-RU' | 'ar' | 'es-ES'
  */
 export function getCurrentLang() {
   return currentLang;
@@ -418,6 +421,7 @@ function detectBrowserLang() {
     if (lang.startsWith('fr')) return 'fr-FR';
     if (lang.startsWith('ru')) return 'ru-RU';
     if (lang.startsWith('ar')) return 'ar';
+    if (lang.startsWith('es')) return 'es-ES';
   } catch (_) {
     // 忽略检测异常
   }
