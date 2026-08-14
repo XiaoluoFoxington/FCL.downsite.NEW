@@ -126,7 +126,7 @@ const jaJP = {
     },
     footer: {
       copyright: 'COPYRIGHT 2026 XIAOLUOFOXINGTON',
-      icp: '新ICP備2024015133号-7',
+      icp: '新ICP备2024015133号-7',
     },
     timeUnits: {
       days: '日',
@@ -619,8 +619,8 @@ const jaJP = {
     sponsorSite: 'このサイトの開発者にスポンサー',
     sponsorSiteDesc1: 'ダウンロードのトラフィック費用は高額です。私たちはこのサイトを公益的な性質に保ち続けています。もしこのサイトが役に立ったと思われたら、以下からスポンサーをご検討ください。',
     sponsorSiteDesc2: 'スポンサーいただいたものは、定期的にこのサイトに貢献してくれたその他の開発者と分配します。以下で確認できます。',
-    disclaimer1: '私は{sponsor.m1}、最終的に受け取ったスポンサーのすべてをこのサイトの開発に使用します。',
-    m1: 'おそらくそうしないでしょう',
+    disclaimer1: '私は、最終的に受け取ったスポンサーのすべてをこのサイトの開発に使用するとは{sponsor.m1}。',
+    m1: '限りません',
     disclaimer2: 'スポンサーは{sponsor.voluntary}。スポンサーしなくてもサイトを通常通り使用できます。経済状況を考慮した上で、スポンサーするかどうかをご検討ください。スポンサー後は{sponsor.nonRefundable}。',
     voluntary: '完全に任意',
     nonRefundable: '返金できません',

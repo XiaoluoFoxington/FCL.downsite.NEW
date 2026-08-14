@@ -99,7 +99,7 @@ const enUS = {
       siteRuntime: 'This mountain of spaghetti code has been running very leisurely for {runtime}.',
       openSource: 'This website is completely open source. See the GitHub repository link below.',
       statsNotice: 'This website uses {common.nav.statsAlt} to track visitor statistics. For the public detailed reports, see the link below.',
-      statsAlt: '51la statistics',
+      statsAlt: '51la site analytics',
       welcome: 'Welcome to the',
       welcomeHighlight: 'player-community-built',
       welcomeSite: 'unofficial FCL download site!',
