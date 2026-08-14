@@ -16,6 +16,10 @@
     "name": "HarmonyOS"
   },
   {
+    "id": 12,
+    "name": "macOS"
+  },
+  {
     "id": 0,
     "name": "MCJE相关"
   },
@@ -42,5 +46,9 @@
   {
     "id": 6,
     "name": "工具"
+  },
+  {
+    "id": 11,
+    "name": "游戏"
   }
 ]

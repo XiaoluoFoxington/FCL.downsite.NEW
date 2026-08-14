@@ -3,95 +3,102 @@
     "id": 0,
     "name": "Fold Craft Launcher",
     "icon": "/data/software/0/icon.avif",
-    "tagIds": [7, 0, 1],
+    "tagIds": [7, 0, 1, 11],
     "detailUrl": "/data/software/0/detail.json"
   },
   {
     "id": 1,
     "name": "MobileGlues",
     "icon": "/data/software/1/icon.avif",
-    "tagIds": [7, 0, 2, 3],
+    "tagIds": [7, 0, 2, 3, 11],
     "detailUrl": "/data/software/1/detail.json"
   },
   {
     "id": 2,
     "name": "Zalith Launcher",
     "icon": "/data/software/2/icon.avif",
-    "tagIds": [7, 0, 1],
+    "tagIds": [7, 0, 1, 11],
     "detailUrl": "/data/software/2/detail.json"
   },
   {
     "id": 3,
     "name": "Zalith Launcher 2",
     "icon": "/data/software/3/icon.avif",
-    "tagIds": [7, 0, 1],
+    "tagIds": [7, 0, 1, 11],
     "detailUrl": "/data/software/3/detail.json"
   },
   {
     "id": 4,
     "name": "Amethyst-Android",
     "icon": "/data/software/4/icon.avif",
-    "tagIds": [7, 0, 1],
+    "tagIds": [7, 0, 1, 11],
     "detailUrl": "/data/software/4/detail.json"
   },
   {
     "id": 5,
     "name": "Krypton Wrapper",
-    "tagIds": [7, 0, 2, 3],
+    "tagIds": [7, 0, 2, 3, 11],
     "detailUrl": "/data/software/5/detail.json"
   },
   {
     "id": 6,
     "name": "FCL Driver Plugin",
-    "tagIds": [7, 0, 2, 4],
+    "tagIds": [7, 0, 2, 4, 11],
     "detailUrl": "/data/software/6/detail.json"
   },
   {
     "id": 7,
     "name": "Pojav Launcher",
     "icon": "/data/software/7/icon.avif",
-    "tagIds": [7, 0, 1],
+    "tagIds": [7, 0, 1, 11],
     "detailUrl": "/data/software/7/detail.json"
   },
   {
     "id": 8,
     "name": "Android Openjdk Build",
-    "tagIds": [7, 0, 2, 5],
+    "tagIds": [7, 0, 2, 5, 11],
     "detailUrl": "/data/software/8/detail.json"
   },
   {
     "id": 9,
     "name": "Pojav FFmpeg Plugin",
     "icon": "/data/software/7/icon.avif",
-    "tagIds": [7, 0, 2],
+    "tagIds": [7, 0, 2, 11],
     "detailUrl": "/data/software/9/detail.json"
   },
   {
     "id": 10,
     "name": "HMCL-PE",
     "icon": "/data/software/10/icon.avif",
-    "tagIds": [7, 0, 1],
+    "tagIds": [7, 0, 1, 11],
     "detailUrl": "/data/software/10/detail.json"
   },
   {
     "id": 11,
     "name": "EnchantNet",
     "icon": "/data/software/11/icon.avif",
-    "tagIds": [7, 0, 6],
+    "tagIds": [7, 0, 6, 11],
     "detailUrl": "/data/software/11/detail.json"
   },
   {
     "id": 12,
     "name": "Axe Minecraft Launcher",
     "icon": "/data/software/12/icon.avif",
-    "tagIds": [10, 0, 1],
+    "tagIds": [10, 0, 1, 11],
     "detailUrl": "/data/software/12/detail.json"
   },
   {
     "id": 13,
     "name": "HMCL",
     "icon": "/data/software/13/icon.avif",
-    "tagIds": [8, 9, 0, 1],
+    "tagIds": [8, 9, 0, 1, 11],
     "detailUrl": "/data/software/13/detail.json"
+  },
+  {
+    "id": 14,
+    "name": "Mindustry",
+    "icon": "/data/software/14/icon.avif",
+    "tagIds": [7, 8, 9, 12, 11],
+    "detailUrl": "/data/software/14/detail.json"
   }
 ]

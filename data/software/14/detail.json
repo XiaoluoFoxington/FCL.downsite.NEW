@@ -1,0 +1,50 @@
+{
+  "info": [
+    {
+      "name": "developer",
+      "href": "https://github.com/Anuken"
+    },
+    {
+      "name": "Github",
+      "href": "https://github.com/Anuken/Mindustry"
+    },
+    {
+      "name": "Website",
+      "href": "https://mindustrygame.github.io/"
+    }
+  ],
+  "intro": [
+    {
+      "title": "GH-README",
+      "url": "https://raw.githubusercontent.com/Anuken/Mindustry/refs/heads/master",
+      "file": "/README.md",
+      "type": "md"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/Anuken/Mindustry/releases",
+  "download": [
+    {
+      "mirrorId": 0,
+      "key": "/14/index.json"
+    },
+    {
+      "mirrorId": 4,
+      "key": "/api/releases?owner=Anuken&repo=Mindustry&versions=20"
+    }
+  ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    },
+    {
+      "osName": "Windows"
+    },
+    {
+      "osName": "Linux"
+    },
+    {
+      "osName": "Mac OS"
+    }
+  ],
+  "randomSelectMirror": true
+}
