@@ -305,6 +305,7 @@ const ruRU = {
     tableDownloadFail: 'Не удалось скачать',
     tableNewLangCodeInvalid: 'Введите допустимый код языка, например ja-JP',
     tableNoMatch: 'Нет совпадений',
+    tableDirToggle: 'Переключить направление письма столбца нового языка (RTL / LTR)',
   },
 
   // Страница 404

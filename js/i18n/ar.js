@@ -304,6 +304,7 @@ const ar = {
     tableDownloadFail: 'فشل التحميل',
     tableNewLangCodeInvalid: 'يرجى إدخال رمز لغة صالح، مثل ja-JP',
     tableNoMatch: 'لا توجد نتائج مطابقة',
+    tableDirToggle: 'تبديل اتجاه الكتابة لعمود اللغة الجديدة (RTL / LTR)',
   },
 
   // صفحة 404

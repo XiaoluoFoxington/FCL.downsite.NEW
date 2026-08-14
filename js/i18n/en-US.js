@@ -305,6 +305,7 @@ const enUS = {
     tableDownloadFail: 'Download failed',
     tableNewLangCodeInvalid: 'Enter a valid language code, e.g. ja-JP',
     tableNoMatch: 'No matching results',
+    tableDirToggle: 'Toggle writing direction of the new language column (RTL / LTR)',
   },
 
   // 404 page

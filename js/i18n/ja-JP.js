@@ -305,6 +305,7 @@ const jaJP = {
     tableDownloadFail: 'ダウンロードに失敗しました',
     tableNewLangCodeInvalid: '有効な言語コードを入力してください（例：ja-JP）',
     tableNoMatch: '一致する結果はありません',
+    tableDirToggle: '新規言語列の書字方向を切り替え（RTL / LTR）',
   },
 
   // 404ページ

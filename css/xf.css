@@ -444,6 +444,12 @@ html[data-xf-theme="light"] .sortable-table-indicator {
   min-width: 300px;
 }
 
+/* 新语言列书写方向切换按钮：固定宽度避免 LTR/RTL 文字长度不同导致抖动 */
+.language-compare-dirtoggle {
+  min-width: 72px;
+  margin: 0 8px;
+}
+
 .language-compare-empty td {
   text-align: center;
   padding: 16px;

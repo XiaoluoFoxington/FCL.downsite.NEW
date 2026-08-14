@@ -306,6 +306,7 @@ const zhCN = {
     tableDownloadFail: '下载失败',
     tableNewLangCodeInvalid: '请输入有效的语言代码，如 ja-JP',
     tableNoMatch: '无匹配结果',
+    tableDirToggle: '切换新语言列的书写方向（RTL / LTR）',
   },
 
   // 404 页面

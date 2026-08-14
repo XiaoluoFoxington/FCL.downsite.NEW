@@ -305,6 +305,7 @@ const frFR = {
     tableDownloadFail: 'Échec du téléchargement',
     tableNewLangCodeInvalid: 'Veuillez saisir un code de langue valide, ex. ja-JP',
     tableNoMatch: 'Aucun résultat correspondant',
+    tableDirToggle: 'Basculer le sens d\'écriture de la colonne de nouvelle langue (RTL / LTR)',
   },
 
   // Page 404

@@ -3,6 +3,7 @@ import {
   getSupportedLanguages,
   getLanguageOrder,
   setLanguageOrder,
+  isRTLLang,
   LANGUAGE_PACKS,
   t,
 } from '../common/i18n.js';
@@ -122,7 +123,12 @@ export function createLanguageController(elements) {
     }
     try {
       const json = JSON.stringify(pack, null, 2);
-      const content = `const ${code.replace(/-/g, '_')} = ${json};\nexport default ${code.replace(/-/g, '_')};\n`;
+      const safeName = code.replace(/-/g, '_');
+      // 已有语言包方向按代码自动判断（isRTLLang），写入文件头注释。
+      const dir = isRTLLang(code) ? 'RTL' : 'LTR';
+      const content =
+        `/**\n * ${code} 语言包（Language Pack）\n * 语言方向（Writing direction）：${dir}\n */\n` +
+        `const ${safeName} = ${json};\nexport default ${safeName};\n`;
       const filename = `${code}.js`;
       downloadFile(filename, content);
       showSnackbar(t('language.tableDownloadSuccess', { file: filename }));
@@ -137,7 +143,7 @@ export function createLanguageController(elements) {
   }
 
   /** 下载新语言列生成的语言包。 */
-  function downloadNewPack(code, flatValues) {
+  function downloadNewPack(code, flatValues, dir = 'ltr') {
     if (!code || !isValidCode(code)) {
       showSnackbar(t('language.tableNewLangCodeInvalid'));
       return;
@@ -150,7 +156,11 @@ export function createLanguageController(elements) {
       const pack = unflattenToPack(flatValues);
       const json = JSON.stringify(pack, null, 2);
       const safeName = code.replace(/-/g, '_');
-      const content = `const ${safeName} = ${json};\nexport default ${safeName};\n`;
+      // 新语言方向由比对表的方向切换按钮决定，写入文件头注释。
+      const dirLabel = dir === 'rtl' ? 'RTL' : 'LTR';
+      const content =
+        `/**\n * ${code} 语言包（Language Pack）\n * 语言方向（Writing direction）：${dirLabel}\n */\n` +
+        `const ${safeName} = ${json};\nexport default ${safeName};\n`;
       const filename = `${code}.js`;
       downloadFile(filename, content);
       showSnackbar(t('language.tableDownloadSuccess', { file: filename }));
@@ -187,11 +197,11 @@ export function createLanguageController(elements) {
       onDownload: (code) => downloadExistingPack(code),
     });
 
-    // 绑定新语言列下载按钮：收集新列输入，生成语言包。
+    // 绑定新语言列下载按钮：收集新列输入，生成语言包（方向取切换按钮当前状态）。
     table.newDownloadBtn.addEventListener('click', () => {
       const code = table.newCodeInput.value.trim();
       const flat = table.collectNewColumn();
-      downloadNewPack(code, flat);
+      downloadNewPack(code, flat, table.getNewColumnDir());
     });
   }
 
