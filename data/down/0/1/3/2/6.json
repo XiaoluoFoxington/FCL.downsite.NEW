@@ -8,6 +8,11 @@
     "url": "https://pan.huang1111.cn/f/a5v3S4/FCL-release-1.3.2.6-arm64-v8a.apk"
   },
   {
+    "arch": "arm64-v8a",
+    "name": "新UI测试，勿下",
+    "url": "https://pan.huang1111.cn/f/jEB6CV/FCL-UI%E9%87%8D%E6%9E%84%E6%B5%8B%E8%AF%95-fix2-1.3.2.6.APK"
+  },
+  {
     "arch": "armeabi-v7a",
     "url": "https://pan.huang1111.cn/f/V3GOCx/FCL-release-1.3.2.6-armeabi-v7a.apk"
   },
