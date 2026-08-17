@@ -16,19 +16,21 @@ export function debounce(fn, delay = 500) {
 
 /** 将字节数转为可读字符串。根据用户偏好自动选择 IEC/SI 前缀。 */
 export function formatBytes(bytes) {
-  if (typeof bytes !== 'number' || bytes < 0) return t('common.unknownSize');
+  // Number.isNaN 必须显式检查：typeof NaN === 'number'，仅判断类型会漏掉 NaN。
+  if (typeof bytes !== 'number' || Number.isNaN(bytes) || bytes < 0) return t('common.unknownSize');
   if (bytes === 0) return '0 B';
 
   const prefix = readPreference('fdn-default-format-prefix');
 
   if (prefix === 'SI') {
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1000)), units.length - 1);
+    // 0 < bytes < 1 时对数商为负，索引钳制到 0，避免 units[-1] 输出 "undefined"。
+    const i = Math.min(Math.max(Math.floor(Math.log(bytes) / Math.log(1000)), 0), units.length - 1);
     return (bytes / Math.pow(1000, i)).toFixed(2) + ' ' + units[i];
   }
 
   const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
-  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const i = Math.min(Math.max(Math.floor(Math.log(bytes) / Math.log(1024)), 0), units.length - 1);
   return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i];
 }
 
