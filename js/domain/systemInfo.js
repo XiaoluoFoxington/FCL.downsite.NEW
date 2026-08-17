@@ -17,7 +17,10 @@ const ARCHITECTURES = [
   { pattern: /armeabi-v7a|armv7|\barm\b/i, name: 'armeabi-v7a' },
   { pattern: /x86_64|x64|amd64/i, name: 'x86_64' },
   { pattern: /\bx86\b|i[36]86/i, name: 'x86' },
-  { pattern : /all/i, name : 'all' },
+  // "all" 必须作为独立分段（-all-、_all.、/all/、行首行尾等）才算全架构，
+  // 裸 /all/i 会把 installer、fallback 等含 "all" 子串的文件误判为 all。
+  // 下划线是 \w 字符，\ball\b 无法识别 _all 分段，因此用显式分隔符集合。
+  { pattern: /(^|[\s._\-/])all([\s._\-/]|$)/i, name: 'all' },
 ];
 
 /**
