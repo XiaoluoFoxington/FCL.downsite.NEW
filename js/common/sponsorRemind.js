@@ -62,8 +62,10 @@ async function showSponsorRemind(container, visitCount) {
     const visitCountHtml = t('sponsorRemind.visitCount').replace(/\{count\}/g, '<span id="visitCount"></span>');
     const localizedHtml = sponsorHtml
       .replace(/\{\{sponsorRemind\.visitCount\}\}/g, () => visitCountHtml)
-      .replace(/\{\{([\w.]+)\}\}/g, (match, key) => t(key))
-      .replace(/\{count\}/g, '');
+      .replace(/\{\{([\w.]+)\}\}/g, (match, key) => t(key));
+    // 注意：不能在此处对整段 HTML 再做 .replace(/\{count\}/g, '')——
+    // 那会把其他已替换翻译中合法的 {count} 字面量也一并删掉。
+    // 访问次数占位符已在 visitCountHtml 构造时处理完毕，模板本身不含 {count}。
     container.replaceChildren(await createSafeContent(localizedHtml));
     const visitCountEl = container.querySelector('#visitCount');
     const closeBtn = container.querySelector('#sponsorRemindCloseBtn');
