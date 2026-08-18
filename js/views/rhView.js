@@ -151,7 +151,9 @@ function createAssetPanel(asset) {
   const tbody = wrapper.querySelector('tbody');
   addTableRow(tbody, t('rh.assetSize'), formatBytes(asset.size) || '');
   addTableRow(tbody, t('rh.contentType'), asset.content_type || '');
-  addTableRow(tbody, t('rh.checksum'), asset.digest || '');
+  // GitHub Releases API 的 asset 对象没有 digest 字段（那是上传 API 才返回的），
+  // 只有资源确实携带校验值时渲染该行，避免每个资源表格都出现一行的空值。
+  if (asset.digest) addTableRow(tbody, t('rh.checksum'), asset.digest);
   addTableRow(tbody, t('rh.ghDownloadCount'), asset.download_count || '');
   addTableRow(tbody, t('rh.ghDownloadUrl'), asset.browser_download_url || '', asset.browser_download_url || '');
 
