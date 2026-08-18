@@ -38,14 +38,17 @@ export function isValidSwitchValue(value) {
 
 /**
  * 验证 number 类型的值是否合法。
- * @param {object} setting 设置项配置（含 min）
+ * @param {object} setting 设置项配置（含 min/max）
  * @param {string} value 待验证值
  * @returns {boolean}
  */
 export function isValidNumberValue(setting, value) {
   const num = Number(value);
   if (Number.isNaN(num)) return false;
+  // min/max 都校验：只校验 min 会让 fdn-logger-duration 等带 max 的项
+  // 存入任意大数（如 999999999），toast 渐隐将长达数天。
   if (setting.min != null && num < setting.min) return false;
+  if (setting.max != null && num > setting.max) return false;
   return true;
 }
 
@@ -157,7 +160,10 @@ function renderNumberSetting(container, setting, savedValue, onChange) {
   input.className = 'mdui-textfield-input';
   input.type = 'number';
   input.value = savedValue;
+  // min/max/step 都透传给原生控件，浏览器 spinner 与提交校验随之生效。
   if (setting.min != null) input.min = setting.min;
+  if (setting.max != null) input.max = setting.max;
+  if (setting.step != null) input.step = setting.step;
   input.addEventListener('change', () => onChange(input.value));
   inputCol.appendChild(input);
 
