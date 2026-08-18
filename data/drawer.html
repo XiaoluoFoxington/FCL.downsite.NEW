@@ -4,6 +4,15 @@
   <!-- 公告（由 JS 动态填充） -->
   <div class="mdui-panel-item" id="drawer-announcement"></div>
 
+  <!-- 建议反馈（默认折叠，首次展开时由 JS 懒加载） -->
+  <div class="mdui-panel-item" id="drawer-feedback-panel">
+    <div class="mdui-panel-item-header mdui-ripple">
+      <div class="mdui-panel-item-title" data-i18n="common.nav.feedbackSuggest">建议反馈</div>
+      <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+    </div>
+    <div class="mdui-panel-item-body" id="drawer-feedback"></div>
+  </div>
+
   <!-- 网站导航 -->
   <div class="mdui-panel-item mdui-panel-item-open">
     <div class="mdui-panel-item-header mdui-ripple">
@@ -56,15 +65,6 @@
       <a class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" href="https://old.foldcraftlauncher.cn" target="_blank"><i class="mdui-icon material-icons" aria-hidden="true">history</i> <span data-i18n="common.nav.oldVersion">初版</span></a>
       <!-- 这里缺少`rel="noopener noreferrer"`，故意的，为了统计旧版访问情况 -->
     </div>
-  </div>
-
-  <!-- 建议反馈（由 JS 动态加载） -->
-  <div class="mdui-panel-item mdui-panel-item-open">
-    <div class="mdui-panel-item-header mdui-ripple">
-      <div class="mdui-panel-item-title" data-i18n="common.nav.feedbackSuggest">建议反馈</div>
-      <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
-    </div>
-    <div class="mdui-panel-item-body" id="drawer-feedback"></div>
   </div>
 
   <!-- 网站信息 -->

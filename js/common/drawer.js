@@ -87,8 +87,17 @@ async function loadDrawerContent(drawer) {
     const announcementContainer = drawer.querySelector('#drawer-announcement');
     if (announcementContainer) loadAnnouncement(announcementContainer);
 
-    const feedbackContainer = drawer.querySelector('#drawer-feedback');
-    if (feedbackContainer) loadFeedback(feedbackContainer);
+    // 建议反馈懒加载：面板默认折叠，首次展开时才拉取反馈渠道，
+    // 避免仅打开抽屉（不展开反馈）时也发起 feedback.json 请求。
+    const feedbackPanel = drawer.querySelector('#drawer-feedback-panel');
+    if (feedbackPanel) {
+      feedbackPanel.addEventListener('open.mdui.panel', () => {
+        if (feedbackPanel.dataset.feedbackLoaded) return;
+        feedbackPanel.dataset.feedbackLoaded = 'true';
+        const feedbackContainer = feedbackPanel.querySelector('#drawer-feedback');
+        if (feedbackContainer) loadFeedback(feedbackContainer);
+      }, { signal: ac.signal });
+    }
 
     const runtimeEl = drawer.querySelector('#drawer-runtime');
     if (runtimeEl) {
