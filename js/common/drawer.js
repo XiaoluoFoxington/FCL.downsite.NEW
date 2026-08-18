@@ -10,10 +10,13 @@ import { t, translateDynamicContent, isRTLLang, getCurrentLang } from './i18n.js
 /**
 * 所有页面共用的抽屉（LTR 在右侧，RTL 镜像到左侧）。
 * 本模块只在页面存在 #menu_btn 时工作；窄屏下创建抽屉推迟到首次点击，宽屏则立即创建以适配 MDUI 持久展开。
-* 抽屉静态结构从 /html/drawer.html 加载，动态内容（公告、反馈、运行时间）在 JS 中注入。
+* 抽屉静态结构从 /data/drawer.html 加载（注释里的路径已过时，勿信），动态内容（公告、反馈、运行时间）在 JS 中注入。
 *
 * 点击按钮后立即弹出抽屉容器并显示加载状态，内容异步加载完成后渲染到抽屉内。
 */
+
+/** MDUI 抽屉宽屏持久展开的断点（px），与 mdui.css 的 lg 断点一致。 */
+const MDUI_LG_BREAKPOINT = 1024;
 
 /**
  * 创建抽屉外壳（立即完成），显示加载状态，返回 drawer 元素和 MDUI 实例。
@@ -116,8 +119,9 @@ async function loadDrawerContent(drawer) {
           startRuntime();
         }
       }, { signal: ac.signal });
-      // 初始：宽屏持久展开或窄屏已打开时启动
-      if (!document.hidden) {
+      // 初始：宽屏持久展开或窄屏已打开时启动；抽屉处于关闭状态（窄屏默认）
+      // 时不启动，避免一个每秒更新隐藏元素文本的定时器在整页生命周期内空转。
+      if (!document.hidden && (window.innerWidth >= MDUI_LG_BREAKPOINT || drawer.classList.contains('mdui-drawer-open'))) {
         startRuntime();
       }
     }
@@ -156,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const button = document.getElementById('menu_btn');
   if (!button) return;
 
-  const MDUI_LG_BREAKPOINT = 1024;
   const isWideScreen = () => window.innerWidth >= MDUI_LG_BREAKPOINT;
 
   let drawerInstance = null;
