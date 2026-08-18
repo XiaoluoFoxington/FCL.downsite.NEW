@@ -10,7 +10,7 @@ import { t, translateDynamicContent, isRTLLang, getCurrentLang } from './i18n.js
 /**
 * 所有页面共用的抽屉（LTR 在右侧，RTL 镜像到左侧）。
 * 本模块只在页面存在 #menu_btn 时工作；窄屏下创建抽屉推迟到首次点击，宽屏则立即创建以适配 MDUI 持久展开。
-* 抽屉静态结构从 /data/drawer.html 加载（注释里的路径已过时，勿信），动态内容（公告、反馈、运行时间）在 JS 中注入。
+* 抽屉静态结构从 /data/drawer.html 加载，动态内容（公告、反馈、运行时间）在 JS 中注入。
 *
 * 点击按钮后立即弹出抽屉容器并显示加载状态，内容异步加载完成后渲染到抽屉内。
 */
