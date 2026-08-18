@@ -12,7 +12,7 @@
   "intro": [
     {
       "title": "GH-README",
-      "url": "https://github.com/PojavLauncherTeam/PojavLauncher/blob/v3_openjdk",
+      "url": "https://raw.githubusercontent.com/PojavLauncherTeam/PojavLauncher/v3_openjdk",
       "file": "/README.md",
       "type": "md"
     }
