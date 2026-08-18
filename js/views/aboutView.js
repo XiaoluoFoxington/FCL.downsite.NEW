@@ -116,6 +116,7 @@ export async function renderContributors(container, contributors, mirrors) {
 
     const img = document.createElement('img');
     img.src = c.avatar || '/media/img/picMissing.webp';
+    img.alt = c.accentName || c.name || '';
     img.loading = 'lazy';
 
     const covered = document.createElement('div');
