@@ -70,6 +70,10 @@ export function renderFilterTags(container, tags, onChange) {
     // 如果用户按了 Shift 键，浏览器会原生处理水平滚动，我们就不干预
     if (e.shiftKey) return;
 
+    // 标签没有溢出（宽屏下全部标签放得下）时不拦截滚轮，
+    // 否则鼠标悬停在标签栏上时页面无法上下滚动。
+    if (container.scrollWidth <= container.clientWidth) return;
+
     // 阻止页面上下滚动
     e.preventDefault();
 
