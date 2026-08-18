@@ -162,17 +162,24 @@ export function renderStatus(container, state, { message = '', onRetry } = {}) {
  * 填充公共工具栏。
  * basic 使用目录中的 { id, name, icon }；titlePrefix 例如“下载”“介绍”；
  * detailButton 仅在下载/介绍页存在，用于保留当前软件 ID 的详情链接。
+ * 工具栏的软件图标与标题链接在 HTML 中只是 href="" 占位，
+ * 这里补上指向该软件详情页的地址，避免点击时意外重载当前页面丢失状态。
  */
 export function setSoftwareHeader(basic, { titlePrefix = '', detailButton } = {}) {
   // 下载页、介绍页和详情页共用标题栏更新逻辑，减少路径和 alt 文案不一致。
   const icon = document.getElementById('icon');
   const title = document.getElementById('title');
   const pageTitle = `${titlePrefix} - ${basic.name}`;
+  const detailHref = `/html/detail.html?id=${basic.id}`;
   if (icon) {
     icon.src = basic.icon || '/media/img/picMissing.webp';
     icon.alt = basic.name;
+    icon.closest('a')?.setAttribute('href', detailHref);
   }
-  if (title) title.textContent = pageTitle;
+  if (title) {
+    title.textContent = pageTitle;
+    title.closest('a')?.setAttribute('href', detailHref);
+  }
   document.title = pageTitle + ' - ' + t('common.siteName');
   if (detailButton) detailButton.href = `/html/detail.html?id=${basic.id}`;
 }
