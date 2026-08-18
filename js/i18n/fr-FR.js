@@ -238,6 +238,8 @@ const frFR = {
     'Windows': 'Windows',
     'Linux': 'Linux',
     'HarmonyOS': 'HarmonyOS',
+    '游戏': 'Jeux',
+    'macOS': 'macOS',
   },
 
   // Noms des miroirs (data/mirror.json, indexés par ID de miroir)

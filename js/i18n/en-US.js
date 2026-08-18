@@ -238,6 +238,8 @@ const enUS = {
     'Windows': 'Windows',
     'Linux': 'Linux',
     'HarmonyOS': 'HarmonyOS',
+    '游戏': 'Games',
+    'macOS': 'macOS',
   },
 
   // Mirror names (data/mirror.json, keyed by mirror id)

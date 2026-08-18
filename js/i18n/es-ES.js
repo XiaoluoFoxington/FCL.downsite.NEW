@@ -239,6 +239,8 @@ const esES = {
     'Windows': 'Windows',
     'Linux': 'Linux',
     'HarmonyOS': 'HarmonyOS',
+    '游戏': 'Juegos',
+    'macOS': 'macOS',
   },
 
   // Nombres de líneas (data/mirror.json, por id de línea)
