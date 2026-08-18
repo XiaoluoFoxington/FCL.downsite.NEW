@@ -41,6 +41,9 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
     // 请求期间锁定已有控件，避免用户同时改变多个层级；终止按钮是唯一保留的操作入口。
     container.querySelectorAll('select, button, a').forEach((control) => {
       if ('disabled' in control) control.disabled = busy;
+      // 带 aria-disabled 的链接是数据层标记的“暂不可用”项，其禁用态必须持久保留，
+      // 不能随 busy 开关被移除，否则加载完成后它会看起来可点击但实际点不动。
+      if (control.getAttribute('aria-disabled') === 'true') return;
       control.classList.toggle('disabled', busy);
     });
     stopButton?.classList.toggle('xf-hide', !busy);
