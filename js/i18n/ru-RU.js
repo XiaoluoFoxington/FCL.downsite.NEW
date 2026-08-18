@@ -238,6 +238,8 @@ const ruRU = {
     'Windows': 'Windows',
     'Linux': 'Linux',
     'HarmonyOS': 'HarmonyOS',
+    '游戏': 'Игры',
+    'macOS': 'macOS',
   },
 
   // Названия зеркал (data/mirror.json, ключ — ID зеркала)

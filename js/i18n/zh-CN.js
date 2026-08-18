@@ -239,6 +239,8 @@ const zhCN = {
     'Windows': 'Windows',
     'Linux': 'Linux',
     'HarmonyOS': 'HarmonyOS',
+    '游戏': '游戏',
+    'macOS': 'macOS',
   },
 
   // 线路名（data/mirror.json，按线路 id 寻址）

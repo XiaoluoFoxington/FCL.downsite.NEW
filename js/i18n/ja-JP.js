@@ -238,6 +238,8 @@ const jaJP = {
     'Windows': 'Windows',
     'Linux': 'Linux',
     'HarmonyOS': 'HarmonyOS',
+    '游戏': 'ゲーム',
+    'macOS': 'macOS',
   },
 
   // 回線名（data/mirror.json、回線idでアクセス）
