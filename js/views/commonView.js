@@ -96,6 +96,7 @@ export function renderMessages(wrapper, container, messages) {
   });
   panel.replaceChildren(fragment);
   container.appendChild(panel);
+  // 页面加载失败时，消息从未被加载，所以用appendChild是可以的，不会出现“点击重试按钮后重复加载消息”的问题。（dsh-session-eff8091a-b005-4d91-8639-9c9df5912bba）
   window.mdui?.mutation();
 }
 
