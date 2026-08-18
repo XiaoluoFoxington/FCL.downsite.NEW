@@ -25,7 +25,7 @@
       "type": "md"
     }
   ],
-  "releaseHistoryUrl": "https://github.com/MobileGL-Dev/MobileGlues-release/releases",
+  "releaseHistoryUrl": "https://api.github.com/repos/MobileGL-Dev/MobileGlues-release/releases",
   "download": [
     {
       "mirrorId": 1,
