@@ -47,36 +47,43 @@
           <div><i id="filter-active-indicator-on" class="mdui-icon material-icons xf-filter-active-indicator" hidden>filter_alt</i><i id="filter-active-indicator-off" class="mdui-icon material-icons xf-filter-active-indicator">filter_alt_off</i><span data-i18n="list.filterPanel">筛选</span></div>
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
-        <div class="mdui-panel-item-body mdui-row">
-          <div class="mdui-col-xs-12 mdui-col-sm-6">
-            <div class="mdui-textfield">
-              <label class="mdui-textfield-label" data-i18n="list.searchWord">搜索词</label>
-              <input class="mdui-textfield-input" type="text" placeholder="显示所有" data-i18n="common.searchPlaceholder" data-i18n-attr="placeholder" />
-            </div>
-            <div class="mdui-typo">
-              <p>
-                <span data-i18n="list.relationLabel">关系：搜索词</span>
-                <select id="relation-between-searchWord-and-tag" class="mdui-select">
-                  <option value="and" data-i18n="list.relationAnd">与</option>
-                  <option value="or" data-i18n="list.relationOr">或</option>
-                  <option value="not" data-i18n="list.relationNot">非</option>
-                </select>
-                <span data-i18n="list.tagRelationLabel">标签</span>
-                <select id="relation-between-tag-and-tag" class="mdui-select">
-                  <option value="and" data-i18n="list.relationAnd">与</option>
-                  <option value="or" data-i18n="list.relationOr">或</option>
-                </select>
-                <span data-i18n="list.tagEnding">标签。</span>
-              </p>
-            </div>
+        <div class="mdui-panel-item-body">
+          <div class="mdui-textfield" id="filter-expression-field">
+            <label class="mdui-textfield-label" data-i18n="list.filterExpression">筛选表达式</label>
+            <input class="mdui-textfield-input" type="text" placeholder="name: fold &amp; tag: mcje" data-i18n="list.filterPlaceholder" data-i18n-attr="placeholder" />
+            <div class="mdui-textfield-error" data-i18n="list.filterError">格式不正确，请检查表达式</div>
           </div>
-          <div class="mdui-col-xs-12 mdui-col-sm-6">
-            <div class="mdui-typo">
-              <p data-i18n="list.tagLabel">标签：</p>
-            </div>
-            <div id="filter-tag">
-              <!-- 将由JS生成，下方为示例 -->
-              <div class="mdui-spinner"></div>
+          <div class="mdui-panel" mdui-panel>
+            <div class="mdui-panel-item" id="filter-help-panel">
+              <div class="mdui-panel-item-header mdui-ripple">
+                <div data-i18n="list.filterHelpTitle">筛选帮助</div>
+                <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+              </div>
+              <div class="mdui-panel-item-body mdui-typo" id="filter-help-panel-body">
+                <p><span data-i18n="list.filterHelpFormatPrefix">单个条件格式：</span><code>关系 + 键 + ":" + 值</code></p>
+                <p data-i18n="list.filterHelpCombine">允许多个条件组合。首个条件无需关系。</p>
+                <p><span data-i18n="list.filterHelpExampleIntro">例如筛选名字含"fold"且标签含"mcje"：</span></p>
+                <p><button type="button" class="xf-inline-code" data-insert="name: fold &amp; tag: mcje">name: fold &amp; tag: mcje</button></p>
+                <p data-i18n="list.filterHelpClickHint">可直接点击下方文字插入到编辑框。</p>
+                <p>
+                  <span data-i18n="list.filterHelpRelations">可用关系：</span>
+                  <button type="button" class="xf-inline-code" data-insert="&amp;" data-i18n="common.relationAnd">与</button>,
+                  <button type="button" class="xf-inline-code" data-insert="|" data-i18n="common.relationOr">或</button>,
+                  <button type="button" class="xf-inline-code" data-insert="!" data-i18n="common.relationNot">非</button>
+                </p>
+                <p>
+                  <span data-i18n="list.filterHelpKeys">可用键：</span>
+                  <button type="button" class="xf-inline-code" data-insert="name:">name</button>,
+                  <button type="button" class="xf-inline-code" data-insert="tag:">tag</button>
+                </p>
+                <p>
+                  <span data-i18n="list.filterHelpEscapes">可用转义：</span>
+                  <button type="button" class="xf-inline-code" data-insert="\&amp;">\&amp;</button>,
+                  <button type="button" class="xf-inline-code" data-insert="\|">\|</button>,
+                  <button type="button" class="xf-inline-code" data-insert="\!">\!</button>,
+                  <button type="button" class="xf-inline-code" data-insert="\\">\\</button>
+                </p>
+              </div>
             </div>
           </div>
         </div>

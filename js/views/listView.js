@@ -14,87 +14,52 @@ export function setFilterIndicator(on, off, active) {
   }
 }
 
-/** 同时显示目录与标签两个并行请求的加载状态。 */
+/** 显示目录加载状态。 */
 export function renderListLoading(elements) {
   renderStatus(elements.list, 'loading', { message: t('list.loadingCatalog') });
-  renderStatus(elements.tags, 'loading', { message: t('list.loadingTags') });
   setFilterIndicator(elements.filterIndicatorOn, elements.filterIndicatorOff, false);
 }
 
-/** 目录失败时清空标签区，防止保留上一次加载的筛选按钮。 */
+/** 目录加载失败时显示错误与重试按钮。 */
 export function renderListError(elements, error, onRetry) {
   renderStatus(elements.list, 'error', { message: error.message, onRetry });
-  elements.tags.replaceChildren();
   setFilterIndicator(elements.filterIndicatorOn, elements.filterIndicatorOff, false);
 }
 
 /**
- * 渲染可多选的标签按钮。
- * onChange 收到 Set<string>，空集合代表“显示所有”。
+ * 为筛选帮助面板中的可点击文本（[data-insert] 按钮）绑定插入行为。
+ * 点击/回车/空格后在输入框光标处插入 data-insert 文本，并派发 input 事件让筛选重新解析；
+ * 输入框未聚焦时插入到末尾。
  */
-export function renderFilterTags(container, tags, onChange) {
-  // 事件委托只绑定在容器一次，后续按钮的视觉状态由 activeTagIds 单一来源驱动。
-  // 重试场景下会再次调用本函数：先 abort 上一次的 AbortController，
-  // 让旧监听器停止响应，避免一次点击触发多次 onChange（旧闭包仍指向已废弃的 Set）。
-  if (container._tagFilterAbort) container._tagFilterAbort.abort();
-  const ac = new AbortController();
-  container._tagFilterAbort = ac;
+export function enableFilterHelpInserts(container, input) {
+  if (!container || !input) return;
 
-  const activeTagIds = new Set();
-  const fragment = document.createDocumentFragment();
-  const allButton = createTagButton(t('common.showAll'), '', true);
-  fragment.appendChild(allButton);
-  tags.forEach((tag) => fragment.appendChild(createTagButton(translateTag(tag.name), String(tag.id))));
-  container.replaceChildren(fragment);
+  const insert = (event) => {
+    const token = event.target.closest('[data-insert]');
+    if (!token) return;
+    insertFilterText(input, token.dataset.insert);
+  };
+  const insertOnKeydown = (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const token = event.target.closest('[data-insert]');
+    if (!token) return;
+    event.preventDefault();
+    insertFilterText(input, token.dataset.insert);
+  };
 
-  container.addEventListener('click', (event) => {
-    const button = event.target.closest('button[data-tag-id]');
-    if (!button) return;
-    const tagId = button.dataset.tagId;
-    // “显示所有”不是一个普通标签：它清空集合，其他标签则允许多选。
-    if (!tagId) activeTagIds.clear();
-    else if (activeTagIds.has(tagId)) activeTagIds.delete(tagId);
-    else activeTagIds.add(tagId);
-
-    container.querySelectorAll('button[data-tag-id]').forEach((candidate) => {
-      const id = candidate.dataset.tagId;
-      candidate.classList.toggle('mdui-color-theme-accent', id ? activeTagIds.has(id) : activeTagIds.size === 0);
-      candidate.setAttribute('aria-pressed', id ? String(activeTagIds.has(id)) : String(activeTagIds.size === 0));
-    });
-    // 传副本而非内部 Set，防止 controller 意外修改 view 持有的状态。
-    onChange(new Set(activeTagIds));
-  }, { signal: ac.signal });
-
-  // 垂直滚动时改为水平滚动
-  container.addEventListener('wheel', function (e) {
-    // 如果用户按了 Shift 键，浏览器会原生处理水平滚动，我们就不干预
-    if (e.shiftKey) return;
-
-    // 标签没有溢出（宽屏下全部标签放得下）时不拦截滚轮，
-    // 否则鼠标悬停在标签栏上时页面无法上下滚动。
-    if (container.scrollWidth <= container.clientWidth) return;
-
-    // 阻止页面上下滚动
-    e.preventDefault();
-
-    // 把垂直滚动增量 deltaY 转为水平滚动增量
-    container.scrollBy({
-      left: e.deltaY,
-      behavior: 'smooth'
-    });
-  }, { passive: false, signal: ac.signal });
+  container.addEventListener('click', insert);
+  container.addEventListener('keydown', insertOnKeydown);
 }
 
-/** 创建单个可访问的 button，不使用无 href 的 a 标签模拟按钮。 */
-function createTagButton(label, tagId, selected = false) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'mdui-btn mdui-btn-raised mdui-ripple mdui-m-a-1';
-  button.classList.toggle('mdui-color-theme-accent', selected);
-  button.textContent = label;
-  button.dataset.tagId = tagId;
-  button.setAttribute('aria-pressed', String(selected));
-  return button;
+/** 把文本插入输入框：聚焦时在光标处插入，否则追加到末尾，然后触发 input 事件。 */
+function insertFilterText(input, text) {
+  if (document.activeElement === input && typeof input.setRangeText === 'function') {
+    input.setRangeText(text, input.selectionStart ?? 0, input.selectionEnd ?? 0, 'end');
+  } else {
+    input.value += text;
+  }
+  input.focus();
+  input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 /** 打开方式值到页面路径的映射。 */
