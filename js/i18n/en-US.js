@@ -251,6 +251,7 @@ const enUS = {
     8: 'Mirror 9',
     9: 'Mirror 10',
     10: 'Mirror 11',
+    11: 'Mirror 12',
   },
 
   // Detail page messages (data/software/*/detail.json message, keyed by softwareId.index)

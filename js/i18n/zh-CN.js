@@ -252,6 +252,7 @@ const zhCN = {
     8: '线路9',
     9: '线路10',
     10: '线路11',
+    11: '线路12',
   },
 
   // 详情页消息（data/software/*/detail.json 的 message，按 软件ID.序号 寻址）

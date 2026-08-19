@@ -43,5 +43,12 @@
     "name": "线路11",
     "baseUrl": "https://mirror.cxsjmc.cn",
     "contributeId": [4]
+  },
+  {
+    "id": 11,
+    "name": "线路12",
+    "baseUrl": "https://e-e.cv",
+    "apiVer": "Lemwood",
+    "contributeId": [8]
   }
 ]

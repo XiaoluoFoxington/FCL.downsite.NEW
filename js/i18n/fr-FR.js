@@ -251,6 +251,7 @@ const frFR = {
     8: 'Miroir 9',
     9: 'Miroir 10',
     10: 'Miroir 11',
+    11: 'Miroir 12',
   },
 
   // Messages de la page de détails (message de data/software/*/detail.json, indexés par logicielID.index)

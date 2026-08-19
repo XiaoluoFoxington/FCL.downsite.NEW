@@ -121,5 +121,28 @@
         "href": "https://www.mcddos.top"
       }
     ]
+  },
+  {
+    "id": 8,
+    "accentName": "马铃薯_potato",
+    "avatar": "https://e-e.cv/images/icon.webp",
+    "link": [
+      {
+        "name": "Github",
+        "href": "https://github.com/potato11980"
+      },
+      {
+        "name": "Bilibili",
+        "href": "https://space.bilibili.com/1908400810"
+      },
+      {
+        "name": "QQ",
+        "href": "https://qm.qq.com/q/WpS3Zisiwo"
+      },
+      {
+        "name": "个人网站",
+        "href": "https://potato.e-e.cv"
+      }
+    ]
   }
 ]

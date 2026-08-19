@@ -252,6 +252,7 @@ const esES = {
     8: 'Línea 9',
     9: 'Línea 10',
     10: 'Línea 11',
+    11: 'Línea 12',
   },
 
   // Mensajes de la página de detalles (message de data/software/*/detail.json, por ID de software.índice)

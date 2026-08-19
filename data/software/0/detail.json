@@ -54,6 +54,10 @@
     {
       "mirrorId": 10,
       "key": "/api/v1/FCL/"
+    },
+    {
+      "mirrorId": 11,
+      "key": "/api/download/fcl.json"
     }
   ],
   "OSRequest": [
