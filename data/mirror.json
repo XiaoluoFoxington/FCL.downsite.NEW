@@ -3,6 +3,7 @@
     "id": 0,
     "name": "线路1",
     "baseUrl": "/data/down",
+    "description": "由站长手动更新，可能不是最新版本。",
     "contributeId": [0]
   },
   {
@@ -10,6 +11,7 @@
     "name": "线路2",
     "baseUrl": "https://fyhub.cn",
     "apiVer": "fengyuan",
+    "description": "枫源镜像。",
     "contributeId": [1]
   },
   {
@@ -36,6 +38,7 @@
     "name": "线路10",
     "baseUrl": "https://miawa.cn",
     "apiVer": "Lemwood",
+    "description": "柠泽资源站。",
     "contributeId": [2]
   },
   {

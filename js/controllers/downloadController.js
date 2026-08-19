@@ -53,6 +53,8 @@ export function createDownloadController(elements, softwareId) {
           // apiVer 为空时走 plain adapter，允许旧镜像逐步迁移。
           apiVersion: mirror.apiVer,
           notJoinRandom: download.notJoinRandom, // 这个傻逼地方害我找了一个小时，专门写这个注释吐槽一下。
+          // 线路描述（data/mirror.json 的 description），由 selector 渲染在选择框下方。
+          description: mirror.description,
         };
       });
       if (!mirrorItems.length) throw new Error(t('common.noMirrorInfo'));
