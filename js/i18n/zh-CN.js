@@ -536,7 +536,8 @@ const zhCN = {
     accentLabel: 'Accent (强调色)',
     samplePlain: '这行文本很普通。',
     sampleLink: '这是一个链接',
-    sampleMark: '使用 mark 标签来{theme.markText}。',
+    sampleMark: '使用 {mark} 标签来{theme.markText}。',
+    // TODO: 其他语言的这里还没改
     markText: '高亮文本',
     sampleDel: '这行文本被视为已删除文本。',
     sampleIns: '这行文本是被强势插入的元素。',

@@ -3,6 +3,20 @@
   src: url('/media/font/Mojangles.ttf');
 }
 
+:root {
+  --code-font-family:
+    /* 1. 现代编程字体（若用户安装则启用，颜值最高） */
+    '等距更纱黑体 Slab SC', '等距更纱黑体 SC', 'Maple Mono NF CN', "Sarasa Mono", "Source Code Pro", "JetBrains Mono", "Cascadia Code", "Fira Code",
+    /* 2. macOS / iOS / 鸿蒙 (HarmonyOS) 原生 */
+    "HarmonyOS Sans Mono", Menlo, Monaco,
+    /* 3. Windows 原生 */
+    Consolas, "Courier New",
+    /* 4. Android / Linux 原生 */
+    "Roboto Mono", "Ubuntu Mono", "DejaVu Sans Mono", "Liberation Mono",
+    /* 5. 终极兜底（浏览器强制调用系统默认等宽字体） */
+    monospace;
+}
+
 * {
   /* scrollbar-width: thin; */
   scrollbar-color: #80808080 transparent;
@@ -179,17 +193,7 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   font-size: 16px;
   color: #808080;
   opacity: 0.5;
-  font-family:
-      /* 1. 现代编程字体（若用户安装则启用，颜值最高） */
-      '等距更纱黑体 Slab SC', '等距更纱黑体 SC', 'Maple Mono NF CN', "Sarasa Mono", "Source Code Pro", "JetBrains Mono", "Cascadia Code", "Fira Code",
-      /* 2. macOS / iOS / 鸿蒙 (HarmonyOS) 原生 */
-      "HarmonyOS Sans Mono", Menlo, Monaco,
-      /* 3. Windows 原生 */
-      Consolas, "Courier New",
-      /* 4. Android / Linux 原生 */
-      "Roboto Mono", "Ubuntu Mono", "DejaVu Sans Mono", "Liberation Mono",
-      /* 5. 终极兜底（浏览器强制调用系统默认等宽字体） */
-      monospace;
+  font-family: var(--code-font-family);
   z-index: 7001; /* 刚好比Snackbar高1（（（ */
 }
 
@@ -467,4 +471,15 @@ html[data-xf-theme="light"] .sortable-table-indicator {
   text-align: center;
   padding: 16px;
   font-style: italic;
+}
+
+/* 覆盖MDUI的内联代码样式 */
+.xf-inline-code,
+.mdui-typo.mdui-typo code {
+  background-color: unset;
+  border: none;
+  color: unset;
+  margin: 0;
+  padding: 0;
+  font-family: var(--code-font-family);
 }
