@@ -1,4 +1,4 @@
-import { adaptDownloadData, randomlySelectDefault } from '../adapters/download/index.js';
+import { adaptDownloadData } from '../adapters/download/index.js';
 import { loadDescription, loadDownloadNodes } from '../repositories/downloadRepository.js';
 import { createSafeContent } from '../security/content.js';
 import { createSelectorView } from '../views/selectorView.js';
@@ -77,7 +77,9 @@ export function createDownloadSelectorController(options) {
 
 /**
  * 内联 children 归一化处理。
- * 若声明了 apiVersion 则通过适配器转换，随机标记时随机选择默认项。
+ * 若声明了 apiVersion 则通过适配器转换；自动选择默认线路由上层
+ * （downloadController 对多线路调用 selectAutoDefault）预先标记好，
+ * 这里只负责结构转换，不再自行挑选默认项。
  * @param {object} item 含 children/items 的节点
  * @returns {Array<object>} 归一化后的子节点
  */
@@ -87,7 +89,7 @@ export function createDownloadSelectorController(options) {
     if (item.apiVersion) {
       children = adaptDownloadData(children, item.apiVersion, { source: item.sourceName || item.name });
     }
-    return item.random ? randomlySelectDefault(children) : children;
+    return children;
   }
 
 /**
@@ -111,8 +113,6 @@ export function createDownloadSelectorController(options) {
         apiVersion: item.apiVersion,
         softwareName,
         sourceName: item.sourceName || item.name,
-        random: item.random,
-        notJoinRandom: item.notJoinRandom,
         signal,
       });
     } else if (item.children || item.items) {

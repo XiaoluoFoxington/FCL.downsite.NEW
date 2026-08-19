@@ -24,7 +24,6 @@
       "key": "/api/releases?owner=BZLZHH&repo=NGG-FCLRendererPlugin&versions=20"
     }
   ],
-  "randomSelectMirror": true,
   "message": [
     {
       "type": "warning",

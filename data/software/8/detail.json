@@ -17,14 +17,12 @@
     },
     {
       "mirrorId": 7,
-      "key": "/8.json",
-      "notJoinRandom": true
+      "key": "/8.json"
     }
   ],
   "OSRequest": [
     {
       "osName": "Android"
     }
-  ],
-  "randomSelectMirror": true
+  ]
 }

@@ -21,8 +21,7 @@
   "download": [
     {
       "mirrorId": 0,
-      "key": "/4/index.json",
-      "notJoinRandom": true
+      "key": "/4/index.json"
     },
     {
       "mirrorId": 4,
@@ -37,6 +36,5 @@
     {
       "osName": "Android"
     }
-  ],
-  "randomSelectMirror": true
+  ]
 }

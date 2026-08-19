@@ -1,4 +1,5 @@
 import { detectSystemInfo, checkOSRequirement } from '../domain/systemInfo.js';
+import { selectAutoDefault } from '../domain/autoSelect.js';
 import { getMirrors, getSoftware } from '../repositories/siteRepository.js';
 import { createDownloadSelectorController } from './downloadSelectorController.js';
 import { renderStatus, renderMessages, setErrorTitle, setSoftwareHeader } from '../views/commonView.js';
@@ -52,12 +53,14 @@ export function createDownloadController(elements, softwareId) {
           nextUrl: joinUrl(mirror.baseUrl, download.key),
           // apiVer 为空时走 plain adapter，允许旧镜像逐步迁移。
           apiVersion: mirror.apiVer,
-          notJoinRandom: download.notJoinRandom, // 这个傻逼地方害我找了一个小时，专门写这个注释吐槽一下。
+          notJoinRandom: mirror.notJoinRandom, // 是否参与随机选择由 mirror.json 统一管理。
           // 线路描述（data/mirror.json 的 description），由 selector 渲染在选择框下方。
           description: mirror.description,
         };
       });
       if (!mirrorItems.length) throw new Error(t('common.noMirrorInfo'));
+      // 存在多条线路时自动进入自动选择：由 domain 模块挑选默认线路，selector 只负责渲染。
+      const autoMirrorItems = mirrorItems.length > 1 ? selectAutoDefault(mirrorItems) : mirrorItems;
 
       elements.container.replaceChildren();
       // 根层只有“当前软件”一个自动选项，下一层才是用户可切换的镜像线路。
@@ -66,7 +69,7 @@ export function createDownloadController(elements, softwareId) {
         stopButton: elements.stopButton,
         matchedArchitecture: system.matchedArchitecture,
         softwareName: basic.name,
-        dataSource: [{ name: basic.name, nameIsSoftware: true, children: mirrorItems, random: detail.randomSelectMirror, notJoinRandom: detail.notJoinRandom, filter: detail.filter, description: detail.description }],
+        dataSource: [{ name: basic.name, nameIsSoftware: true, children: autoMirrorItems, filter: detail.filter, description: detail.description }],
       });
       selectorController.start();
     } catch (error) {

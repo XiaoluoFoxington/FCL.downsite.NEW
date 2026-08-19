@@ -5,7 +5,6 @@ import { adaptLemwood } from './lemwood.js';
 import { adaptPlain } from './plain.js';
 import { adaptLinkong } from './Linkong.js';
 import { adaptWay2old } from './way2old.js';
-export { randomlySelectDefault } from './common.js';
 import { t } from '../../common/i18n.js';
 
 /**
@@ -28,7 +27,7 @@ const ADAPTERS = new Map([
  * 路由到指定 apiVer 的 adapter，转换上游响应为统一下载节点。
  * @param {unknown} payload 上游 API 已解析的 JSON
  * @param {string|undefined} apiVersion data/mirror.json 中的 apiVer
- * @param {{source?: string, baseUrl?: string, latestVersion?: string|null, notJoinRandom?: boolean}} context adapter 共享上下文
+ * @param {{source?: string, baseUrl?: string, latestVersion?: string|null}} context adapter 共享上下文
  * @returns {Array<object>} 统一下载节点数组
  */
 export function adaptDownloadData(payload, apiVersion, context = {}) {
@@ -37,7 +36,6 @@ export function adaptDownloadData(payload, apiVersion, context = {}) {
     source: context.source || apiVersion || t('common.unknownMirror'),
     baseUrl: context.baseUrl || window.location.origin,
     latestVersion: context.latestVersion || payload?.latest || null,
-    notJoinRandom: context.notJoinRandom || false,
   };
   return (ADAPTERS.get(apiVersion) || adaptPlain)(payload, normalizedContext);
 }

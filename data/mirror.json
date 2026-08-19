@@ -4,6 +4,7 @@
     "name": "线路1",
     "baseUrl": "/data/down",
     "description": "由站长手动更新，可能不是最新版本。",
+    "notJoinRandom": true,
     "contributeId": [0]
   },
   {
@@ -19,18 +20,21 @@
     "name": "线路5",
     "baseUrl": "https://fcl.072211.xyz",
     "apiVer": "Linkong",
+    "notJoinRandom": true,
     "contributeId": [3]
   },
   {
     "id": 7,
     "name": "线路8",
     "baseUrl": "/data/mirror/8",
+    "notJoinRandom": true,
     "contributeId": [6]
   },
   {
     "id": 8,
     "name": "线路9",
     "baseUrl": "https://api.lisongyun.top",
+    "notJoinRandom": true,
     "contributeId": [5]
   },
   {
@@ -52,6 +56,7 @@
     "name": "线路12",
     "baseUrl": "https://e-e.cv",
     "apiVer": "Lemwood",
+    "notJoinRandom": true,
     "contributeId": [8]
   }
 ]

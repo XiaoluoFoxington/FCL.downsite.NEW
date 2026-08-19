@@ -144,7 +144,8 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   });
   elements.body.replaceChildren(fragment);
 
-  elements.isRandomSelect.textContent = detail.randomSelectMirror ? t('common.yes') : t('common.no');
+  // 存在多条线路时自动进入自动选择，与下载页行为保持一致。
+  elements.isAutoSelect.textContent = (detail.download || []).length > 1 ? t('common.yes') : t('common.no');
   const messages = (detail.message || []).map((msg, index) => ({
     ...msg,
     text: tOr(`detailMessage.${id}.${index}`, msg.text),
@@ -236,8 +237,9 @@ function createInfoValue(item) {
 
 /**
  * 渲染线路预览表。
- * downloads 项结构为 { mirrorId, key, notJoinRandom? }；mirrors 提供 id→name 映射，
+ * downloads 项结构为 { mirrorId, key }；mirrors 提供 id→name 映射，
  * 找不到时降级显示纯 ID，避免孤立的 mirrorId 让用户误以为是配置错位。
+ * notJoinRandom 统一由 mirror.json 管理，表示该线路不参与自动选择中的随机选择部分。
  */
 function renderMirrorInfo(body, downloads, mirrors) {
   if (!body) return;
@@ -253,7 +255,7 @@ function renderMirrorInfo(body, downloads, mirrors) {
     const idCell = document.createElement('td');
     const nameCell = document.createElement('td');
     const urlCell = document.createElement('td');
-    const randomCell = document.createElement('td');
+    const joinAutoSelectCell = document.createElement('td');
     const mirror = mirrorMap.get(download.mirrorId);
 
     idCell.textContent = download.mirrorId;
@@ -264,8 +266,8 @@ function renderMirrorInfo(body, downloads, mirrors) {
       nameCell.textContent = t('common.unknownMirror');
       urlCell.textContent = t('common.mirrorConfigMissing');
     }
-    randomCell.textContent = download.notJoinRandom ? t('common.no') : t('common.yes');
-    row.append(idCell, nameCell, urlCell, randomCell);
+    joinAutoSelectCell.textContent = mirror?.notJoinRandom ? t('common.no') : t('common.yes');
+    row.append(idCell, nameCell, urlCell, joinAutoSelectCell);
     fragment.appendChild(row);
   });
   body.replaceChildren(fragment);

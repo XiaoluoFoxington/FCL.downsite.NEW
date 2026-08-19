@@ -31,8 +31,7 @@
   "download": [
     {
       "mirrorId": 0,
-      "key": "/0/index.json",
-      "notJoinRandom": true
+      "key": "/0/index.json"
     },
     {
       "mirrorId": 1,
@@ -44,8 +43,7 @@
     },
     {
       "mirrorId": 8,
-      "key": "/fcl",
-      "notJoinRandom": true
+      "key": "/fcl"
     },
     {
       "mirrorId": 9,
@@ -65,6 +63,5 @@
       "osName": "Android",
       "osVersion": "7"
     }
-  ],
-  "randomSelectMirror": true
+  ]
 }

@@ -1,5 +1,5 @@
 import { getJSON, getText } from '../http/client.js';
-import { adaptDownloadData, randomlySelectDefault } from '../adapters/download/index.js';
+import { adaptDownloadData } from '../adapters/download/index.js';
 import { logWarn } from '../common/logger.js';
 
 /**
@@ -42,7 +42,7 @@ async function getLatestVersion(apiVersion, softwareName, payload, signal) {
 
 /**
  * 获取并适配一个选择器节点的下级数据。
- * @param {{url?: string, apiVersion?: string, softwareName?: string, sourceName?: string, random?: boolean, notJoinRandom?: boolean, signal?: AbortSignal}} options
+ * @param {{url?: string, apiVersion?: string, softwareName?: string, sourceName?: string, signal?: AbortSignal}} options
  * @returns {Promise<Array<object>>} 可继续选择的分组节点，或可直接渲染的统一下载叶子节点
  */
 export async function loadDownloadNodes({
@@ -50,8 +50,6 @@ export async function loadDownloadNodes({
   apiVersion,
   softwareName,
   sourceName,
-  random = false,
-  notJoinRandom = false,
   signal,
 }) {
   // cxsjmc 的旧协议没有可请求的目录 URL，而是由 GitHub 最新 Release 拼出直链。
@@ -74,9 +72,8 @@ export async function loadDownloadNodes({
     source: sourceName,
     baseUrl: new URL(url, window.location.href).origin,
     latestVersion,
-    notJoinRandom,
   });
-  return random ? randomlySelectDefault(nodes) : nodes;
+  return nodes;
 }
 
 /**

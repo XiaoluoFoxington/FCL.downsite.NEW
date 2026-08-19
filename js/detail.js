@@ -12,7 +12,7 @@ import { t } from './common/i18n.js';
 document.addEventListener('DOMContentLoaded', () => {
   const elements = {
     body: document.getElementById('basic-info-body'),
-    isRandomSelect: document.getElementById('is-random-select'),
+    isAutoSelect: document.getElementById('is-auto-select'),
     mirrorInfoBody: document.getElementById('mirror-info-body'),
     operations: document.getElementById('operationTable'),
     download: document.getElementById('btn-download'),

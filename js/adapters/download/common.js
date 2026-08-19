@@ -46,16 +46,3 @@ export function normalizeDownloadItem(item, source, version = '') {
     source,
   };
 }
-
-/**
- * 按配置随机标记一个 default=true 节点；notJoinRandom=true 的节点永不参与。
- * @param {Array<object>} items 候选节点数组
- * @returns {Array<object>} 新数组，其中一项被标记为 default: true
- */
-export function randomlySelectDefault(items) {
-  // 不修改原数组项，避免同一份镜像响应被下一次选择复用时保留过期 default 状态。
-  const candidates = items.filter((item) => item.notJoinRandom !== true);
-  if (!candidates.length) return items;
-  const chosen = candidates[Math.floor(Math.random() * candidates.length)];
-  return items.map((item) => ({ ...item, default: item === chosen }));
-}

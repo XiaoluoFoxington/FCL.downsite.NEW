@@ -37,8 +37,7 @@
     },
     {
       "mirrorId": 8,
-      "key": "/MG",
-      "notJoinRandom": true
+      "key": "/MG"
     },
     {
       "mirrorId": 9,
@@ -49,6 +48,5 @@
     {
       "osName": "Android"
     }
-  ],
-  "randomSelectMirror": true
+  ]
 }

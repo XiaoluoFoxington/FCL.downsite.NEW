@@ -25,8 +25,7 @@
   "download": [
     {
       "mirrorId": 0,
-      "key": "/3/index.json",
-      "notJoinRandom": true
+      "key": "/3/index.json"
     },
     {
       "mirrorId": 1,
@@ -38,8 +37,7 @@
     },
     {
       "mirrorId": 8,
-      "key": "/zl2",
-      "notJoinRandom": true
+      "key": "/zl2"
     },
     {
       "mirrorId": 9,
@@ -55,6 +53,5 @@
       "osName": "Android"
     }
   ],
-  "randomSelectMirror": true,
   "filter": [".apk"]
 }
