@@ -94,7 +94,6 @@ body {
 .xf-list-table-th-sortable {
   cursor: pointer;
   user-select: none;
-  white-space: nowrap;
   transition: background-color .28s cubic-bezier(.4, 0, .2, 1);
 }
 

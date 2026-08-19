@@ -279,7 +279,7 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
   if (!table) {
     // 首次：创建完整表格，事件委托绑定在 table 上，避免重复绑定
     table = document.createElement('table');
-    table.className = 'mdui-table mdui-table-hoverable xf-list-table';
+    table.className = 'mdui-table mdui-table-hoverable xf-list-table xf-nowrap';
     table.appendChild(createThead());
     table.appendChild(document.createElement('tbody'));
     container.replaceChildren(table);
