@@ -101,6 +101,7 @@ const esES = {
       openSource: 'Este sitio es completamente de código abierto; el repositorio de GitHub está en el enlace de abajo.',
       statsNotice: 'Este sitio utiliza {common.nav.statsAlt} para estadísticas de visitas; los informes detallados públicos están en el enlace de abajo.',
       statsAlt: 'Estadísticas de 51la',
+      statsBlockNotice: 'Si no quieres ser rastreado, puedes activar un bloqueador de anuncios. Si el icono de 51.la no aparece en el aviso anterior, significa que el bloqueador de anuncios funciona correctamente.',
       welcome: 'Bienvenido a este ',
       welcomeHighlight: 'sitio no oficial de descargas de FCL ',
       welcomeSite: 'construido por la comunidad de jugadores.',

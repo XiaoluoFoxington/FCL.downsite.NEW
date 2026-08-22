@@ -100,6 +100,7 @@ const enUS = {
       openSource: 'This website is completely open source. See the GitHub repository link below.',
       statsNotice: 'This website uses {common.nav.statsAlt} to track visitor statistics. For the public detailed reports, see the link below.',
       statsAlt: '51la site analytics',
+      statsBlockNotice: "If you don't want to be tracked, enable an ad blocker. If the 51.la icon doesn't appear in the notice above, your ad blocker is working properly.",
       welcome: 'Welcome to the ',
       welcomeHighlight: 'player-community-built ',
       welcomeSite: 'unofficial FCL download site!',

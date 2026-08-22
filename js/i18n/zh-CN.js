@@ -101,6 +101,7 @@ const zhCN = {
       openSource: '此网站是完全开源的，GH仓库见下方链接。',
       statsNotice: '此网站使用 {common.nav.statsAlt} 统计访问信息，公开的详细报表见下方链接。',
       statsAlt: '51la网站统计',
+      statsBlockNotice: '如不想被统计，可开启广告拦截器。如发现上方提示中没有出现51.la图标，则说明广告拦截器已正常工作。',
       welcome: '欢迎来到这个',
       welcomeHighlight: '由玩家社区搭建的',
       welcomeSite: '非官方 FCL 下载站！',

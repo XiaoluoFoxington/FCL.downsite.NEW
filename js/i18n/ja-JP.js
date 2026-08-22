@@ -100,6 +100,7 @@ const jaJP = {
       openSource: 'このサイトは完全にオープンソースです。GitHubリポジトリへのリンクは下部にあります。',
       statsNotice: 'このサイトではアクセス解析のために {common.nav.statsAlt} を使用しています。公開されている詳細レポートは下部のリンクをご覧ください。',
       statsAlt: '51laサイト統計',
+      statsBlockNotice: '統計されたくない場合は、広告ブロッカーを有効にしてください。上の案内に51.laのアイコンが表示されなければ、広告ブロッカーが正常に動作しています。',
       welcome: 'ようこそ、',
       welcomeHighlight: 'プレイヤーコミュニティによって構築された',
       welcomeSite: '非公式 FCL ダウンロードサイトへ！',

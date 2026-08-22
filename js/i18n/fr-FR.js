@@ -100,6 +100,7 @@ const frFR = {
       openSource: 'Ce site est entièrement open source. Le dépôt GitHub se trouve via le lien ci-dessous.',
       statsNotice: 'Ce site utilise {common.nav.statsAlt} pour collecter les statistiques de visite. Les rapports publics détaillés se trouvent via le lien ci-dessous.',
       statsAlt: 'Statistiques 51la',
+      statsBlockNotice: "Si vous ne souhaitez pas être suivi·e, vous pouvez activer un bloqueur de publicités. Si l'icône 51.la n'apparaît pas dans l'avis ci-dessus, votre bloqueur de publicités fonctionne correctement.",
       welcome: 'Bienvenue sur ce site de téléchargement FCL non officiel, ',
       welcomeHighlight: 'créé par la communauté de joueurs',
       welcomeSite: ' !',
