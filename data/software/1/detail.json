@@ -42,6 +42,10 @@
     {
       "mirrorId": 9,
       "key": "/api/v2/launchers/MG"
+    },
+    {
+      "mirrorId": 11,
+      "key": "/api/download/mg.json"
     }
   ],
   "OSRequest": [
