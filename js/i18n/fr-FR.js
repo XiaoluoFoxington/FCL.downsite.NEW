@@ -537,7 +537,7 @@ const frFR = {
     accentLabel: 'Accent (couleur d\'accentuation)',
     samplePlain: 'Cette ligne de texte est ordinaire.',
     sampleLink: 'Ceci est un lien',
-    sampleMark: 'Utilisez la balise mark pour {theme.markText}.',
+    sampleMark: 'Utilisez la balise {mark} pour {theme.markText}.',
     markText: 'mettre le texte en évidence',
     sampleDel: 'Cette ligne de texte est traitée comme du texte supprimé.',
     sampleIns: 'Cette ligne de texte est un élément inséré avec force.',

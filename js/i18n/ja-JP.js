@@ -537,7 +537,7 @@ const jaJP = {
     accentLabel: 'アクセント（強調色）',
     samplePlain: 'この行のテキストは普通です。',
     sampleLink: 'これはリンクです',
-    sampleMark: 'mark タグを使って{theme.markText}。',
+    sampleMark: '{mark} タグを使って{theme.markText}。',
     markText: 'テキストをハイライトします',
     sampleDel: 'この行のテキストは削除されたテキストとして扱われます。',
     sampleIns: 'この行のテキストは強制的に挿入された要素です。',
