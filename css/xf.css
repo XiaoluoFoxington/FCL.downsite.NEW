@@ -146,6 +146,13 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   display: none !important;
 }
 
+/* 全部行被筛选条件隐藏时的占位提示行。 */
+.xf-filter-empty td {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--mdui-color-grey-600, #757575);
+}
+
 .xf-matched-arch{
   background-color: #00ff0040;
 }

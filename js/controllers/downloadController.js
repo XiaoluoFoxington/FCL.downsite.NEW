@@ -1,4 +1,4 @@
-import { detectSystemInfo, checkOSRequirement } from '../domain/systemInfo.js';
+import { detectSystemInfo, checkOSRequirement, getSystemDownloadExtensions } from '../domain/systemInfo.js';
 import { selectAutoDefault } from '../domain/autoSelect.js';
 import { getMirrors, getSoftware } from '../repositories/siteRepository.js';
 import { createDownloadSelectorController } from './downloadSelectorController.js';
@@ -68,6 +68,8 @@ export function createDownloadController(elements, softwareId) {
         container: elements.container,
         stopButton: elements.stopButton,
         matchedArchitecture: system.matchedArchitecture,
+        // 系统自动筛选：根据当前系统生成扩展名白名单，下载表格对未命中项默认隐藏。
+        osExtensions: getSystemDownloadExtensions(system?.fullResult?.os?.name),
         softwareName: basic.name,
         dataSource: [{ name: basic.name, nameIsSoftware: true, children: autoMirrorItems, filter: detail.filter, description: detail.description }],
       });

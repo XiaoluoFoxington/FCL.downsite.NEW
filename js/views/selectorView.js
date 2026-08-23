@@ -25,11 +25,28 @@ function createLevel(container, level) {
 }
 
 /**
+ * 判断下载 URL 是否命中系统扩展名白名单。
+ * 只比较 URL 路径部分的文件扩展名（大小写不敏感），支持 tar.gz 等复合扩展名。
+ * @param {string} url 下载地址
+ * @param {Array<string>} extensions 扩展名列表（不含点，小写）
+ * @returns {boolean} 命中返回 true
+ */
+function matchesOsExtension(url, extensions) {
+  try {
+    const pathname = new URL(url, window.location.href).pathname.toLowerCase();
+    return extensions.some((ext) => pathname.endsWith(`.${ext.toLowerCase()}`));
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * 下载选择器的纯 DOM 视图。
  * 它不读取远程数据也不保存当前选择：controller 传入节点和回调，
  * 因而更换镜像协议不会影响表格、筛选和可访问性渲染。
+ * osExtensions 是系统自动筛选白名单，与选择层级无关，直接作用于最终下载表格。
  */
-export function createSelectorView(container, stopButton, matchedArchitecture) {
+export function createSelectorView(container, stopButton, matchedArchitecture, osExtensions = []) {
   function clearFrom(level) {
     // 删除 level 及之后的 section；父级选择框必须保留，用户才能改选线路。
     container.querySelectorAll('[data-selector-level]').forEach((element) => {
@@ -90,19 +107,22 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
 
     const rows = validItems.map((item) => {
       const architecture = inferArchitecture(item);
+      // 配置 filter 是 URL 正则白名单；系统自动筛选按扩展名白名单叠加（AND）。
+      // 任一条件未命中即隐藏，但允许用户手动展开查看。
+      const configMissed = Array.isArray(filter) && filter.length > 0
+        && !filter.some((pattern) => {
+          try {
+            return new RegExp(pattern).test(item.downloadUrl);
+          } catch (_) {
+            logWarn(_, { key: 'logger.context.invalidFilterRegex', params: { pattern } });
+            return false;
+          }
+        });
+      const osMissed = osExtensions.length > 0 && !matchesOsExtension(item.downloadUrl, osExtensions);
       return {
         item,
         architecture,
-        // filter 是数据配置中的 URL 正则白名单；未命中项先隐藏，但允许用户手动展开查看。
-        hidden: Array.isArray(filter) && filter.length > 0
-          && !filter.some((pattern) => {
-            try {
-              return new RegExp(pattern).test(item.downloadUrl);
-            } catch (_) {
-              logWarn(_, { key: 'logger.context.invalidFilterRegex', params: { pattern } });
-              return false;
-            }
-          }),
+        hidden: configMissed || osMissed,
         values: {
           architecture,
           description: item.description || '',
@@ -153,6 +173,19 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
       });
       tbody.appendChild(tr);
     });
+
+    // 所有行都被筛选条件隐藏时，表体不能空白：插入一行可读提示，说明现状并引导用户展开。
+    const hiddenCount = rows.filter((row) => row.hidden).length;
+    if (rows.length > 0 && hiddenCount === rows.length) {
+      const emptyTr = document.createElement('tr');
+      emptyTr.className = 'xf-filter-empty';
+      const emptyTd = document.createElement('td');
+      emptyTd.colSpan = visibleColumns.length;
+      emptyTd.textContent = t('common.filterNoMatch');
+      emptyTr.appendChild(emptyTd);
+      tbody.appendChild(emptyTr);
+    }
+
     table.append(thead, tbody);
     wrapper.appendChild(table);
 
@@ -163,12 +196,22 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
       section.appendChild(note);
     }
 
-    const hiddenCount = rows.filter((row) => row.hidden).length;
     if (hiddenCount) {
-      const filterDes = document.createElement('div');
-      filterDes.className = 'description mdui-typo';
-      filterDes.textContent = t('common.filterDes', { filter: filter.join(', ') || '无' });
-      section.appendChild(filterDes);
+      // 配置 filter 与系统自动筛选是两条独立的隐藏规则，分别说明原因。
+      if (Array.isArray(filter) && filter.length > 0) {
+        const filterDes = document.createElement('div');
+        filterDes.className = 'description mdui-typo';
+        filterDes.textContent = t('common.filterDes', { filter: filter.join(', ') || '无' });
+        section.appendChild(filterDes);
+      }
+      if (osExtensions.length > 0) {
+        const osDes = document.createElement('div');
+        osDes.className = 'description mdui-typo';
+        osDes.textContent = t('common.osFilterHint', {
+          exts: osExtensions.map((ext) => `.${ext}`).join(', '),
+        });
+        section.appendChild(osDes);
+      }
 
       // 用户主动要求后才展示被规则隐藏的项目，保留"推荐架构优先"的默认体验。
       const showdiv = document.createElement('div');
@@ -177,6 +220,8 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
         block: true,
         onClick: () => {
           tbody.querySelectorAll('.xf-filter-hidden').forEach((row) => row.classList.remove('xf-filter-hidden'));
+          // 全部隐藏时的占位提示行随展开一起移除，避免与真实数据行重复。
+          tbody.querySelectorAll('tr.xf-filter-empty').forEach((row) => row.remove());
           show.setAttribute('disabled', 'true');
           show.textContent = t('common.hiddenItemsShowed', { count: hiddenCount });
         },
