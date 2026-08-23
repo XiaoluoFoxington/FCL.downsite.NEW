@@ -24,6 +24,7 @@ function isBottomLevel(items) {
  * @param {HTMLElement} options.container 选择器的挂载点
  * @param {HTMLElement|null} options.stopButton 终止当前链路的按钮
  * @param {Array<object>} options.dataSource 根级选择数据
+ * @param {string} [options.osName] 当前系统显示名（用于筛选面板类别标签）
  * @returns {{start: () => void, abort: () => void}}
  */
 export function createDownloadSelectorController(options) {
@@ -31,7 +32,7 @@ export function createDownloadSelectorController(options) {
    * 选择器的状态机：一次“选择”拥有独立 AbortController 和递增序号。
    * 即使某些上游服务忽略 abort 后仍返回数据，序号也会阻止旧响应覆盖新选择。
    */
-  const view = createSelectorView(options.container, options.stopButton, options.matchedArchitecture, options.osExtensions);
+  const view = createSelectorView(options.container, options.stopButton, options.matchedArchitecture, options.osExtensions, options.osName);
   let activeController = null;
   let requestSequence = 0;
   let softwareName = options.softwareName;

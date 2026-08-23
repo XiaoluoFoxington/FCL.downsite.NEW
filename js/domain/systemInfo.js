@@ -172,7 +172,7 @@ export function buildSystemMessages(system) {
 /**
  * 系统 → 下载文件扩展名白名单。
  * 键为 UAParser os.name 的原始值（小写比较）；值为该平台常见的安装包/可执行文件扩展名（不含点）。
- * 各系统追加通用压缩包扩展名，避免误杀便携版/源码包。
+ * 压缩包/源码包不属于任何系统的原生格式，由下载表格筛选模块（downloadFilter.js）单独分类。
  * HarmonyOS 为纯血鸿蒙（HarmonyOS NEXT），不兼容 Android，仅认 .hap（应用安装包）与 .app（应用市场分发格式）。
  */
 const SYSTEM_EXTENSIONS = {
@@ -183,19 +183,17 @@ const SYSTEM_EXTENSIONS = {
   harmonyos: ['hap', 'app'],
 };
 
-/** 各平台通用的压缩包扩展名，追加到任何已知系统的白名单中。 */
-const COMMON_ARCHIVE_EXTENSIONS = ['zip', '7z', 'tar.gz', 'tar.xz', 'tgz', 'txz'];
-
 /**
  * 根据系统名称返回下载文件扩展名白名单（不含点，小写比较用）。
- * 未识别系统返回空数组（不启用系统自动筛选），避免未知平台只显示压缩包。
+ * 仅包含该系统的原生安装包扩展名；压缩包/源码包由下载表格筛选模块单独分类。
+ * 未识别系统返回空数组（不启用系统筛选），避免未知平台误隐藏文件。
  * @param {string|undefined} osName UAParser 返回的系统名，如 "Android"、"Windows"、"Mac OS"、"Linux"
  * @returns {Array<string>} 扩展名列表（小写），空数组表示不筛选
  */
 export function getSystemDownloadExtensions(osName) {
   const normalized = String(osName || '').toLowerCase();
   const base = SYSTEM_EXTENSIONS[normalized];
-  // 未识别系统不启用筛选；已知系统则叠加通用压缩包白名单。
+  // 未识别系统不启用筛选；已知系统返回其原生安装包扩展名。
   if (!base) return [];
-  return [...new Set([...base, ...COMMON_ARCHIVE_EXTENSIONS].map((ext) => ext.toLowerCase()))];
+  return [...new Set(base.map((ext) => ext.toLowerCase()))];
 }

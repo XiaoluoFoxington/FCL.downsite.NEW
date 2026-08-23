@@ -68,8 +68,10 @@ export function createDownloadController(elements, softwareId) {
         container: elements.container,
         stopButton: elements.stopButton,
         matchedArchitecture: system.matchedArchitecture,
-        // 系统自动筛选：根据当前系统生成扩展名白名单，下载表格对未命中项默认隐藏。
+        // 系统自动筛选：根据当前系统生成安装包扩展名白名单，供筛选面板的"当前系统"类别使用。
         osExtensions: getSystemDownloadExtensions(system?.fullResult?.os?.name),
+        // 系统显示名用于筛选面板的类别标签，如"当前系统（Windows）筛选条件（…）"。
+        osName: system?.fullResult?.os?.name || '',
         softwareName: basic.name,
         dataSource: [{ name: basic.name, nameIsSoftware: true, children: autoMirrorItems, filter: detail.filter, description: detail.description }],
       });

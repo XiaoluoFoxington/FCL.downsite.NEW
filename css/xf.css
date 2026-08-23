@@ -153,6 +153,16 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   color: var(--mdui-color-grey-600, #757575);
 }
 
+/* 下边距，不然折叠时会和文件表格挤在一起 */
+.xf-download-filter-panel {
+  margin: 16px 0;
+}
+
+.xf-download-filter-panel .xf-download-filter-categories .mdui-checkbox {
+  display: block; /* 一行一个 */
+  height: unset; /* MDUI里固定了高度，这里解除 */
+}
+
 .xf-matched-arch{
   background-color: #00ff0040;
 }

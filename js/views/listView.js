@@ -1,18 +1,7 @@
-import { renderStatus } from './commonView.js';
+import { renderStatus, setFilterIndicator } from './commonView.js';
 import { readPreference } from '../domain/preferences.js';
 import { isBookmarked, toggleBookmark } from '../domain/bookmarks.js';
 import { t, translateTag } from '../common/i18n.js';
-
-/** 切换筛选面板标题中“已有筛选条件”图标的显示。 */
-export function setFilterIndicator(on, off, active) {
-  if (active) {
-    on?.removeAttribute('hidden');
-    off?.setAttribute('hidden', '');
-  } else {
-    on?.setAttribute('hidden', '');
-    off?.removeAttribute('hidden');
-  }
-}
 
 /** 显示目录加载状态。 */
 export function renderListLoading(elements) {

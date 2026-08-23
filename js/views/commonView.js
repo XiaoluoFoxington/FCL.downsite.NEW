@@ -40,6 +40,23 @@ export function clearElement(element) {
 }
 
 /**
+ * 切换筛选面板标题中"已有筛选条件"图标的显示。
+ * 列表页与下载页共用：active 为 true 时显示 filter_alt（on），否则显示 filter_alt_off（off）。
+ * @param {HTMLElement|null} on 激活态图标（filter_alt）
+ * @param {HTMLElement|null} off 未激活态图标（filter_alt_off）
+ * @param {boolean} active 筛选是否处于激活状态
+ */
+export function setFilterIndicator(on, off, active) {
+  if (active) {
+    on?.removeAttribute('hidden');
+    off?.setAttribute('hidden', '');
+  } else {
+    on?.setAttribute('hidden', '');
+    off?.removeAttribute('hidden');
+  }
+}
+
+/**
  * 渲染消息面板。消息数组为空或不存在时隐藏外层容器。
  * 每条消息渲染为独立面板项，面板头标题为消息的 type 字段。
  * @param {HTMLElement} wrapper 外层容器（消息面板外套）

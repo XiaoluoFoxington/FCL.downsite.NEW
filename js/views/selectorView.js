@@ -1,8 +1,8 @@
 import { inferArchitecture } from '../domain/systemInfo.js';
+import { createFilterConfig } from '../domain/downloadFilter.js';
 import { isSafeNavigationUrl } from '../security/content.js';
-import { formatBytes, renderStatus } from './commonView.js';
-import { createExternalLink, createFluidTable, createRaisedButton } from './uiComponents.js';
-import { logWarn } from '../common/logger.js';
+import { formatBytes, renderStatus, setFilterIndicator } from './commonView.js';
+import { createExternalLink, createFluidTable, createMaterialIcon, createPanel, createPanelItem } from './uiComponents.js';
 import { t } from '../common/i18n.js';
 
 // 最终表格会删除所有行均为空的列，列名与下载项统一模型一一对应。
@@ -25,28 +25,105 @@ function createLevel(container, level) {
 }
 
 /**
- * 判断下载 URL 是否命中系统扩展名白名单。
- * 只比较 URL 路径部分的文件扩展名（大小写不敏感），支持 tar.gz 等复合扩展名。
- * @param {string} url 下载地址
- * @param {Array<string>} extensions 扩展名列表（不含点，小写）
- * @returns {boolean} 命中返回 true
+ * 创建 MDUI 勾选框。
+ * @param {string} label 勾选框文本
+ * @param {boolean} checked 初始勾选状态
+ * @param {(checked: boolean) => void} onChange 勾选状态变化回调
+ * @returns {HTMLLabelElement}
  */
-function matchesOsExtension(url, extensions) {
-  try {
-    const pathname = new URL(url, window.location.href).pathname.toLowerCase();
-    return extensions.some((ext) => pathname.endsWith(`.${ext.toLowerCase()}`));
-  } catch (_) {
-    return false;
-  }
+function createCheckbox(label, checked, onChange) {
+  const labelEl = document.createElement('label');
+  labelEl.className = 'mdui-checkbox';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  const icon = document.createElement('i');
+  icon.className = 'mdui-checkbox-icon';
+  const text = document.createTextNode(` ${label}`);
+  labelEl.append(input, icon, text);
+  input.addEventListener('change', () => onChange(input.checked));
+  return labelEl;
+}
+
+/**
+ * 渲染文件列表表格上方的筛选面板，默认展开。
+ * 面板内容（类别定义与可见性判定）全部来自 domain 模块的 filterConfig；
+ * 这里只维护用户勾选状态（state）并回调 onChange 让表格重新应用筛选。
+ * 面板标题的筛选图标跟随状态变化（与列表页一致）：筛选生效（未勾选"显示全部"）
+ * 时显示 filter_alt，勾选"显示全部"（筛选关闭）时显示 filter_alt_off。
+ * "显示全部"排在最前（优先级最高）：勾选它时取消选择所有类别；
+ * 勾选任一类别时自动取消选择"显示全部"（两者互斥，但类别之间可多选）。
+ * @param {{categories: Array<{key: string, label: string, enabled: boolean}>}} filterConfig 筛选配置
+ * @param {{showAll: boolean, checked: Record<string, boolean>}} state 勾选状态（直接读写）
+ * @param {() => void} onChange 勾选变化后重新应用筛选的回调
+ * @returns {HTMLDivElement} 筛选面板元素
+ */
+function createFilterPanel(filterConfig, state, onChange) {
+  const panel = createPanel();
+  panel.classList.add('xf-download-filter-panel');
+  const { element, header, body } = createPanelItem(t('common.filter'), { isOpen: true });
+
+  // 筛选图标跟随勾选状态变化（与列表页一致）：筛选生效（未勾选"显示全部"）时
+  // 显示 filter_alt，勾选"显示全部"（筛选关闭）时显示 filter_alt_off。
+  const iconOn = createMaterialIcon('filter_alt', { className: 'mdui-icon xf-filter-active-indicator' });
+  const iconOff = createMaterialIcon('filter_alt_off', { className: 'mdui-icon xf-filter-active-indicator' });
+  header.insertBefore(iconOff, header.firstChild);
+  header.insertBefore(iconOn, header.firstChild);
+  const updateIndicator = () => setFilterIndicator(iconOn, iconOff, !state.showAll);
+
+  const boxes = document.createElement('div');
+  boxes.className = 'xf-download-filter-categories';
+
+  // "显示全部"优先级最高，排在面板最前：勾选时取消选择所有类别。
+  const showAllBox = createCheckbox('显示全部', state.showAll, (checked) => {
+    state.showAll = checked;
+    if (checked) {
+      boxes.querySelectorAll('input[data-filter-category]').forEach((input) => {
+        input.checked = false;
+        state.checked[input.dataset.filterCategory] = false;
+      });
+    }
+    updateIndicator();
+    onChange();
+  });
+  const showAllInput = showAllBox.querySelector('input');
+  boxes.appendChild(showAllBox);
+
+  // 类别勾选框：未启用的类别不渲染（如无数据源筛选条件、无法识别系统时）。
+  // 初始勾选状态由 domain 模块的 createDefaultState 决定（默认勾选数据源/当前系统）。
+  // 勾选任一类别时自动取消选择"显示全部"。
+  filterConfig.categories.forEach((category) => {
+    if (!category.enabled) return;
+    const box = createCheckbox(category.label, state.checked[category.key] === true, (checked) => {
+      state.checked[category.key] = checked;
+      // 类别与"显示全部"互斥：选中类别即视为用户放弃"显示全部"。
+      if (checked && state.showAll) {
+        state.showAll = false;
+        showAllInput.checked = false;
+      }
+      updateIndicator();
+      onChange();
+    });
+    // 用 dataset 标记类别勾选框，便于"显示全部"统一取消选择。
+    box.querySelector('input').dataset.filterCategory = category.key;
+    boxes.appendChild(box);
+  });
+
+  body.appendChild(boxes);
+  panel.appendChild(element);
+
+  // 初始图标状态与当前勾选状态一致。
+  updateIndicator();
+  return panel;
 }
 
 /**
  * 下载选择器的纯 DOM 视图。
  * 它不读取远程数据也不保存当前选择：controller 传入节点和回调，
  * 因而更换镜像协议不会影响表格、筛选和可访问性渲染。
- * osExtensions 是系统自动筛选白名单，与选择层级无关，直接作用于最终下载表格。
+ * osExtensions/osName 是系统筛选信息，与选择层级无关，直接作用于最终下载表格。
  */
-export function createSelectorView(container, stopButton, matchedArchitecture, osExtensions = []) {
+export function createSelectorView(container, stopButton, matchedArchitecture, osExtensions = [], osName = '') {
   function clearFrom(level) {
     // 删除 level 及之后的 section；父级选择框必须保留，用户才能改选线路。
     container.querySelectorAll('[data-selector-level]').forEach((element) => {
@@ -105,24 +182,22 @@ export function createSelectorView(container, stopButton, matchedArchitecture, o
       return;
     }
 
+    // 页面结构：下载面板 → 选择器们 → 描述信息 → 筛选面板 → 文件列表表格。
+
+    // 筛选逻辑全部由 domain 模块集中处理（类别定义、文件归类、可见性判定），
+    // 这里只渲染勾选框并把用户的选择应用到表格行。
+    const filterConfig = createFilterConfig({ filter, osExtensions, osName });
+    // 默认勾选状态由 domain 模块决定：数据源与当前系统（如可用），
+    // 两者都不可用时回退为"显示全部"。
+    const state = filterConfig.createDefaultState();
+
     const rows = validItems.map((item) => {
       const architecture = inferArchitecture(item);
-      // 配置 filter 是 URL 正则白名单；系统自动筛选按扩展名白名单叠加（AND）。
-      // 任一条件未命中即隐藏，但允许用户手动展开查看。
-      const configMissed = Array.isArray(filter) && filter.length > 0
-        && !filter.some((pattern) => {
-          try {
-            return new RegExp(pattern).test(item.downloadUrl);
-          } catch (_) {
-            logWarn(_, { key: 'logger.context.invalidFilterRegex', params: { pattern } });
-            return false;
-          }
-        });
-      const osMissed = osExtensions.length > 0 && !matchesOsExtension(item.downloadUrl, osExtensions);
       return {
         item,
         architecture,
-        hidden: configMissed || osMissed,
+        // 预先把文件归入类别；勾选框变化时无需重新归类。
+        categories: filterConfig.classify(item),
         values: {
           architecture,
           description: item.description || '',
@@ -132,6 +207,14 @@ export function createSelectorView(container, stopButton, matchedArchitecture, o
         },
       };
     });
+
+    if (matchedArchitecture && rows.some((row) => row.architecture === matchedArchitecture)) {
+      const note = document.createElement('p');
+      note.className = 'description mdui-typo';
+      note.textContent = t('common.matchedArchHint');
+      section.appendChild(note);
+    }
+
     // 只保留至少有一行内容的元数据列，移动端不浪费横向空间。
     const visibleColumns = COLUMN_DEFINITIONS.filter(([, key]) => key === 'action' || rows.some((row) => row.values[key]));
     const { wrapper, table, thead, tbody } = createFluidTable();
@@ -146,7 +229,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture, o
 
     rows.forEach((row) => {
       const tr = document.createElement('tr');
-      if (row.hidden) tr.classList.add('xf-filter-hidden');
+      row.tr = tr; // 供筛选面板切换行的隐藏状态
       if (row.architecture && row.architecture === matchedArchitecture) tr.classList.add('mdui-color-theme-accent');
       visibleColumns.forEach(([, key]) => {
         const cell = document.createElement('td');
@@ -174,62 +257,37 @@ export function createSelectorView(container, stopButton, matchedArchitecture, o
       tbody.appendChild(tr);
     });
 
-    // 所有行都被筛选条件隐藏时，表体不能空白：插入一行可读提示，说明现状并引导用户展开。
-    const hiddenCount = rows.filter((row) => row.hidden).length;
-    if (rows.length > 0 && hiddenCount === rows.length) {
-      const emptyTr = document.createElement('tr');
-      emptyTr.className = 'xf-filter-empty';
-      const emptyTd = document.createElement('td');
-      emptyTd.colSpan = visibleColumns.length;
-      emptyTd.textContent = t('common.filterNoMatch');
-      emptyTr.appendChild(emptyTd);
-      tbody.appendChild(emptyTr);
-    }
+    // 所有行都被筛选条件隐藏时，表体不能空白：保留一行可读提示，说明现状并引导用户调整筛选。
+    // 是否显示由 applyFilter 根据当前勾选状态动态决定。
+    const emptyTr = document.createElement('tr');
+    emptyTr.className = 'xf-filter-empty';
+    const emptyTd = document.createElement('td');
+    emptyTd.colSpan = visibleColumns.length;
+    emptyTd.textContent = t('common.filterNoMatch');
+    emptyTr.appendChild(emptyTd);
+    emptyTr.hidden = true;
+    tbody.appendChild(emptyTr);
 
     table.append(thead, tbody);
     wrapper.appendChild(table);
 
-    if (matchedArchitecture && rows.some((row) => row.architecture === matchedArchitecture)) {
-      const note = document.createElement('p');
-      note.className = 'description mdui-typo';
-      note.textContent = t('common.matchedArchHint');
-      section.appendChild(note);
-    }
-
-    if (hiddenCount) {
-      // 配置 filter 与系统自动筛选是两条独立的隐藏规则，分别说明原因。
-      if (Array.isArray(filter) && filter.length > 0) {
-        const filterDes = document.createElement('div');
-        filterDes.className = 'description mdui-typo';
-        filterDes.textContent = t('common.filterDes', { filter: filter.join(', ') || '无' });
-        section.appendChild(filterDes);
-      }
-      if (osExtensions.length > 0) {
-        const osDes = document.createElement('div');
-        osDes.className = 'description mdui-typo';
-        osDes.textContent = t('common.osFilterHint', {
-          exts: osExtensions.map((ext) => `.${ext}`).join(', '),
-        });
-        section.appendChild(osDes);
-      }
-
-      // 用户主动要求后才展示被规则隐藏的项目，保留"推荐架构优先"的默认体验。
-      const showdiv = document.createElement('div');
-      showdiv.className = 'description';
-      const show = createRaisedButton(t('common.hiddenItems', { count: hiddenCount }), {
-        block: true,
-        onClick: () => {
-          tbody.querySelectorAll('.xf-filter-hidden').forEach((row) => row.classList.remove('xf-filter-hidden'));
-          // 全部隐藏时的占位提示行随展开一起移除，避免与真实数据行重复。
-          tbody.querySelectorAll('tr.xf-filter-empty').forEach((row) => row.remove());
-          show.setAttribute('disabled', 'true');
-          show.textContent = t('common.hiddenItemsShowed', { count: hiddenCount });
-        },
+    // 根据当前勾选状态切换行的可见性；筛选面板的勾选变化都会回调到这里。
+    const applyFilter = () => {
+      let visibleCount = 0;
+      rows.forEach((row) => {
+        const hidden = !filterConfig.isVisible(row.categories, state);
+        row.tr.classList.toggle('xf-filter-hidden', hidden);
+        if (!hidden) visibleCount += 1;
       });
-      showdiv.appendChild(show);
-      section.appendChild(showdiv);
-    }
+      emptyTr.hidden = visibleCount > 0;
+    };
+
+    // 筛选面板位于文件列表表格之上，默认展开。
+    section.appendChild(createFilterPanel(filterConfig, state, applyFilter));
     section.appendChild(wrapper);
+
+    // 首屏按默认勾选状态应用筛选（数据源/当前系统，如可用）。
+    applyFilter();
     window.mdui?.mutation();
   }
 

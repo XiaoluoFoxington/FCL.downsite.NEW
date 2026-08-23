@@ -1,7 +1,7 @@
 import { readPreference } from '../domain/preferences.js';
 import { getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
-import { debounce } from '../views/commonView.js';
-import { enableFilterHelpInserts, renderListError, renderListLoading, renderSoftwareList, setFilterIndicator } from '../views/listView.js';
+import { debounce, setFilterIndicator } from '../views/commonView.js';
+import { enableFilterHelpInserts, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
 import { logError } from '../common/logger.js';
 import { t } from '../common/i18n.js';
 
