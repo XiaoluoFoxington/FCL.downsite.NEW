@@ -63,6 +63,8 @@ export function createFilterConfig({ filter, osExtensions = [], osName = '' } = 
   const systemExtensions = osExtensions.map((ext) => ext.toLowerCase());
   // 类别顺序即面板中勾选框的展示顺序，也即优先级顺序；enabled 为 false 的类别在面板中不渲染。
   // defaultChecked 为 true 的类别在首屏默认勾选。
+  // TODO: 以下类别标签（含 "无" 及扩展名拼接部分）为硬编码中文，未接入 i18n；
+  // 全站其余 UI 均为 7 语言，后续需为这些标签补充翻译键。
   const categories = [
     {
       key: 'dataSource',

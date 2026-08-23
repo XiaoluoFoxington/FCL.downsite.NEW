@@ -75,6 +75,7 @@ function createFilterPanel(filterConfig, state, onChange) {
   boxes.className = 'xf-download-filter-categories';
 
   // "显示全部"优先级最高，排在面板最前：勾选时取消选择所有类别。
+  // TODO: "显示全部"为硬编码中文，应改用既有键 t('common.showAll')（7 个语言包均已提供）。
   const showAllBox = createCheckbox('显示全部', state.showAll, (checked) => {
     state.showAll = checked;
     if (checked) {
