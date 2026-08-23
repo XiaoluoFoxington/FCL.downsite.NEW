@@ -350,6 +350,7 @@ const zhCN = {
     filterHelpTags: '可用标签：',
     filterClear: '清空',
     filterRemoveOne: '删除单个表达式',
+    filterBtnsHelper: '{rmOne}清除最后一个条件（仅剩一个条件时等效于清空），{rmAll}清除所有条件。',
     filterHelpEscapes: '可用转义：',
     filterError: '格式不正确，请检查表达式',
     listPanel: '列表',
