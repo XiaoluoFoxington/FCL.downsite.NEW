@@ -342,6 +342,7 @@ const enUS = {
     filterHelpClickHint: 'Click the text below to insert it into the edit box.',
     filterHelpRelations: 'Available relations: ',
     filterHelpKeys: 'Available keys: ',
+    filterHelpTags: 'Available tags: ',
     filterHelpEscapes: 'Available escapes: ',
     filterError: 'Invalid format. Please check the expression.',
     listPanel: 'List',

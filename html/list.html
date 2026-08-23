@@ -60,6 +60,7 @@
                 <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
               </div>
               <div class="mdui-panel-item-body mdui-typo" id="filter-help-panel-body">
+                <div class="xf-filter-help-scroll">
                 <p><span data-i18n="list.filterHelpFormatPrefix">单个条件格式：</span><code>关系 + 键 + ":" + 值</code></p>
                 <p data-i18n="list.filterHelpCombine">允许多个条件组合。首个条件无需关系。</p>
                 <p><span data-i18n="list.filterHelpExampleIntro">例如筛选名字含"fold"且标签含"mcje"：</span></p>
@@ -76,6 +77,7 @@
                   <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="name:">name</button>,
                   <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="tag:">tag</button>
                 </p>
+                <p id="filter-help-tags"></p>
                 <p>
                   <span data-i18n="list.filterHelpEscapes">可用转义：</span>
                   <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="\&amp;">\&amp;</button>,
@@ -83,6 +85,7 @@
                   <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="\!">\!</button>,
                   <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="\\">\\</button>
                 </p>
+                </div>
               </div>
             </div>
           </div>

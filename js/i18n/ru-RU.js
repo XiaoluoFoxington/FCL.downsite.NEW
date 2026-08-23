@@ -342,6 +342,7 @@ const ruRU = {
     filterHelpClickHint: 'Щёлкните по тексту ниже, чтобы вставить его в поле ввода.',
     filterHelpRelations: 'Доступные отношения: ',
     filterHelpKeys: 'Доступные ключи: ',
+    filterHelpTags: 'Доступные теги: ',
     filterHelpEscapes: 'Доступные экранирования: ',
     filterError: 'Неверный формат. Проверьте выражение.',
     listPanel: 'Список',

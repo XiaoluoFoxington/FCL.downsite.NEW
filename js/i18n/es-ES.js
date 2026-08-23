@@ -343,6 +343,7 @@ const esES = {
     filterHelpClickHint: 'Haz clic en el texto de abajo para insertarlo en el cuadro de edición.',
     filterHelpRelations: 'Relaciones disponibles: ',
     filterHelpKeys: 'Claves disponibles: ',
+    filterHelpTags: 'Etiquetas disponibles: ',
     filterHelpEscapes: 'Escapes disponibles: ',
     filterError: 'Formato no válido. Comprueba la expresión.',
     listPanel: 'Lista',

@@ -1,7 +1,7 @@
 import { readPreference } from '../domain/preferences.js';
 import { getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
 import { debounce, setFilterIndicator } from '../views/commonView.js';
-import { enableFilterHelpInserts, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
+import { enableFilterHelpInserts, renderFilterHelpTags, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
 import { logError } from '../common/logger.js';
 import { t } from '../common/i18n.js';
 
@@ -133,6 +133,8 @@ export function createListController(elements) {
       }));
       catalog = software;
       tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
+      // 把全部可用标签列进筛选帮助面板，点击即可插入 tag: <标签名>。
+      renderFilterHelpTags(elements.filterHelpTags, tags);
       applyFilters();
     } catch (error) {
       logError(error, '资源列表');

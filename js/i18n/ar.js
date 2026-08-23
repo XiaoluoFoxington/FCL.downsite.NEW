@@ -341,6 +341,7 @@ const ar = {
     filterHelpClickHint: 'يمكنك النقر على النص أدناه لإدراجه في حقل الإدخال.',
     filterHelpRelations: 'العلاقات المتاحة: ',
     filterHelpKeys: 'المفاتيح المتاحة: ',
+    filterHelpTags: 'الوسوم المتاحة: ',
     filterHelpEscapes: 'الترميزات المتاحة: ',
     filterError: 'صيغة غير صحيحة. تحقق من التعبير.',
     listPanel: 'القائمة',

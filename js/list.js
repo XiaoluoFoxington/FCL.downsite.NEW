@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     search: document.getElementById('filter-expression-field').querySelector('.mdui-textfield-input'),
     filterField: document.getElementById('filter-expression-field'),
     filterHelp: document.getElementById('filter-help-panel-body'),
+    filterHelpTags: document.getElementById('filter-help-tags'),
     filterIndicatorOn: document.getElementById('filter-active-indicator-on'),
     filterIndicatorOff: document.getElementById('filter-active-indicator-off'),
   });

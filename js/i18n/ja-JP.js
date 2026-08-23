@@ -342,6 +342,7 @@ const jaJP = {
     filterHelpClickHint: '下の文字をクリックすると編集ボックスに挿入できます。',
     filterHelpRelations: '使える関係：',
     filterHelpKeys: '使えるキー：',
+    filterHelpTags: '使えるタグ：',
     filterHelpEscapes: '使えるエスケープ：',
     filterError: '形式が正しくありません。式を確認してください。',
     listPanel: 'リスト',

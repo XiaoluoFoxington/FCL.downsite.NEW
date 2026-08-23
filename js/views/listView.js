@@ -51,6 +51,32 @@ function insertFilterText(input, text) {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+/**
+ * 在筛选帮助面板中列出所有可用标签，点击/回车可插入 `tag: <标签名>` 到筛选输入框。
+ * 按钮由 enableFilterHelpInserts 的事件委托统一接管，无需单独绑定。
+ * 插入值使用标签原始名（筛选匹配以 tag.json 的原始名为准），与表格中翻译后的展示名区分。
+ * @param {HTMLElement} container 标签列表容器（filter-help-tags）
+ * @param {Array<{id: number, name: string}>} tags 标签数组
+ */
+export function renderFilterHelpTags(container, tags) {
+  if (!container || !Array.isArray(tags)) return;
+  const fragment = document.createDocumentFragment();
+  const label = document.createElement('span');
+  label.textContent = t('list.filterHelpTags');
+  fragment.appendChild(label);
+  tags.forEach((tag, index) => {
+    const insert = `tag: ${tag.name}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'xf-inline-code xf-list-table-th-sortable';
+    button.dataset.insert = insert;
+    button.textContent = insert;
+    fragment.appendChild(button);
+    if (index < tags.length - 1) fragment.appendChild(document.createTextNode(', '));
+  });
+  container.replaceChildren(fragment);
+}
+
 /** 打开方式值到页面路径的映射。 */
 const OPEN_METHOD_PAGE_MAP = {
   detail: '/html/detail.html',

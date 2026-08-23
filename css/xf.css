@@ -194,6 +194,13 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   display: none;
 }
 
+/* 筛选帮助面板内容：固定高度，内容（如全部可用标签）过多时内部滚动。
+   MDUI 面板体高度由脚本内联控制，因此固定高加在内容的内层容器上。 */
+.xf-filter-help-scroll {
+  height: 50vh;
+  overflow-y: auto;
+}
+
 /* MDUI select 键盘导航时的高亮项：提高特异性覆盖 mdui-select-menu-item 默认背景 */
 .mdui-select-menu-item.xf-select-highlighted {
   outline: 2px solid #ff0;

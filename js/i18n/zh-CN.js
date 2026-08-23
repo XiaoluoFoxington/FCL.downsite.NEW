@@ -347,6 +347,7 @@ const zhCN = {
     filterHelpClickHint: '可直接点击下方文字插入到编辑框。',
     filterHelpRelations: '可用关系：',
     filterHelpKeys: '可用键：',
+    filterHelpTags: '可用标签：',
     filterHelpEscapes: '可用转义：',
     filterError: '格式不正确，请检查表达式',
     listPanel: '列表',

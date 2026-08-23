@@ -342,6 +342,7 @@ const frFR = {
     filterHelpClickHint: 'Cliquez sur le texte ci-dessous pour l\u0027insérer dans le champ de saisie.',
     filterHelpRelations: 'Relations disponibles : ',
     filterHelpKeys: 'Clés disponibles : ',
+    filterHelpTags: 'Étiquettes disponibles : ',
     filterHelpEscapes: 'Échappements disponibles : ',
     filterError: 'Format invalide. Vérifiez l\u0027expression.',
     listPanel: 'Liste',
