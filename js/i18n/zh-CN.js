@@ -49,6 +49,8 @@ const zhCN = {
     forceStop: '强行终止加载',
     matchedArchHint: '已匹配当前架构，请留意高亮行（仅供参考，安装失败时请选择 all 架构）。',
     hiddenItems: '显示 {count} 个被筛选条件隐藏的项目',
+    filterDes: '当前筛选条件：{filter}',
+    hiddenItemsShowed: '已显示 {count} 个被筛选条件隐藏的项目',
     noDownloadUrl: '该选项暂无可用的下载地址',
     errorMessage: '错误信息',
     infoMessage: '提示',

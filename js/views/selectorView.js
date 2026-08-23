@@ -165,6 +165,11 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
 
     const hiddenCount = rows.filter((row) => row.hidden).length;
     if (hiddenCount) {
+      const filterDes = document.createElement('div');
+      filterDes.className = 'description mdui-typo';
+      filterDes.textContent = t('common.filterDes', { filter: filter.join(', ') || '无' });
+      section.appendChild(filterDes);
+
       // 用户主动要求后才展示被规则隐藏的项目，保留"推荐架构优先"的默认体验。
       const showdiv = document.createElement('div');
       showdiv.className = 'description';
@@ -172,7 +177,8 @@ export function createSelectorView(container, stopButton, matchedArchitecture) {
         block: true,
         onClick: () => {
           tbody.querySelectorAll('.xf-filter-hidden').forEach((row) => row.classList.remove('xf-filter-hidden'));
-          show.remove();
+          show.setAttribute('disabled', 'true');
+          show.textContent = t('common.hiddenItemsShowed', { count: hiddenCount });
         },
       });
       showdiv.appendChild(show);
