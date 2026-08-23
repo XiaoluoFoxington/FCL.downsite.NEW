@@ -48,6 +48,7 @@ const ar = {
     forceStop: 'إيقاف التحميل قسريًا',
     matchedArchHint: 'تمت مطابقة البنية الحالية، يرجى الانتباه إلى الصف المميز (للمرجعية فقط؛ اختر بنية all إذا فشل التثبيت).',
     hiddenItems: 'إظهار {count} من العناصر المخفية بواسطة شروط التصفية',
+    filterNoMatch: 'لا توجد عناصر مطابقة لشروط التصفية الحالية.',
     noDownloadUrl: 'لا توجد روابط تحميل متاحة لهذا الخيار حاليًا',
     errorMessage: 'رسالة الخطأ',
     infoMessage: 'معلومة',
@@ -126,7 +127,7 @@ const ar = {
       noDetail: 'لم يتم تحديد معرّف برنامج صالح',
     },
     footer: {
-      copyright: 'حقوق النشر 2026 XIAOLUOFOXINGTON',
+      copyright: 'COPYRIGHT 2026 XIAOLUOFOXINGTON',
       icp: '新ICP备2024015133号-7',
     },
     timeUnits: {
@@ -344,6 +345,7 @@ const ar = {
     filterHelpTags: 'الوسوم المتاحة: ',
     filterClear: 'مسح',
     filterRemoveOne: 'حذف شرط واحد',
+    filterBtnsHelper: '{rmOne} حذف آخر شرط (يعادل المسح عندما يكون الشرط الوحيد)، {rmAll} مسح جميع الشروط.',
     filterHelpEscapes: 'الترميزات المتاحة: ',
     filterError: 'صيغة غير صحيحة. تحقق من التعبير.',
     listPanel: 'القائمة',
@@ -541,7 +543,7 @@ const ar = {
     samplePlain: 'هذا النص عادي.',
     sampleLink: 'هذا رابط',
     sampleMark: 'استخدم وسم {mark} لـ{theme.markText}.',
-    markText: 'نص مميز',
+    markText: 'تمييز النص',
     sampleDel: 'يعتبر هذا النص نصًا محذوفًا.',
     sampleIns: 'هذا النص عنصر مُدرج بقوة.',
     sampleUnderline: 'هذا النص تحته خط.',

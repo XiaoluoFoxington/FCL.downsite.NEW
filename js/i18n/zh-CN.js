@@ -49,10 +49,7 @@ const zhCN = {
     forceStop: '强行终止加载',
     matchedArchHint: '已匹配当前架构，请留意高亮行（仅供参考，安装失败时请选择 all 架构）。',
     hiddenItems: '显示 {count} 个被筛选条件隐藏的项目',
-    filterDes: '当前筛选条件：{filter}',
-    osFilterHint: '当前系统筛选条件：{exts}',
     filterNoMatch: '无项目符合当前筛选条件。',
-    hiddenItemsShowed: '已显示 {count} 个被筛选条件隐藏的项目',
     noDownloadUrl: '该选项暂无可用的下载地址',
     errorMessage: '错误信息',
     infoMessage: '提示',
@@ -548,7 +545,6 @@ const zhCN = {
     samplePlain: '这行文本很普通。',
     sampleLink: '这是一个链接',
     sampleMark: '使用 {mark} 标签来{theme.markText}。',
-    // TODO: 其他语言的这里还没改
     markText: '高亮文本',
     sampleDel: '这行文本被视为已删除文本。',
     sampleIns: '这行文本是被强势插入的元素。',
