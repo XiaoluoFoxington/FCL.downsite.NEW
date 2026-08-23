@@ -52,6 +52,5 @@
     {
       "osName": "Android"
     }
-  ],
-  "filter": [".apk"]
+  ]
 }
