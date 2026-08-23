@@ -150,7 +150,6 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
 .xf-filter-empty td {
   padding: 24px 16px;
   text-align: center;
-  color: var(--mdui-color-grey-600, #757575);
 }
 
 /* 下边距，不然折叠时会和文件表格挤在一起 */
@@ -257,6 +256,17 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
 .xf-bookmark-icon {
   vertical-align: middle;
   border-radius: 50%;
+}
+
+/* 覆盖MDUI的内联代码样式 */
+.xf-inline-code,
+.mdui-typo.mdui-typo code {
+  background-color: unset;
+  border: none;
+  color: unset;
+  margin: 0;
+  padding: 0;
+  font-family: var(--code-font-family);
 }
 
 /**
@@ -487,15 +497,4 @@ html[data-xf-theme="light"] .sortable-table-indicator {
   text-align: center;
   padding: 16px;
   font-style: italic;
-}
-
-/* 覆盖MDUI的内联代码样式 */
-.xf-inline-code,
-.mdui-typo.mdui-typo code {
-  background-color: unset;
-  border: none;
-  color: unset;
-  margin: 0;
-  padding: 0;
-  font-family: var(--code-font-family);
 }
