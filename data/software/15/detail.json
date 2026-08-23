@@ -1,0 +1,47 @@
+{
+  "info": [
+    {
+      "name": "developer",
+      "href": "https://github.com/Mystic-Stars"
+    },
+    {
+      "name": "official website",
+      "href": "https://www.axlmc.org"
+    },
+    {
+      "name": "Github",
+      "href": "https://github.com/Mystic-Stars/Axolotl"
+    }
+  ],
+  "intro": [
+    {
+      "title": "GH-README",
+      "url": "https://raw.githubusercontent.com/Mystic-Stars/Axolotl/refs/heads/main",
+      "file": "/README.md",
+      "type": "md"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/Mystic-Stars/Axolotl/releases",
+  "download": [
+    {
+      "mirrorId": 4,
+      "key": "/api/releases?owner=Mystic-Stars&repo=Axolotl&versions=20"
+    },
+    {
+      "mirrorId": 9,
+      "key": "/api/v2/launchers/axolotl"
+    }
+  ],
+  "OSRequest": [
+    {
+      "osName": "Windows",
+      "osVersion": "10"
+    },
+    {
+      "osName": "Mac OS"
+    },
+    {
+      "osName": "Linux"
+    }
+  ]
+}

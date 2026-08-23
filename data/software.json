@@ -100,5 +100,12 @@
     "icon": "/data/software/14/icon.avif",
     "tagIds": [7, 8, 9, 12, 11],
     "detailUrl": "/data/software/14/detail.json"
+  },
+  {
+    "id": 15,
+    "name": "Axolotl Launcher",
+    "icon": "/data/software/15/icon.avif",
+    "tagIds": [8, 9, 12, 0, 1, 11],
+    "detailUrl": "/data/software/15/detail.json"
   }
 ]
