@@ -342,6 +342,8 @@ const ar = {
     filterHelpRelations: 'العلاقات المتاحة: ',
     filterHelpKeys: 'المفاتيح المتاحة: ',
     filterHelpTags: 'الوسوم المتاحة: ',
+    filterClear: 'مسح',
+    filterRemoveOne: 'حذف شرط واحد',
     filterHelpEscapes: 'الترميزات المتاحة: ',
     filterError: 'صيغة غير صحيحة. تحقق من التعبير.',
     listPanel: 'القائمة',

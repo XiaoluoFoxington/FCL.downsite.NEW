@@ -343,6 +343,8 @@ const jaJP = {
     filterHelpRelations: '使える関係：',
     filterHelpKeys: '使えるキー：',
     filterHelpTags: '使えるタグ：',
+    filterClear: 'クリア',
+    filterRemoveOne: '式を1つ削除',
     filterHelpEscapes: '使えるエスケープ：',
     filterError: '形式が正しくありません。式を確認してください。',
     listPanel: 'リスト',

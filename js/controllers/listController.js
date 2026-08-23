@@ -74,6 +74,24 @@ export function parseFilterExpression(input) {
 }
 
 /**
+ * 移除表达式的最后一个条件，返回新表达式（供"删除单个表达式"按钮使用）。
+ * 按语法规则从后往前找最后一个未转义的关系符号（& | !）作为分隔点并截断；
+ * 关系符号前面紧跟反斜杠（\& \| \!）时属于值内的转义，不能当作分隔点。
+ * 只有一个条件（或没有关系符号）时返回空字符串。
+ * @param {string} input 用户输入的筛选表达式
+ * @returns {string} 删除最后一个条件后的表达式
+ */
+export function removeLastCondition(input) {
+  const s = String(input || '');
+  for (let i = s.length - 1; i >= 0; i--) {
+    if (RELATION_CHARS.includes(s[i]) && s[i - 1] !== '\\') {
+      return s.slice(0, i).trim();
+    }
+  }
+  return '';
+}
+
+/**
  * 资源列表 controller。
  * elements.search：筛选表达式输入框；elements.filterField：输入框外层（用于错误态）；
  * elements.filterHelp：筛选帮助面板（可点击文本插入输入框）；elements.list：软件卡片挂载点。
@@ -149,8 +167,35 @@ export function createListController(elements) {
     if (conditions === null) conditions = [];
     applyFilters();
   });
+
+  /** 输入为空时禁用清空/删除按钮，避免无意义点击。 */
+  function syncActionButtons() {
+    const empty = !elements.search.value.trim();
+    if (elements.filterClear) elements.filterClear.disabled = empty;
+    if (elements.filterRemoveOne) elements.filterRemoveOne.disabled = empty;
+  }
+
+  /** 清空整个筛选表达式。 */
+  function clearFilter() {
+    elements.search.value = '';
+    syncActionButtons();
+    debouncedApply();
+  }
+
+  /** 删除表达式的最后一个条件（仅剩一个条件时等效于清空）。 */
+  function removeLastConditionFromInput() {
+    elements.search.value = removeLastCondition(elements.search.value);
+    syncActionButtons();
+    debouncedApply();
+  }
+
   elements.search.addEventListener('input', debouncedApply);
+  elements.search.addEventListener('input', syncActionButtons);
+  elements.filterClear?.addEventListener('click', clearFilter);
+  elements.filterRemoveOne?.addEventListener('click', removeLastConditionFromInput);
   // 帮助面板中的可点击文本（示例/关系/键/转义）点击后插入到筛选输入框。
   enableFilterHelpInserts(elements.filterHelp, elements.search);
+  // 初始输入为空，两个按钮应处于禁用态。
+  syncActionButtons();
   return { load };
 }

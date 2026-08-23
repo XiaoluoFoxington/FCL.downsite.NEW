@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
     filterField: document.getElementById('filter-expression-field'),
     filterHelp: document.getElementById('filter-help-panel-body'),
     filterHelpTags: document.getElementById('filter-help-tags'),
+    filterClear: document.getElementById('filter-clear-btn'),
+    filterRemoveOne: document.getElementById('filter-remove-one-btn'),
     filterIndicatorOn: document.getElementById('filter-active-indicator-on'),
     filterIndicatorOff: document.getElementById('filter-active-indicator-off'),
   });

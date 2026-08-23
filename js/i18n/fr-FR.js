@@ -343,6 +343,8 @@ const frFR = {
     filterHelpRelations: 'Relations disponibles : ',
     filterHelpKeys: 'Clés disponibles : ',
     filterHelpTags: 'Étiquettes disponibles : ',
+    filterClear: 'Vider',
+    filterRemoveOne: 'Supprimer une condition',
     filterHelpEscapes: 'Échappements disponibles : ',
     filterError: 'Format invalide. Vérifiez l\u0027expression.',
     listPanel: 'Liste',

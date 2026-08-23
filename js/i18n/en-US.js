@@ -343,6 +343,8 @@ const enUS = {
     filterHelpRelations: 'Available relations: ',
     filterHelpKeys: 'Available keys: ',
     filterHelpTags: 'Available tags: ',
+    filterClear: 'Clear',
+    filterRemoveOne: 'Remove one condition',
     filterHelpEscapes: 'Available escapes: ',
     filterError: 'Invalid format. Please check the expression.',
     listPanel: 'List',

@@ -343,6 +343,8 @@ const ruRU = {
     filterHelpRelations: 'Доступные отношения: ',
     filterHelpKeys: 'Доступные ключи: ',
     filterHelpTags: 'Доступные теги: ',
+    filterClear: 'Очистить',
+    filterRemoveOne: 'Удалить одно условие',
     filterHelpEscapes: 'Доступные экранирования: ',
     filterError: 'Неверный формат. Проверьте выражение.',
     listPanel: 'Список',

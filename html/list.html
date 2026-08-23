@@ -50,7 +50,11 @@
         <div class="mdui-panel-item-body">
           <div class="mdui-textfield" id="filter-expression-field">
             <label class="mdui-textfield-label" data-i18n="list.filterExpression">筛选表达式</label>
-            <input class="mdui-textfield-input" type="text" placeholder="name: fold &amp; tag: mcje" data-i18n="list.filterPlaceholder" data-i18n-attr="placeholder" />
+            <div class="xf-filter-input-wrap">
+              <input class="mdui-textfield-input" type="text" placeholder="name: fold &amp; tag: mcje" data-i18n="list.filterPlaceholder" data-i18n-attr="placeholder" />
+              <button type="button" id="filter-remove-one-btn" class="mdui-btn mdui-btn-icon mdui-ripple xf-filter-input-action" data-i18n="list.filterRemoveOne" data-i18n-attr="aria-label"><i class="mdui-icon material-icons" aria-hidden="true">remove_circle_outline</i></button>
+              <button type="button" id="filter-clear-btn" class="mdui-btn mdui-btn-icon mdui-ripple xf-filter-input-action" data-i18n="list.filterClear" data-i18n-attr="aria-label"><i class="mdui-icon material-icons" aria-hidden="true">close</i></button>
+            </div>
             <div class="mdui-textfield-error" data-i18n="list.filterError">格式不正确，请检查表达式</div>
           </div>
           <div class="mdui-panel" mdui-panel>

@@ -185,6 +185,25 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   backdrop-filter: blur(16px);
 }
 
+/* 筛选表达式输入框：右侧内联图标按钮（删除单个表达式 / 清空）。
+   输入框占满剩余宽度，图标按钮紧贴右侧；禁用态沿用 MDUI 按钮样式。 */
+.xf-filter-input-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.xf-filter-input-wrap .mdui-textfield-input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 不然会错位，目前还不知道影响范围有多大，所以就没放MDUI.patch里。
+   TODO */
+.xf-filter-input-wrap .xf-filter-input-action i {
+  bottom: unset;
+  padding: unset;
+}
+
 .xf-filter-active-indicator {
   margin-right: 8px;
 }

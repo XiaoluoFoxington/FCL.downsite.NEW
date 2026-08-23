@@ -344,6 +344,8 @@ const esES = {
     filterHelpRelations: 'Relaciones disponibles: ',
     filterHelpKeys: 'Claves disponibles: ',
     filterHelpTags: 'Etiquetas disponibles: ',
+    filterClear: 'Limpiar',
+    filterRemoveOne: 'Eliminar una condición',
     filterHelpEscapes: 'Escapes disponibles: ',
     filterError: 'Formato no válido. Comprueba la expresión.',
     listPanel: 'Lista',
