@@ -1,7 +1,7 @@
 # 线路1 自动更新设计方案
 
 > 状态：设计草案（待审阅）
-> 日期：2026-08-25
+> 日期：2026-08-25（API 关键事实 3.8.5 重测 2026-08-26）
 > 目标：将线路1（id 0，`/data/down`）从"站长手动维护"改造为"GitHub Actions 自动更新"，保留现有网盘分发模式，站端零代码改动。
 
 ## 1. 背景与目标
@@ -34,7 +34,7 @@
 - 不做浏览器自动化（已验证 huang1111 API 可直接调用，无需操作网页）
 - 不覆盖站内其它线路（线路2~线路12 保持现状）
 
-## 2. 关键事实（已实测验证，2026-08-25）
+## 2. 关键事实（已实测验证；3.8.5 更新后已重测）
 
 ### 2.1 huang1111 账号与权限
 
@@ -60,15 +60,19 @@ foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分}/文件.后缀名
 
 ### 2.3 已验证的 huang1111 API（Cloudreve v3 定制版）
 
-全部基于登录 cookie（`cloudreve-session`）会话，页面上下文 fetch 同源调用：
+全部基于登录 cookie（`cloudreve-session`）会话，页面上下文 fetch 同源调用。3.8.5 起流程含 验证码+CSRF（详见 `docs/huang1111-api-notes.md`）：
 
 | 用途 | 方法/路径 | 请求体 | 实测结果 |
 |---|---|---|---|
-| 列目录 | `GET /api/v3/directory/{路径}` | — | ✅ 返回 objects（含文件 id、name、size、type） |
-| **URL 离线下载** | `POST /api/v3/aria2/url` | `{"url":[...], "dst":"/目标目录", "preferred_node":0}` | ✅ 提交成功，从 GitHub 拉文件到网盘 |
+| 登录（含验证码） | `GET /site/captcha` + `GET /site/config` + `POST /user/session` | `{userName, Password, captchaCode}` | ✅ 3.8.5 必需；失败换新验证码重试，上限 10 次（实测 1~2 次即中） |
+| 取 CSRF | `GET /site/config` | — | ✅ 唯一来源（响应头 `x-csrf-token`）；每次写请求前重取 |
+| 列目录 | `GET /api/v3/directory/{路径}` | — | ✅ 返回 objects（含文件 id、name、size、type）+ `.data.parent`=该目录自身 id |
+| 创建目录 | `PUT /api/v3/directory` | `{"path":"/目标目录"}` | ✅ 3.8.5 实测；`dst` 不存在时 aria2 也会自动建 |
+| **URL 离线下载** | `POST /api/v3/aria2/url` | `{"url":[...], "dst":"/目标目录", "preferred_node":0}` | ✅ 提交成功（需 CSRF 头，不需要验证码）；响应**无 gid**，轮询反查 |
 | 查下载中 | `GET /api/v3/aria2/downloading` | — | ✅ |
-| 查已完成 | `GET /api/v3/aria2/finished?page=N` | — | ✅ 返回任务（gid、status、files、dst） |
-| **批量取直链** | `POST /api/v3/file/source` | `{"items":[文件id数组]}` | ✅ 返回 `[{url, name}]`，直链格式 `https://pan.huang1111.cn/f/{code}/{文件名}` |
+| 查已完成 | `GET /api/v3/aria2/finished?page=N` | — | ✅ 返回任务（gid、status、files、dst）；status 4=完成 5=失败 |
+| **批量取直链** | `POST /api/v3/file/source` | `{"items":[文件id数组], "captchaCode":"..."}` | ✅ 3.8.5 起需带 captchaCode + CSRF 头；返回 `[{id,url,name}]`，直链格式 `https://pan.huang1111.cn/f/{code}/{文件名}` |
+| 删除文件/目录 | `DELETE /api/v3/object` | `{"items":[文件id], "dirs":[目录id], "force":true}` | ✅ 需 CSRF 头；force 不绕过回收站（48h 自动清除） |
 
 ### 2.4 直链特性（实测）
 
@@ -113,14 +117,19 @@ GitHub Actions schedule（每天 2 次，如 00:00 / 12:00 UTC）
   ├─ ② 对每个软件调 GitHub Releases API（releaseHistoryUrl），取最新 N 个版本
   ├─ ③ 过滤出"有 GitHub assets 且不在已同步基线中"的新版本
   ├─ ④ 对每个新版本：
-  │     ├─ 提交离线下载 POST /api/v3/aria2/url
+  │     ├─ 登录：GET /site/captcha（OCR）+ GET /site/config 拿 CSRF + POST /user/session
+  │     ├─ 提交离线下载 POST /api/v3/aria2/url（带 X-CSRF-Token）
   │     │    {url: [各架构 assets 直链], dst: "foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分}", preferred_node: 0}
-  │     ├─ 轮询 /aria2/finished 直至该 gid 完成（含失败判定）
+  │     │    （dst 不存在会自动创建，已在 3.8.5 实测）
+  │     ├─ 轮询：GET /aria2/finished?page=1 + GET /directory/{dst}
+  │     │    （提交响应无 gid！按 files[0].path/dst 反查；status==4 完成 / status==5 失败，详见 api-notes §3.4）
   │     └─ 记录 gid → 版本映射，供下一步定位文件
   ├─ ⑤ 对每个完成的新版本：
   │     ├─ GET /directory/foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分} 找到刚下载的文件
   │     │    （按文件名匹配 assets 名；同时拿到每个文件的 size 字段）
-  │     └─ POST /file/source {items: [文件id...]} 批量取直链
+  │     └─ POST /file/source {items: [文件id...], captchaCode: "..."} 批量取直链
+  │          （3.8.5 起需带 captchaCode + 最新 X-CSRF-Token，见 api-notes §4）
+  │          验证码一次性 + OCR 误读率高 → 失败换新验证码重试（上限 10 次），见 api-notes §4
   ├─ ⑥ 生成/更新仓库 JSON：
   │     ├─ 写 data/down/{软件id}/{版本逐位拆分}.json（[{arch,url,size}]，url 来自 ⑤ 直链、size 来自 ⑤ 目录响应）
   │     └─ 更新 data/down/{软件id}/index.json（插入新版本、default 指向最新、保留手动条目）
@@ -132,8 +141,9 @@ GitHub Actions schedule（每天 2 次，如 00:00 / 12:00 UTC）
 | 项 | 方案 |
 |---|---|
 | 触发 | 新增 workflow `auto-sync.yml`，`schedule` cron（每天 2 次）+ `workflow_dispatch` 手动触发 |
-| 登录 cookie | 存 GitHub Actions secret（如 `HUANG1111_SESSION`，值含 `cloudreve-session=...` 头或完整 cookie 串） |
-| cookie 过期处理 | 过期时 workflow 失败并出通知（邮件/issue），站长登录网盘后更新 secret；文档记录操作步骤 |
+| 登录凭据 | **账号密码方案（已确认）**：GHA secret `H1111_USER` / `H1111_PASSWORD`（站端 set-env），每次运行自动走 验证码+CSRF 登录，凭据永不过期（改密码才需更新 secret） |
+| 验证码识别 | OCR；识别结果大写+过滤非字母数字，长度 4；**验证码一次性**（同码重试必败）+ OCR 误读率约 50%（V/Y、6/B），失败必须**换新验证码**重试，登录/取直链均上限 10 次（实测稳定通过） |
+| 登录失败处理 | 连续失败（验证码/CSRF/网络）→ workflow 失败并出通知（邮件/issue）；下次运行自动重试 |
 | GitHub API | 使用 `GITHUB_TOKEN`（仓库默认），读取 releases 无需额外权限 |
 
 ### 3.3 软件映射表（核心配置）
@@ -179,8 +189,8 @@ scripts/auto-sync/                   -- 自动化脚本（Node.js，纯 API，�
   sync.mjs                           -- 主流程（流水线 ②~⑦）
   softwares.json                     -- 软件映射表
   h1api.mjs                          -- huang1111 API 封装（directory/aria2/source）
-  config.mjs                         -- 读取 cookie、GitHub token 等环境配置
-scripts/auto-sync/README.md          -- 使用/维护说明（cookie 更新、手动触发、故障排查）
+  config.mjs                         -- 读取 H1111_USER/H1111_PASSWORD、GitHub token 等环境配置
+scripts/auto-sync/README.md          -- 使用/维护说明（secret 配置、手动触发、故障排查）
 ```
 
 脚本用 Node.js 编写（仓库无构建步骤，Node 与前端生态一致）；CI 环境用 `actions/setup-node` + 无依赖脚本（用原生 `fetch`，Node 18+），避免 npm install 开销。
@@ -189,9 +199,10 @@ scripts/auto-sync/README.md          -- 使用/维护说明（cookie 更新、�
 
 | 场景 | 处理 |
 |---|---|
-| 离线下载失败（GitHub 被墙/超时） | 轮询时 `status`/`error` 判定失败；记录日志，跳过该版本，下次运行重试；连续失败则结束并标记 |
-| cookie 过期（API 返回 401） | 立即终止，workflow 失败；通知站长更新 secret |
-| 直链获取失败 | 该版本标记失败，跳过写 JSON，下次重试 |
+| 登录失败（验证码识别错/CSRF 轮换/网络） | 重试上限 10 次（每次重取 captcha+config+session）；仍失败 → workflow 失败，下次运行自动重试 |
+| 离线下载失败（GitHub 被墙/超时） | 轮询时 `status`(5)/`error` 判定失败；记录日志，跳过该版本，下次运行重试；连续失败则结束并标记 |
+| 会话过期（API 返回 401） | 重新走登录流程（账号密码在 secret 中，脚本内部自动重登）；连续失败 → workflow 失败 + 通知 |
+| 直链获取失败（多为验证码 OCR 误读） | 换新验证码重试（上限 10 次，与登录同款，见 api-notes §4）；仍失败 → 该版本标记失败、跳过写 JSON、下次运行重试 |
 | 下载到一半用户手动删除 | 按 gid 找不到文件 → 记录并跳过 |
 | 同版本重复触发 | 以仓库已有 JSON 为基线去重；离线下载前先查 `foldcraftlauncher_cn_auto/{id}/{版本逐位拆分}` 目录是否已存在 |
 | 手动条目冲突 | 脚本只增不删 index.json 条目；重名版本跳过 |
@@ -201,8 +212,9 @@ scripts/auto-sync/README.md          -- 使用/维护说明（cookie 更新、�
 
 | 风险 | 等级 | 缓解 |
 |---|---|---|
-| huang1111 API 是逆向产物，非官方文档化，可能变更 | 中 | 所有调用集中 `h1api.mjs` 一处，变更时只改封装；仓库记录 API 验证快照 |
-| cookie 在 Actions secret 中明文存储 | 中 | secret 权限最小化；文档警示；cookie 可随时在网盘端作废 |
+| huang1111 API 是逆向产物，非官方文档化，可能变更 | 中 | 所有调用集中 `h1api.mjs` 一处，变更时只改封装；仓库记录 API 验证快照（`docs/huang1111-api-notes.md`，3.8.5 已重测通过） |
+| 登录凭据在 Actions secret 中明文存储 | 中 | secret 权限最小化（仓库级 Actions secret）；账号密码可随时在网盘端改密作废；文档警示 |
+| 验证码 OCR 失败率 | 低 | 上限 10 次换新验证码重试兜底（登录/取直链实测 1~2 次即中，偶发多拖几次）；持续失败触发告警 |
 | 离线下载依赖网盘服务器访问 GitHub 的连通性 | 中 | 已验证可用；失败重试；必要时可配置 GitHub 直链代理前缀 |
 | GHA 每分钟 60 次 API 限制 | 低 | 调用量极小（每软件 1 次 releases + 少量 aria2/source） |
 | 站端 JSON 结构被脚本改坏 | 低 | 生成后本地校验（JSON 可解析、URL 均为 `pan.huang1111.cn/f/` 前缀、index 与版本文件一致），校验不过不提交 |
@@ -222,11 +234,11 @@ scripts/auto-sync/README.md          -- 使用/维护说明（cookie 更新、�
 - 自动生成的版本文件条目**带 `size` 字段**，下载表格正确显示文件大小（`formatBytes` 渲染）
 - 手动特殊条目（boat.json、共存版、自定义描述）在自动更新后保持不变
 - 站端无任何代码改动（mirror.json、detail.json、adapter、controller、view 均不动）
-- 失败场景（cookie 过期、下载失败）有明确告警，且不产生错误提交
+- 失败场景（登录失败、下载失败）有明确告警，且不产生错误提交
 
 ## 8. 待确认事项
 
-- [ ] cookie 过期告警渠道（邮件通知 / issue / 仅 workflow 失败标记）
+- [ ] 登录失败告警渠道（邮件通知 / issue / 仅 workflow 失败标记）
 - [ ] 单次运行新版本处理上限的默认值（建议 5）
 - [ ] 是否需要对"共存版/特殊版"提供半自动机制（如 GHA 手动触发时附带版本参数）
 - [ ] 历史版本（现有 `data/down` 中的旧版本）是否保持不动、仅新增同步（当前设计：保持不动）
