@@ -1,7 +1,7 @@
 # 线路1 自动更新设计方案
 
-> 状态：设计草案（待审阅）
-> 日期：2026-08-25（API 关键事实 3.8.5 重测 2026-08-26）
+> 状态：**已实施（初版，2026-08-25）**——GHA workflow、脚本、映射表均已落地；本地真实运行验证通过
+> 历史："设计草案（待审阅）" → 2026-08-25 实现，API 关键事实 3.8.5 重测 2026-08-26
 > 目标：将线路1（id 0，`/data/down`）从"站长手动维护"改造为"GitHub Actions 自动更新"，保留现有网盘分发模式，站端零代码改动。
 
 ## 1. 背景与目标
@@ -111,40 +111,43 @@ foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分}/文件.后缀名
 ### 3.1 总体流水线
 
 ```
-GitHub Actions schedule（每天 2 次，如 00:00 / 12:00 UTC）
+GitHub Actions schedule（每天 2 次：UTC+8 00:00 / 12:00，即 UTC 16:00 / 04:00）
   │
-  ├─ ① 读配置（软件映射表）＋ 读仓库已有 data/down 作为"已同步版本"基线
-  ├─ ② 对每个软件调 GitHub Releases API（releaseHistoryUrl），取最新 N 个版本
-  ├─ ③ 过滤出"有 GitHub assets 且不在已同步基线中"的新版本
-  ├─ ④ 对每个新版本：
+  ├─ ① 读配置（softwares.json 映射表）＋ 读仓库已有 data/down/{id}/index.json 作为"已同步版本"基线
+  ├─ ② 对每个软件调 GitHub Releases API（githubRepo），得全部非 draft（按映射表决定是否含 prerelease）版本
+  ├─ ③ 检测逻辑（用户确认）：
+  │     · 取数据源内最新版本（index.json 可解析版本条目中最大者）
+  │     · 数据源无版本 → 只取 Release 最新一个
+  │     · 数据源有版本 → 落后 Release 多少版本就把落后的全部下载
+  ├─ ④ 对每个新版本（旧的先处理）：
   │     ├─ 登录：GET /site/captcha（OCR）+ GET /site/config 拿 CSRF + POST /user/session
+  │     ├─ 幂等检查：GET /directory/foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分} 已含全部文件则跳过下载
   │     ├─ 提交离线下载 POST /api/v3/aria2/url（带 X-CSRF-Token）
   │     │    {url: [各架构 assets 直链], dst: "foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分}", preferred_node: 0}
-  │     │    （dst 不存在会自动创建，已在 3.8.5 实测）
+  │     │    （dst 不存在会自动创建，已在 3.8.5 实测；脚本仍先 PUT /directory 兜底）
   │     ├─ 轮询：GET /aria2/finished?page=1 + GET /directory/{dst}
-  │     │    （提交响应无 gid！按 files[0].path/dst 反查；status==4 完成 / status==5 失败，详见 api-notes §3.4）
-  │     └─ 记录 gid → 版本映射，供下一步定位文件
+  │     │    （提交响应无 gid！按 dst+文件名 判错 status==5 或目录出现文件判成功，详见 api-notes §3.4）
+  │     └─ 失败重试：离线下载「提交+轮询」整段最多 3 次
   ├─ ⑤ 对每个完成的新版本：
-  │     ├─ GET /directory/foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分} 找到刚下载的文件
-  │     │    （按文件名匹配 assets 名；同时拿到每个文件的 size 字段）
+  │     ├─ GET /directory/foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分} 按文件名匹配拿文件 id + size
   │     └─ POST /file/source {items: [文件id...], captchaCode: "..."} 批量取直链
   │          （3.8.5 起需带 captchaCode + 最新 X-CSRF-Token，见 api-notes §4）
-  │          验证码一次性 + OCR 误读率高 → 失败换新验证码重试（上限 10 次），见 api-notes §4
+  │          验证码一次性 + OCR 误读率高 → 失败换新验证码重试（最多 10 次），见 api-notes §4
   ├─ ⑥ 生成/更新仓库 JSON：
-  │     ├─ 写 data/down/{软件id}/{版本逐位拆分}.json（[{arch,url,size}]，url 来自 ⑤ 直链、size 来自 ⑤ 目录响应）
-  │     └─ 更新 data/down/{软件id}/index.json（插入新版本、default 指向最新、保留手动条目）
-  └─ ⑦ git commit + push（GHA 的 verInfo/sitemap 工作流自动衔接）
+  │     ├─ 写 data/down/{软件id}/{版本逐位拆分}.json（[{arch|name,url,size}]，url 来自 ⑤ 直链、size 来自 ⑤ 目录响应）
+  │     └─ 更新 data/down/{软件id}/index.json（保留手动条目、新版本降序插入、default 移到最新、重名跳过）
+  └─ ⑦ 分软件 git commit（固定消息格式，见 3.7）+ 全部完成后统一 push
 ```
 
 ### 3.2 触发与凭据
 
 | 项 | 方案 |
 |---|---|
-| 触发 | 新增 workflow `auto-sync.yml`，`schedule` cron（每天 2 次）+ `workflow_dispatch` 手动触发 |
-| 登录凭据 | **账号密码方案（已确认）**：GHA secret `H1111_USER` / `H1111_PASSWORD`（站端 set-env），每次运行自动走 验证码+CSRF 登录，凭据永不过期（改密码才需更新 secret） |
-| 验证码识别 | OCR；识别结果大写+过滤非字母数字，长度 4；**验证码一次性**（同码重试必败）+ OCR 误读率约 50%（V/Y、6/B），失败必须**换新验证码**重试，登录/取直链均上限 10 次（实测稳定通过） |
-| 登录失败处理 | 连续失败（验证码/CSRF/网络）→ workflow 失败并出通知（邮件/issue）；下次运行自动重试 |
-| GitHub API | 使用 `GITHUB_TOKEN`（仓库默认），读取 releases 无需额外权限 |
+| 触发 | workflow `auto-sync.yml`：`schedule` cron `0 4,16 * * *`（UTC）= UTC+8 每天 00:00 / 12:00（GHA cron 固定 UTC，故写 4,16）+ `workflow_dispatch` 手动触发；`concurrency` 防重入 |
+| 登录凭据 | **账号密码方案（已确认）**：GHA secret `H1111_USER` / `H1111_PASSWORD`，每次运行自动走 验证码+CSRF 登录，凭据永不过期（改密码才需更新 secret） |
+| 验证码识别 | OCR（依赖包名在仓库中**不出现明文**，见 3.8）；识别结果大写+过滤非字母数字，期望长度 4；**验证码一次性**（同码重试必败）+ OCR 误读率约 50%（V/Y、6/B），失败必须**换新验证码**重试，登录/取直链均最多 10 次（实测稳定通过） |
+| 登录失败处理 | 连续失败（验证码/CSRF/网络）→ workflow 失败（红色状态即告警），下次运行自动重试 |
+| GitHub API | 使用 `GITHUB_TOKEN`（仓库默认，工作流自动注入），读取 releases 无需额外权限，并避免匿名限流 |
 
 ### 3.3 软件映射表（核心配置）
 
@@ -154,59 +157,86 @@ GitHub Actions schedule（每天 2 次，如 00:00 / 12:00 UTC）
 {
   "softwareId": 0,                    // 站端软件 id（data/software.json），也是网盘目录 id
   "githubRepo": "FCL-Team/FoldCraftLauncher",
-  "assetFilter": null,                // assets 名过滤正则（如只取 .apk$），null=全部
-  "archFromName": true                // 从 assets 文件名推断 arch（all/arm64-v8a/...）
+  "assetFilter": "\\.apk$",           // assets 名过滤正则（只保留 .apk）
+  "mode": "arch",                     // arch=按架构出条目；name=按文件名出条目（如 Amethyst 的 Amethyst/Debug）
+  "archNames": ["all","arm64-v8a","armeabi-v7a","x86","x86_64"],  // arch 模式的架构列表（也是输出顺序）
+  "fallbackArch": null,               // 无法按后缀识别架构时的兜底架构（Zalith2 的 all 包无后缀，填 "all"）
+  "includePrerelease": false          // 是否包含 prerelease 版本
 }
 ```
 
+- **初版范围（用户确认）**：仅标准结构的 0（FCL）/ 3（Zalith2）/ 4（Amethyst）；7/8/9/10/11/12/14 等特殊结构（子目录、name+children 等）暂不纳入
 - 网盘目标目录由脚本按 `foldcraftlauncher_cn_auto/{softwareId}/{版本逐位拆分}` 自动拼接，无需配置
-- 站端 `data/software.json` 的 id、GitHub `releaseHistoryUrl` 是映射表的权威来源；映射表初版以这些为准自动生成，站长复核（仅确认每个软件的 GitHub 仓库名与 assets 命名规则）
 
 ### 3.4 版本路径映射（网盘与站端同构）
 
 - **网盘侧**（脚本读写）：`foldcraftlauncher_cn_auto/{id}/{1/3/2/7}/`，版本号按 `.` 逐位拆分目录
 - **站端侧**（data/down）：`data/down/{id}/{1/3/2/7}.json`，同样的逐位拆分
-- 两边路径结构一致，脚本内部按同一条规则生成，无需额外映射
+- 两边路径结构一致，脚本内部按同一条规则生成（`pathFromVersion`），无需额外映射
+- 版本名以 GitHub tag 为准，自动去除前导 `v`（`v1.3.2.8` → `1.3.2.8`）
 
 ### 3.5 JSON 生成规则
 
-- **版本文件**：`data/down/{id}/{逐位路径}.json`，内容 `[{arch, url, size}]`：
-  - `url` 用 `/file/source` 返回的直链
-  - `size` 用同一次 `GET /directory` 响应对应文件的 `size`（字节数）
-  - `arch` 从 assets 文件名推断（映射表 `archFromName`）
+- **版本文件**：`data/down/{id}/{逐位路径}.json`，内容按 mode 区分：
+  - `arch` 模式：`[{arch, url, size}, ...]`，按 `archNames` 顺序输出
+  - `name` 模式：`[{name, url, size}, ...]`，按文件名排序输出（如 Amethyst / Amethyst-Debug）
+  - `url` 用 `/file/source` 返回的直链；`size` 用同一次 `GET /directory` 响应对应文件的 `size`（字节数）
 - **index.json**：
-  - 保留所有现有条目（含 boat.json、自定义描述、共存版等手动条目）
+  - 保留所有现有条目（含 boat.json、自定义描述、共存版等手动条目，原样透传）
   - 新版本按版本号降序插入（复用 `js/adapters/download/common.js` 的 `compareVersionsDescending` 逻辑）
-  - `default: true` 移到最高版本；原 default 条目去掉 default 标记
+  - `default: true`：若原有条目已有 default 标记 → 移到最高版本，原 default 条目去掉；若原无 default（如 id3/id4）→ 不新增，保持现状
   - 若新版本名与已有条目重名 → 跳过（视为已同步）
-- **写入格式**：与现有文件保持一致（2 空格缩进、UTF-8、无 BOM）
+- **写入格式**：与现有文件保持一致（2 空格缩进、UTF-8、无 BOM、无末尾换行）
 
 ### 3.6 目录/文件结构（新增内容）
 
 ```
-.github/workflows/auto-sync.yml      -- 定时触发 + 执行脚本
-scripts/auto-sync/                   -- 自动化脚本（Node.js，纯 API，不依赖浏览器）
-  sync.mjs                           -- 主流程（流水线 ②~⑦）
-  softwares.json                     -- 软件映射表
-  h1api.mjs                          -- huang1111 API 封装（directory/aria2/source）
-  config.mjs                         -- 读取 H1111_USER/H1111_PASSWORD、GitHub token 等环境配置
+.github/workflows/auto-sync.yml      -- 定时触发 + 执行脚本（含 OCR 依赖安装、secret 注入）
+scripts/auto-sync/                   -- 自动化脚本（Node.js 20+，纯 API，不依赖浏览器，无需 npm install）
+  sync.mjs                           -- 主流程（流水线 ②~⑦ + 分软件提交 + push）
+  softwares.json                     -- 软件映射表（0/3/4）
+  h1api.mjs                          -- huang1111 API 封装（captcha/config/session/directory/aria2/source）
+  config.mjs                         -- 环境变量（H1111_USER/H1111_PASSWORD/H1111_HOST/GITHUB_TOKEN）与重试常量
+  ocr_helper.py                      -- 验证码 OCR 子进程助手（依赖包名十六进制混淆，仓库无明文）
 scripts/auto-sync/README.md          -- 使用/维护说明（secret 配置、手动触发、故障排查）
 ```
 
-脚本用 Node.js 编写（仓库无构建步骤，Node 与前端生态一致）；CI 环境用 `actions/setup-node` + 无依赖脚本（用原生 `fetch`，Node 18+），避免 npm install 开销。
+脚本用 Node.js 编写（仓库无构建步骤，Node 与前端生态一致）；CI 环境用 `actions/setup-node` + 无依赖脚本（用原生 `fetch`，Node 18+），避免 npm install 开销；OCR 依赖仅 GHA 运行时安装（包名由 hex 还原，见 3.8）。
+
+### 3.7 提交格式（用户确认）
+
+- **每软件一个 commit**；无变更不提交；全部完成后统一 push
+- 主题固定格式：`[GHA] 新增：内容：数据源：资源id-{id}：{版本号范围}呜~`
+  - 版本号范围 = 数据源原最新版本-新最新版本（如 `1.3.2.7-1.3.2.8`）；数据源原本无版本则只写新版本号
+- 正文（日志）：本次该软件检测/下载/直链/JSON 的逐条详细日志
+- 起始 `[GHA]` 与 updata-verInfo.yml 的防重入判断（`^\[GHA\]` 跳过）天然兼容，两个工作流不会互相触发死循环
+
+### 3.8 OCR 依赖包名混淆（防站长针对性升级）
+
+- `ocr_helper.py` 中依赖**包名不出现明文**，以十六进制编码给出（`bytes.fromhex` 运行时还原）
+- GHA 安装步骤同样用十六进制还原包名后 `pip install`（仓库内无明文）
+- 本地开发用的明文版助手在仓库外（`huang1111-api-test/ocr_helper.py`），不入库
 
 ## 4. 错误处理与恢复
 
+**重试策略（用户确认，config.mjs 常量）**：
+
+| 场景 | 策略 |
+|---|---|
+| 验证码类失败（登录、取直链） | 每次换新验证码，最多 10 次尝试（OCR 长度≠4 直接换图，不浪费 POST） |
+| 离线下载失败（提交/轮询/任务错误） | 整段「提交+轮询」最多 3 次；超时默认 20 分钟/次（`AUTO_SYNC_DOWNLOAD_TIMEOUT_MS` 可调） |
+| 其他任何失败（网络/HTTP/接口异常） | 最多 2 次尝试 |
+
 | 场景 | 处理 |
 |---|---|
-| 登录失败（验证码识别错/CSRF 轮换/网络） | 重试上限 10 次（每次重取 captcha+config+session）；仍失败 → workflow 失败，下次运行自动重试 |
-| 离线下载失败（GitHub 被墙/超时） | 轮询时 `status`(5)/`error` 判定失败；记录日志，跳过该版本，下次运行重试；连续失败则结束并标记 |
-| 会话过期（API 返回 401） | 重新走登录流程（账号密码在 secret 中，脚本内部自动重登）；连续失败 → workflow 失败 + 通知 |
-| 直链获取失败（多为验证码 OCR 误读） | 换新验证码重试（上限 10 次，与登录同款，见 api-notes §4）；仍失败 → 该版本标记失败、跳过写 JSON、下次运行重试 |
-| 下载到一半用户手动删除 | 按 gid 找不到文件 → 记录并跳过 |
-| 同版本重复触发 | 以仓库已有 JSON 为基线去重；离线下载前先查 `foldcraftlauncher_cn_auto/{id}/{版本逐位拆分}` 目录是否已存在 |
-| 手动条目冲突 | 脚本只增不删 index.json 条目；重名版本跳过 |
-| GHA 运行超时（15 分钟限制） | 分软件串行+版本分批；单次运行只处理"N 个新版本"上限（可配置），未完成的下次续跑 |
+| 登录失败（验证码识别错/CSRF 轮换/网络） | 内部按上表重试；仍失败 → 该软件标记失败，运行结束退出码非 0 → workflow 失败（Actions 页面红色即告警），下次运行自动重试 |
+| 离线下载失败（GitHub 被墙/超时） | 轮询 `finished.status==5`/`error` 判失败；本版本跳过（不写 JSON），继续处理其余版本，退出码非 0；下次运行重试 |
+| 会话过期（API 返回 401） | 单次运行只在登录时建立会话；若中途失效会以错误形式暴露，下次运行自动重登（当前版本不自动重登，属已知边界） |
+| 直链获取失败（多为验证码 OCR 误读） | 换新验证码最多 10 次；仍失败 → 该版本标记失败、跳过写 JSON、下次运行重试 |
+| 下载到一半用户手动删除 | 目录查询拿不到期望文件 → 轮询超时判失败，重试提交 |
+| 同版本重复触发 | 以仓库已有 index.json 为基线去重（重名跳过）；离线下载前先查 `foldcraftlauncher_cn_auto/{id}/{版本逐位拆分}` 目录，已含全部文件则跳过下载 |
+| 手动条目冲突 | 脚本只增不删 index.json 条目；手动条目（boat 等）原样透传 |
+| GHA 运行超时 | job `timeout-minutes: 90`；单版本下载超时时长 20 分钟/次；未完成的版本下次运行续跑（落后检测天然续跑点） |
 
 ## 5. 风险与缓解
 
@@ -219,26 +249,29 @@ scripts/auto-sync/README.md          -- 使用/维护说明（secret 配置、�
 | GHA 每分钟 60 次 API 限制 | 低 | 调用量极小（每软件 1 次 releases + 少量 aria2/source） |
 | 站端 JSON 结构被脚本改坏 | 低 | 生成后本地校验（JSON 可解析、URL 均为 `pan.huang1111.cn/f/` 前缀、index 与版本文件一致），校验不过不提交 |
 
-## 6. 实施步骤（后续计划阶段细化）
+## 6. 实施进度（2026-08-25 更新）
 
-1. **搭骨架**：`scripts/auto-sync/` + `h1api.mjs`（封装已验证的 4 个 API）+ 配置读取
-2. **映射表初版**：从 `data/software.json` + 各软件 `detail.json` 的 `releaseHistoryUrl` 自动生成；站长仅复核 GitHub 仓库名与 assets 命名规则
-3. **FCL 试点**：映射表只配 FCL(0)，跑通"检测→离线下载→直链→JSON→push"全链路（用真实新版本或手动触发）
-4. **扩展到全部 10 个软件**：补全映射表即可（无需再逐项确认网盘目录布局）
-5. **GHA 接入**：`auto-sync.yml` + secret 配置 + 失败通知
-6. **试运行观察**：1-2 周观察真实发布场景，确认无误后写 README 交接给站长
+1. ~~搭骨架：`scripts/auto-sync/` + `h1api.mjs` + `config.mjs` + `ocr_helper.py`~~ ✅
+2. ~~映射表初版：0/3/4 三个标准结构软件~~ ✅
+3. ~~FCL 试点全链路~~ ✅（本地真实运行验证：检测-无落后-无下载-退出码 0）
+4. 扩展到其余软件（7/8/9/10/11/12/14 特殊结构）：待评估其 index/版本文件结构后补映射表
+5. ~~GHA 接入：`auto-sync.yml` + secret 配置~~ ✅（文件已写；secret 需在 GitHub 仓库设置页面添加 `H1111_USER`/`H1111_PASSWORD`）
+6. 试运行观察：GHA 上线后 1-2 周观察真实发布场景，确认无误后交接
 
 ## 7. 验收标准
 
 - 某软件发布新版本后，无需人工干预，仓库自动出现对应 `data/down` JSON（含直链），且站点页面可正常显示新版本并可下载
 - 自动生成的版本文件条目**带 `size` 字段**，下载表格正确显示文件大小（`formatBytes` 渲染）
 - 手动特殊条目（boat.json、共存版、自定义描述）在自动更新后保持不变
-- 站端无任何代码改动（mirror.json、detail.json、adapter、controller、view 均不动）
-- 失败场景（登录失败、下载失败）有明确告警，且不产生错误提交
+- 站端无任何代码改动（software.json、detail.json、mirror.json、adapter、controller、view 均不动；仅 data/down 目录由脚本写）
+- 失败场景（登录失败、下载失败）有明确标记（workflow 失败/非 0 退出），且不产生错误提交
 
-## 8. 待确认事项
+## 8. 待确认/遗留事项
 
-- [ ] 登录失败告警渠道（邮件通知 / issue / 仅 workflow 失败标记）
-- [ ] 单次运行新版本处理上限的默认值（建议 5）
-- [ ] 是否需要对"共存版/特殊版"提供半自动机制（如 GHA 手动触发时附带版本参数）
-- [ ] 历史版本（现有 `data/down` 中的旧版本）是否保持不动、仅新增同步（当前设计：保持不动）
+- [x] 登录失败告警渠道 → 采用 **workflow 失败即告警**（Actions 红色状态；无需额外通知渠道）
+- [x] 单次运行新版本处理上限 → 不设上限（按用户要求"落后全部下载"；GHA job 90 分钟超时兜底）
+- [x] 共存版/特殊版半自动机制 → 初版不做；手动条目原样透传不受影响
+- [x] 历史版本是否保持不动 → 保持不动，仅新增同步
+- [ ] GHA secret 配置（`H1111_USER`/`H1111_PASSWORD`）需站长在仓库 Settings → Secrets 手动添加（脚本与 workflow 已就绪）
+- [ ] 后续扩软件：为 7（Pojav，子目录结构）、12（name+children）、14 等补映射表配置
+- [ ] OCR 依赖包名混淆是否足够（当前为十六进制编码；若担心被扫描可升级为更复杂的运行时拼装）

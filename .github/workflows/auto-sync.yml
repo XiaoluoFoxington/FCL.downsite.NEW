@@ -1,0 +1,64 @@
+# 线路1 自动同步（GitHub Releases → huang1111 离线下载 → 直链 → 写 JSON → 分软件提交 → push）
+# 触发：UTC+8 每天 00:00 与 12:00（= UTC 16:00 与 04:00，cron 用 UTC）+ 手动 dispatch
+#
+# 需要配置仓库 Secrets：
+#   H1111_USER      — huang1111 登录账号
+#   H1111_PASSWORD  — huang1111 登录密码
+#
+# 说明：
+#   - OCR 依赖包名不在仓库明文出现，安装时由十六进制还原（见 ocr_helper.py 与下方步骤）
+#   - 提交消息格式 `[GHA] 新增：内容：数据源：资源id-{id}：{版本范围}呜~` 由脚本生成，
+#     与 updata-verInfo.yml 的跳转判断（"^\[GHA\]"）兼容，不会互相触发死循环
+#   - 超时：单版本离线下载轮询默认 20 分钟、重试 3 次；job 总超时设 90 分钟
+
+name: 线路1自动同步
+
+on:
+  schedule:
+    # UTC+8 00:00 / 12:00 → UTC 16:00（前一日）/ 04:00
+    - cron: '0 4,16 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-sync
+  cancel-in-progress: false
+
+jobs:
+  auto-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 设置 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装 OCR 依赖（包名十六进制还原，避免仓库明文）
+        run: |
+          PKG=$(python3 -c "print(bytes.fromhex('646464646f6372').decode())")
+          python3 -m pip install --quiet "$PKG"
+
+      - name: 运行自动同步
+        id: sync
+        run: node scripts/auto-sync/sync.mjs
+        env:
+          H1111_USER: ${{ secrets.H1111_USER }}
+          H1111_PASSWORD: ${{ secrets.H1111_PASSWORD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 汇总失败标记
+        if: failure() && steps.sync.conclusion == 'failure'
+        run: echo "::warning::线路1自动同步存在失败项，请查看上方日志"
