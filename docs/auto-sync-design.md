@@ -91,11 +91,14 @@ foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分}/文件.后缀名
 
 // data/down/0/1/3/2/7.json —— 单版本架构列表
 [
-  { "arch": "all", "url": "https://pan.huang1111.cn/f/2mzMC6/FCL-release-1.3.2.7-all.apk" },
-  { "arch": "arm64-v8a", "url": "https://pan.huang1111.cn/f/z2mwtE/FCL-release-1.3.2.7-arm64-v8a.apk" },
+  { "arch": "all", "url": "https://pan.huang1111.cn/f/2mzMC6/FCL-release-1.3.2.7-all.apk", "size": 325966879 },
+  { "arch": "arm64-v8a", "url": "https://pan.huang1111.cn/f/z2mwtE/FCL-release-1.3.2.7-arm64-v8a.apk", "size": 172116300 },
   ...
 ]
 ```
+
+- `size`：文件字节数，来自 `GET /directory` 响应的 `objects[].size`；下载表格会通过 `formatBytes` 渲染为可读大小（`selectorView.js` 已支持）
+- 现有手动维护的 JSON 无 size 字段（前端缺省显示空）；**自动生成的条目必须带 size**，与手动条目并存无冲突
 
 网盘 `foldcraftlauncher_cn_auto/0/1/3/2/7/` 下的文件与 JSON 条目**一一对应**（5 架构 + UI重构共存版），路径结构与站端 `data/down/0/1/3/2/7.json` 完全同构。
 
@@ -115,10 +118,11 @@ GitHub Actions schedule（每天 2 次，如 00:00 / 12:00 UTC）
   │     ├─ 轮询 /aria2/finished 直至该 gid 完成（含失败判定）
   │     └─ 记录 gid → 版本映射，供下一步定位文件
   ├─ ⑤ 对每个完成的新版本：
-  │     ├─ GET /directory/foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分} 找到刚下载的文件（按文件名匹配 assets 名）
+  │     ├─ GET /directory/foldcraftlauncher_cn_auto/{软件id}/{版本逐位拆分} 找到刚下载的文件
+  │     │    （按文件名匹配 assets 名；同时拿到每个文件的 size 字段）
   │     └─ POST /file/source {items: [文件id...]} 批量取直链
   ├─ ⑥ 生成/更新仓库 JSON：
-  │     ├─ 写 data/down/{软件id}/{版本逐位拆分}.json（[{arch,url}]，直链来自 ⑤）
+  │     ├─ 写 data/down/{软件id}/{版本逐位拆分}.json（[{arch,url,size}]，url 来自 ⑤ 直链、size 来自 ⑤ 目录响应）
   │     └─ 更新 data/down/{软件id}/index.json（插入新版本、default 指向最新、保留手动条目）
   └─ ⑦ git commit + push（GHA 的 verInfo/sitemap 工作流自动衔接）
 ```
@@ -156,7 +160,10 @@ GitHub Actions schedule（每天 2 次，如 00:00 / 12:00 UTC）
 
 ### 3.5 JSON 生成规则
 
-- **版本文件**：`data/down/{id}/{逐位路径}.json`，内容 `[{arch, url}]`，url 用 `/file/source` 返回的直链
+- **版本文件**：`data/down/{id}/{逐位路径}.json`，内容 `[{arch, url, size}]`：
+  - `url` 用 `/file/source` 返回的直链
+  - `size` 用同一次 `GET /directory` 响应对应文件的 `size`（字节数）
+  - `arch` 从 assets 文件名推断（映射表 `archFromName`）
 - **index.json**：
   - 保留所有现有条目（含 boat.json、自定义描述、共存版等手动条目）
   - 新版本按版本号降序插入（复用 `js/adapters/download/common.js` 的 `compareVersionsDescending` 逻辑）
@@ -212,6 +219,7 @@ scripts/auto-sync/README.md          -- 使用/维护说明（cookie 更新、�
 ## 7. 验收标准
 
 - 某软件发布新版本后，无需人工干预，仓库自动出现对应 `data/down` JSON（含直链），且站点页面可正常显示新版本并可下载
+- 自动生成的版本文件条目**带 `size` 字段**，下载表格正确显示文件大小（`formatBytes` 渲染）
 - 手动特殊条目（boat.json、共存版、自定义描述）在自动更新后保持不变
 - 站端无任何代码改动（mirror.json、detail.json、adapter、controller、view 均不动）
 - 失败场景（cookie 过期、下载失败）有明确告警，且不产生错误提交
