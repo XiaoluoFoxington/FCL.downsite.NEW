@@ -135,6 +135,7 @@ Content-Type: application/json
 
 - GitHub release 下载 URL（`https://github.com/.../releases/download/{tag}/{asset}`）实测可下载成功（README.md 6166 字节秒下；用户自测 164MB APK 也完成）
 - 下载的**文件名 = URL 最后一段路径名**（`README.md`、`FCL-release-...apk`）
+- ⚠️ **`dst` 目录必须已存在**：实测 `dst` 指向不存在的目录返回 `40016 Path not exist`（离线下载不会自动创建目录；自动化方案中需先用 `POST /object` 建目录或复用已存在目录）
 - 并行上限：VIP2 年付 6（3.8.5 更新后升至 8）；超出会排队或失败（未实测超限行为）
 - 结果数组与 `url` 数组一一对应，可逐项判断成功/失败
 
@@ -247,7 +248,40 @@ Content-Type: application/json
 
 ---
 
-## 5. 直链前置条件（重要）
+## 5. 删除文件 — `DELETE /object`
+
+删除一个或多个文件/目录。
+
+### 请求
+
+```
+DELETE /api/v3/object
+Content-Type: application/json
+
+{
+  "items": ["O37jlEhz"],     // 文件 id 数组
+  "dirs": [],                // 目录 id 数组（删除目录时用）
+  "force": false,            // 是否强制（跳过回收站？未深究）
+  "unlink": false            // 是否彻底删除（false=进回收站?）
+}
+```
+
+### 实测响应
+
+```jsonc
+{ "code": 0, "data": null, "msg": "" }
+```
+
+### 要点
+
+- 实测删除根目录文件成功（README.md，id=`8d6mPLtv`），HTTP 200 + `code: 0`
+- `items` 传**文件 id**（同 `file/source` 的约定）
+- 测试脚本用此端点**自动清理测试产生的文件**，网盘不留垃圾
+- `force`/`unlink` 的具体语义未实测（猜测与回收站/彻底删除相关），自动化方案中删除为低频操作，按 `{force:false, unlink:false}` 使用即可
+
+---
+
+## 6. 直链前置条件（重要）
 
 官方文档 + 实测确认：
 
@@ -261,12 +295,13 @@ Content-Type: application/json
 
 ---
 
-## 6. 前端 JS 中发现但**未实测**的端点（3.8.5 前代码）
+## 7. 前端 JS 中发现但**未实测**的端点（3.8.5 前代码）
 
 以下端点从 `main.51b96baf.chunk.js` / chunks 中提取，供参考；**未在本会话实测**，使用时需自行验证：
 
 | 用途 | 方法/路径 | 请求体（来自 JS） |
 |---|---|---|
+| 创建目录 | `POST /object`（推测，前端有 OPEN_CREATE_FOLDER_DIALOG） | 未验证（自动化方案需要，见 §2 的 dst 必须存在问题） |
 | 磁力/种子离线下载 | `POST /aria2/torrent/{torrentId}` | `{dst, preferred_node}` |
 | 选择下载任务中的文件 | `PUT /aria2/select/{gid}` | `{indexes: [...]}` |
 | 删除下载任务 | `DELETE /aria2/task/{gid}` | — |
@@ -278,20 +313,22 @@ Content-Type: application/json
 
 ---
 
-## 7. 已验证的完整自动化调用链（2026-08-25 实测通过）
+## 8. 已验证的完整自动化调用链（2026-08-25 实测通过）
 
 ```
 ① GET  /directory/foldcraftlauncher_cn_auto/0/1/3/2/8     → 拿到文件 id（或确认已存在，去重）
 ② POST /aria2/url          {url:[...], dst:"...", preferred_node:0}   → 提交离线下载
+     （dst 目录须已存在；不存在时先 POST /object 建目录——待实测确认请求格式）
 ③ GET  /aria2/downloading / /aria2/finished?page=N        → 轮询 status===4 完成
 ④ GET  /directory/{dst}    → 按文件名匹配，拿新文件 id
 ⑤ POST /file/source        {items:[id...]}                → 批量取直链
 ⑥ 写 data/down JSON + git push
+⑦ DELETE /object           {items:[id...]}                → 删除测试/临时文件（已实测）
 ```
 
 ---
 
-## 8. 踩坑记录
+## 9. 踩坑记录
 
 | 坑 | 现象 | 解决 |
 |---|---|---|
@@ -305,7 +342,7 @@ Content-Type: application/json
 
 ---
 
-## 9. 3.8.5 更新影响（2026-08-26 01:00-04:00 站点关闭）
+## 10. 3.8.5 更新影响（2026-08-26 01:00-04:00 站点关闭）
 
 官方预告（blog 文章 74）涉及 API 可能变动的点：
 
