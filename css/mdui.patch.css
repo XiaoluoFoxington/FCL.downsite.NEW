@@ -141,8 +141,7 @@ html[data-xf-theme="dark"] .mdui-table td:last-child {
 .mdui-typo.mdui-typo a {
   color: unset;
   text-decoration: underline;
-  word-break: break-all;
-  /* 允许超长链接换行。 */
+  word-break: break-all; /* 允许超长链接换行。 */
   margin: 0 0 1.2em 0;
 }
 
@@ -211,7 +210,13 @@ html[data-xf-theme="dark"] .mdui-table td {
   color: unset;
 }
 
-/* 以下为新增的MDUI原版里没有的样式 */
+/* 深色下表格行背景被高亮时边框改为浅色时颜色，防止看不清边框。至于浅色，本来就是浅色，所以没管 */
+table .mdui-color-theme-accent.mdui-color-theme-accent td {
+  border-right: 1px solid rgba(0, 0, 0, .12);
+  border-bottom: 1px solid rgba(0, 0, 0, .12);
+}
+
+/* 以下为新增的MDUI原版里没有的样式------------------------------------------------------------------------------ */
 
 /* 秒变块级元素 */
 .mdui-block {
