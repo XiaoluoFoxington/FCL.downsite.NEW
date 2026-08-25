@@ -295,6 +295,14 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   font-family: var(--code-font-family);
 }
 
+/* 给appbar里的字加上阴影 */
+.mdui-appbar {
+  text-shadow: 0 0 4px #fff;
+}
+html[data-xf-theme="dark"] .mdui-appbar {
+  text-shadow: 0 0 4px #000;
+}
+
 /**
  * Toast 临时消息组件样式-首。
  * 独立于 MDUI Snackbar，MD1 风格，与 MDUI 1.0.2 视觉协调。
