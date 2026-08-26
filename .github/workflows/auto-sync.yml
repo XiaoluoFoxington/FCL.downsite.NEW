@@ -44,7 +44,7 @@ jobs:
       - name: 设置 Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: 预探测候选
         id: probe
@@ -72,7 +72,7 @@ jobs:
       - name: 设置 Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: 安装 OCR 依赖
         run: |
