@@ -17,13 +17,15 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { ENV, RETRY, TIMING } from './config.mjs';
 
 const BASE = ENV.HOST + '/api/v3';
 const ORIGIN = ENV.HOST;
-const OCR_HELPER = join(import.meta.dirname, 'ocr_helper.py');
+const HERE = dirname(fileURLToPath(import.meta.url));
+const OCR_HELPER = join(HERE, 'ocr_helper.py');
 const PY_BIN = process.platform === 'win32' ? 'python' : 'python3';
 const CAPTCHA_PNG = join(tmpdir(), `h1-captcha-${process.pid}.png`);
 const OCR_OUT = join(tmpdir(), `h1-ocr-${process.pid}.txt`);
