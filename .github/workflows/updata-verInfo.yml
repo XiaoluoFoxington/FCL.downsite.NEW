@@ -58,7 +58,7 @@ jobs:
           SHORT_HASH=$(git rev-parse --short HEAD)
 
           # 提交变更
-          git commit -m "[GHA] 内容：更新：${SHORT_HASH}：verInfo.json与sitemap.xml呜~"
+          git commit -m "[GHA] 修改：内容：更新：${SHORT_HASH}：verInfo.json与sitemap.xml呜~"
 
           # 设置远程地址，使用 GITHUB_TOKEN 认证
           git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
