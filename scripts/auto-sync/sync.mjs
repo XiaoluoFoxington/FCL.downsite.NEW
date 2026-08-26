@@ -363,8 +363,8 @@ function push() {
   if (ENV.GITHUB_TOKEN && ENV.GITHUB_REPOSITORY) {
     git(['remote', 'set-url', 'origin', `https://x-access-token:${ENV.GITHUB_TOKEN}@github.com/${ENV.GITHUB_REPOSITORY}.git`]);
   }
-  // 本地沙箱需 openssl 后端；GHA/正常环境同样兼容
-  execFileSync('git', ['-C', ROOT, '-c', 'http.sslbackend=openssl', 'push', 'origin', `HEAD:${branch}`], { stdio: 'inherit' });
+  const args = ['-C', ROOT, 'push', 'origin', `HEAD:${branch}`];
+  execFileSync('git', args, { stdio: 'inherit' });
   log(`  ✅ 已推送 origin/${branch}`);
 }
 
