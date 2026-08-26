@@ -1,0 +1,40 @@
+{
+  "info": [
+    {
+      "name": "developer",
+      "href": "https://github.com/Acode-Foundation"
+    },
+    {
+      "name": "official website",
+      "href": "https://acode.app/"
+    },
+    {
+      "name": "Github",
+      "href": "https://github.com/Acode-Foundation/Acode"
+    }
+  ],
+  "intro": [
+    {
+      "title": "GH-README",
+      "url": "https://raw.githubusercontent.com/Acode-Foundation/Acode/refs/heads/main",
+      "file": "/README.md",
+      "type": "md"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/Acode-Foundation/Acode/releases",
+  "download": [
+    {
+      "mirrorId": 0,
+      "key": "/16/index.json"
+    },
+    {
+      "mirrorId": 4,
+      "key": "/api/releases?owner=Acode-Foundation&repo=Acode&versions=20"
+    }
+  ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ]
+}

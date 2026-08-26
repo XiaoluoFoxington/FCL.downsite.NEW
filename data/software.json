@@ -107,5 +107,12 @@
     "icon": "/data/software/15/icon.avif",
     "tagIds": [8, 9, 12, 0, 1, 11],
     "detailUrl": "/data/software/15/detail.json"
+  },
+  {
+    "id": 16,
+    "name": "Acode",
+    "icon": "/data/software/16/icon.avif",
+    "tagIds": [7, 6, 13],
+    "detailUrl": "/data/software/16/detail.json"
   }
 ]

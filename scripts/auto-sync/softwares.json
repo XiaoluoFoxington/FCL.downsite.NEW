@@ -25,5 +25,14 @@
     "archNames": [],
     "fallbackArch": null,
     "includePrerelease": false
+  },
+  {
+    "softwareId": 16,
+    "githubRepo": "Acode-Foundation/Acode",
+    "assetFilter": "\\.apk$",
+    "mode": "name",
+    "archNames": [],
+    "fallbackArch": null,
+    "includePrerelease": false
   }
 ]
