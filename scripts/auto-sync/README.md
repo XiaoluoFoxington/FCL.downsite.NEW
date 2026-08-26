@@ -9,11 +9,13 @@
 
 ```
 auto-sync/
-  sync.mjs           主流程：检测 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push
-  h1api.mjs          huang1111 API 封装（登录/CSRF/验证码/目录/离线下载/直链 + 重试策略）
-  config.mjs         环境变量与重试常量
-  softwares.json     软件映射表（当前：0=FCL、3=Zalith2、4=Amethyst）
-  ocr_helper.py      验证码 OCR 助手（依赖包名仓库内无明文，见下文）
+  lib.mjs           纯函数 + 共享状态（版本比较/解析、数据源基线、GitHub Releases 拉取、资产映射）
+  probe.mjs         预探测（只读 GitHub Releases + index.json，无候选跳过 sync job）
+  sync.mjs          主流程：检测 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push
+  h1api.mjs         huang1111 API 封装（登录/CSRF/验证码/目录/离线下载/直链 + 重试策略）
+  config.mjs        环境变量与重试常量
+  softwares.json    软件映射表（当前：0=FCL、3=Zalith2、4=Amethyst、16=Acode）
+  ocr_helper.py     验证码 OCR 助手（依赖包名仓库内无明文，见下文）
 ```
 
 ## 触发
@@ -35,6 +37,10 @@ auto-sync/
 ## 本地手动运行（调试用）
 
 ```powershell
+# 只跑预探测（不读凭据、不动网盘）
+node scripts/auto-sync/probe.mjs
+
+# 完整同步（需要凭据）
 $env:H1111_USER = '你的账号'
 $env:H1111_PASSWORD = '你的密码'
 node scripts/auto-sync/sync.mjs
@@ -54,6 +60,26 @@ node scripts/auto-sync/sync.mjs
 - **旧格式（历史保留，不再写入）**：`{段}/{段}/.../{段}.json`（由版本号按 `.` 拆段而来），解析器对旧格式保持兼容，新旧条目可共存。
 - **手动条目**：index.json 中无版本路径的条目（如 `boat`）原样透传，永远排在版本条目之前。
 - index.json 的版本条目按版本降序；带 `default: true` 的标记自动只保留在最新版本上。
+
+## GHA 双 job 架构
+
+```
+probe job（轻量，必跑）          sync job（重量，按需跑）
+├─ checkout                    ├─ checkout
+├─ setup-node 20               ├─ setup-python 3.11
+└─ node probe.mjs              ├─ setup-node 20
+   （拉 GitHub Releases +     ├─ pip install OCR 依赖
+    读本地 index.json 做基线） └─ node sync.mjs
+   输出 needs_sync=true/false    （离线下载 → 直链 → 写 JSON → 提交 → push）
+         ↓
+   needs.probe.outputs.needs_sync == 'true'
+         ↓
+   ─── sync job 才被调度 ───
+```
+
+- 无候选时 probe job 直接输出 `needs_sync=false`，**sync job 完全不启动**（省掉 Python/Node/OCR 安装 + 全部网盘操作）
+- probe job 不读 `H1111_USER`/`H1111_PASSWORD`，凭据只在 sync job 中使用
+- 异常时 probe 默认输出 `needs_sync=true`（宁可多跑一次，也不遗漏）
 
 ## 检测逻辑
 

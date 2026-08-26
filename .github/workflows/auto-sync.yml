@@ -1,15 +1,17 @@
 # 线路1 自动同步（GitHub Releases → huang1111 离线下载 → 直链 → 写 JSON → 分软件提交 → push）
 # 触发：UTC+8 每天 00:00 与 12:00（= UTC 16:00 与 04:00，cron 用 UTC）+ 手动 dispatch
 #
-# 需要配置仓库 Secrets：
-#   H1111_USER      — huang1111 登录账号
-#   H1111_PASSWORD  — huang1111 登录密码
-#
 # 说明：
+#   - 先 probe 后 sync：probe job 只跑 checkout + node 20 + 预探测（不登录、不动网盘），
+#     全部软件均已是最新时，sync job 完全不调度（连 Python/OCR 安装都跳过）
 #   - OCR 依赖包名不在仓库明文出现，安装时由十六进制还原（见 ocr_helper.py 与下方步骤）
 #   - 提交消息格式 `[GHA] 新增：内容：数据源：资源id-{id}：{版本范围}呜~` 由脚本生成，
 #     与 updata-verInfo.yml 的跳转判断（"^\[GHA\]"）兼容，不会互相触发死循环
-#   - 超时：单版本离线下载轮询默认 20 分钟、重试 3 次；job 总超时设 90 分钟
+#   - 超时：单版本离线下载轮询默认 20 分钟、重试 3 次；sync job 总超时设 90 分钟
+#
+# 需要配置仓库 Secrets：
+#   H1111_USER      — huang1111 登录账号
+#   H1111_PASSWORD  — huang1111 登录密码
 
 name: 线路1自动同步
 
@@ -27,7 +29,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  auto-sync:
+  # ---------- 预探测 job：只跑 GitHub Releases 拉取 + 版本比对，不登录、不动网盘 ----------
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Asia/Shanghai
+    outputs:
+      needs_sync: ${{ steps.probe.outputs.needs_sync }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 预探测候选
+        id: probe
+        run: node scripts/auto-sync/probe.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------- 同步 job：只有 probe 判定有候选时才调度 ----------
+  sync:
+    needs: probe
+    if: needs.probe.outputs.needs_sync == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
@@ -46,7 +74,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: 安装 OCR 依赖（包名十六进制还原，避免仓库明文）
+      - name: 安装 OCR 依赖
         run: |
           PKG=$(python3 -c "print(bytes.fromhex('646464646f6372').decode())")
           python3 -m pip install --quiet "$PKG"
