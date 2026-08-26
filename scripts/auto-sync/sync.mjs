@@ -17,7 +17,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { ENV, RETRY } from './config.mjs';
 import * as h1 from './h1api.mjs';
@@ -93,13 +93,41 @@ async function fetchReleases(githubRepo, includePrerelease) {
   throw new Error(`GitHub 拉取失败：${lastErr?.message || '未知'}`);
 }
 
-// tag → 站内版本名：去前导 v，保留数字字母 _ . -
+// 版本名归一化（不再拆分路径，仅用作 auto 日期目录下的 JSON 文件名）：
+//   保留前导 v/V 原样；空白与非法文件名字符（\/:*?"<>|）归一为 _；
+//   连续点塌缩为一点；去掉首尾点（避免隐藏文件/以点结尾），保证文件名安全
 function versionFromTag(tag) {
-  return String(tag || '').trim().replace(/^[vV]/, '');
+  return String(tag || '')
+    .trim()
+    .replace(/[\\/:*?"<>|\s]+/g, '_')
+    .replace(/^\.+|\.+$/g, '')
+    .replace(/\.{2,}/g, '.');
 }
-// tag 版本 → 目录/文件路径（逐位拆分）
-function pathFromVersion(version) {
-  return String(version).split('.').filter(Boolean).join('/');
+// Release 发布时间 → 日期目录（UTC+8 的年/月/日，不补零，如 2026/8/26）
+function datePathFromRelease(release) {
+  const shifted = new Date(new Date(release.published_at).getTime() + 8 * 3600 * 1000);
+  return `${shifted.getUTCFullYear()}/${shifted.getUTCMonth() + 1}/${shifted.getUTCDate()}`;
+}
+
+// index.json 条目 nextUrl 的版本识别：
+//   新格式（日期归档）：/data/down/{id}/auto/{年}/{月}/{日}/{版本名}.json
+//   旧格式（版本逐位拆分，仅兼容保留）：/data/down/{id}/{段...}.json
+const AUTO_DIR_RE = /^\/data\/down\/\d+\/auto\/\d+\/\d+\/\d+\/([^/]+)\.json$/;
+// 旧格式：整个版本路径为 [0-9A-Za-z_/] 段，长度 ≥2 判定与旧逻辑 segs.length>=2 一致
+const OLD_DIR_RE = /^\/data\/down\/\d+\/([0-9A-Za-z_/]+)\.json$/;
+// 从 nextUrl 反解版本名（新格式优先、旧格式兜底）；非版本条目返回 null
+function entryVersionKey(nextUrl) {
+  const next = String(nextUrl || '');
+  const m = AUTO_DIR_RE.exec(next);
+  if (m) return m[1];
+  const o = OLD_DIR_RE.exec(next);
+  if (o) {
+    // auto 是保留命名空间：旧格式首段不可能以 auto 开头（版本名以 v/V/数字开头），
+    // 排除以防 auto 目录下不完整的手工路径被误判成巨大假版本
+    const segs = o[1].split('/');
+    if (segs[0] !== 'auto' && segs.length >= 2 && segs.every((s) => /^[0-9A-Za-z_]+$/.test(s))) return segs.join('.');
+  }
+  return null;
 }
 
 // ---------- 从 index.json 解析数据源版本 ----------
@@ -114,16 +142,11 @@ function parseDataSourceIndex(softwareId) {
     throw new Error(`解析 ${indexPath} 失败：${e.message}`);
   }
   if (!Array.isArray(entries)) entries = [];
-  // 版本条目：nextUrl 形如 /data/down/{id}/{逐位拆分}.json
+  // 版本条目：新格式 auto 日期目录 / 旧格式逐位拆分，均可反解出版本名
   const versions = [];
   for (const e of entries) {
-    const m = /^\/data\/down\/\d+\/(.+)\.json$/.exec(String(e.nextUrl || ''));
-    if (m) {
-      const segs = m[1].split('/');
-      if (segs.length >= 2 && segs.every((s) => /^[0-9A-Za-z_]+$/.test(s))) {
-        versions.push(segs.join('.'));
-      }
-    }
+    const key = entryVersionKey(e.nextUrl);
+    if (key != null) versions.push(key);
   }
   if (!versions.length) return { latest: null, entries };
   versions.sort(compareVersionsDescending);
@@ -132,10 +155,7 @@ function parseDataSourceIndex(softwareId) {
 
 // ---------- 判定某版本是否已在数据源内 ----------
 function versionKnown(entries, version) {
-  return entries.some((e) => {
-    const m = /^\/data\/down\/\d+\/(.+)\.json$/.exec(String(e.nextUrl || ''));
-    return m && m[1].split('/').join('.') === version;
-  });
+  return entries.some((e) => entryVersionKey(e.nextUrl) === version);
 }
 
 // ---------- 资产 → 版本文件条目 ----------
@@ -194,7 +214,9 @@ async function syncVersion(sw, version, release) {
     log(`  ⚠ 无可用资产（共 ${assets.length} 个 .apk），跳过该版本`);
     return null;
   }
-  const netPath = `foldcraftlauncher_cn_auto/${sw.softwareId}/${pathFromVersion(version)}`;
+  // 网盘路径（根目录 foldcraftlauncher_cn_auto 即"auto"语义，内部与站内日期目录一致）
+  const datePath = datePathFromRelease(release);
+  const netPath = `foldcraftlauncher_cn_auto/${sw.softwareId}/${datePath}`;
   const wantFiles = entries.map((e) => e._file);
 
   // 2) 幂等：网盘目录已存在全部期望文件 → 跳过离线下载
@@ -224,8 +246,8 @@ async function syncVersion(sw, version, release) {
     return { ...(sw.mode === 'name' ? { name: e.name } : { arch: e.arch }), url, size: meta.size };
   });
 
-  // 5) 写 data/down/{id}/{逐位拆分}.json
-  const jsonRel = `data/down/${sw.softwareId}/${pathFromVersion(version)}.json`;
+  // 5) 写 data/down/{id}/auto/{年}/{月}/{日}/{版本名}.json（与 index.json nextUrl 完全一致）
+  const jsonRel = `data/down/${sw.softwareId}/auto/${datePath}/${version}.json`;
   const jsonPath = join(ROOT, jsonRel);
   mkdirSync(dirname(jsonPath), { recursive: true });
   writeFileSync(jsonPath, JSON.stringify(sized, null, 2));
@@ -235,25 +257,20 @@ async function syncVersion(sw, version, release) {
 }
 
 // ---------- 更新 index.json（保留手动条目，新增版本降序插入，default 移到最新） ----------
-function updateIndex(softwareId, origEntries, newVersions) {
+// synced：syncVersion 成功返回的对象数组（含 version / jsonRel）
+function updateIndex(softwareId, origEntries, synced) {
   const manual = [];
   const versionEntries = []; // { key, entry }
   for (const e of origEntries) {
-    const m = /^\/data\/down\/\d+\/(.+)\.json$/.exec(String(e.nextUrl || ''));
-    if (m && m[1].split('/').length >= 2 && m[1].split('/').every((s) => /^[0-9A-Za-z_]+$/.test(s))) {
-      versionEntries.push({ key: m[1].split('/').join('.'), entry: e });
-    } else {
-      manual.push(e);
-    }
+    const key = entryVersionKey(e.nextUrl);
+    if (key != null) versionEntries.push({ key, entry: e });
+    else manual.push(e);
   }
-  for (const v of newVersions) {
-    if (versionEntries.some((x) => x.key === v)) continue;
+  for (const s of synced) {
+    if (versionEntries.some((x) => x.key === s.version)) continue;
     versionEntries.push({
-      key: v,
-      entry: {
-        name: v,
-        nextUrl: `/data/down/${softwareId}/${pathFromVersion(v)}.json`,
-      },
+      key: s.version,
+      entry: { name: s.version, nextUrl: '/' + s.jsonRel },
     });
   }
   versionEntries.sort((a, b) => compareVersionsDescending(a.key, b.key));
@@ -263,8 +280,7 @@ function updateIndex(softwareId, origEntries, newVersions) {
     // default 只保留在最新版本上
     const newest = versionEntries[0].key;
     entries = entries.map((e) => {
-      const m = /^\/data\/down\/\d+\/(.+)\.json$/.exec(String(e.nextUrl || ''));
-      const key = m ? m[1].split('/').join('.') : null;
+      const key = entryVersionKey(e.nextUrl);
       const { default: _d, ...rest } = e;
       return key === newest ? { ...rest, default: true } : rest;
     });
@@ -275,12 +291,12 @@ function updateIndex(softwareId, origEntries, newVersions) {
 }
 
 // ---------- 提交前数据校验（JSON 可解析、直链前缀、size、index 一致性） ----------
-function verifySyncedData(sw, newVersions) {
+function verifySyncedData(sw, synced) {
   const errors = [];
   const urlPrefix = ENV.HOST + '/f/';
-  for (const v of newVersions) {
-    const jsonRel = `data/down/${sw.softwareId}/${pathFromVersion(v)}.json`;
-    const nextUrl = `/data/down/${sw.softwareId}/${pathFromVersion(v)}.json`;
+  for (const s of synced) {
+    const jsonRel = s.jsonRel;
+    const nextUrl = '/' + jsonRel;
     let rows;
     try {
       rows = JSON.parse(readFileSync(join(ROOT, jsonRel), 'utf8'));
@@ -309,13 +325,13 @@ function verifySyncedData(sw, newVersions) {
     errors.push(`data/down/${sw.softwareId}/index.json 解析失败：${e.message}`);
   }
   if (Array.isArray(index)) {
-    for (const v of newVersions) {
-      const nextUrl = `/data/down/${sw.softwareId}/${pathFromVersion(v)}.json`;
+    for (const s of synced) {
+      const nextUrl = '/' + s.jsonRel;
       if (!index.some((e) => String(e.nextUrl || '') === nextUrl)) errors.push(`index.json 缺少 ${nextUrl}`);
     }
   }
   if (errors.length) throw new Error('提交前数据校验失败：\n  - ' + errors.join('\n  - '));
-  log(`    ✅ 提交前校验通过（${newVersions.length} 个版本 JSON、${urlPrefix} URL、size、index 一致性）`);
+  log(`    ✅ 提交前校验通过（${synced.length} 个版本 JSON、${urlPrefix} URL、size、index 一致性）`);
 }
 
 // ---------- 提交单个软件 ----------
@@ -371,7 +387,7 @@ async function main() {
       // 1) 数据源基线
       const { latest: dsLatest, entries: origEntries } = parseDataSourceIndex(sw.softwareId);
       log(`数据源最新版本：${dsLatest || '（无）'}`);
-      if (dsLatest) log(`数据源版本数：${origEntries.filter((e) => /^\/data\/down\/\d+\/[0-9A-Za-z_\/]+\.json$/.test(String(e.nextUrl || ''))).length}`);
+      if (dsLatest) log(`数据源版本数：${origEntries.filter((e) => entryVersionKey(e.nextUrl) != null).length}`);
 
       // 2) GitHub Releases
       log(`拉取 GitHub Releases：${sw.githubRepo} …`);
@@ -382,7 +398,7 @@ async function main() {
       // 版本名列表（去重）
       const versioned = releases
         .map((r) => ({ version: versionFromTag(r.tag_name), release: r }))
-        .filter((x) => /^[0-9]/.test(x.version))
+        .filter((x) => /^[vV]?[0-9]/.test(x.version))
         .filter((x, i, arr) => arr.findIndex((y) => y.version === x.version) === i);
 
       // 3) 候选：数据源无版本 → 只取最新；否则落后多少取多少
@@ -411,7 +427,7 @@ async function main() {
         }
         try {
           const result = await syncVersion(sw, cand.version, cand.release);
-          if (result) synced.push(result.version);
+          if (result) synced.push(result);
         } catch (e) {
           overallFailed = true;
           log(`  ❌ 版本 ${cand.version} 同步失败（已按重试策略耗尽仍失败）：${e.message}`);
@@ -423,7 +439,7 @@ async function main() {
       const indexPath = updateIndex(sw.softwareId, origEntries, synced);
       log(`    ✅ 已更新 ${indexPath.replace(ROOT + '/', '')}（+${synced.length} 个版本）`);
       verifySyncedData(sw, synced);
-      const newVersionsSorted = synced.slice().sort(compareVersionsDescending);
+      const newVersionsSorted = synced.map((s) => s.version).sort(compareVersionsDescending);
       const range = dsLatest ? `${dsLatest}-${newVersionsSorted[0]}` : String(newVersionsSorted[0]);
       log(`    提交范围：${range}`);
       try {
@@ -458,7 +474,13 @@ async function main() {
   process.exit(overallFailed ? 1 : 0);
 }
 
-main().catch((e) => {
-  console.error('脚本异常：' + (e.stack || e.message));
-  process.exit(1);
-});
+// 直接执行本文件（node scripts/auto-sync/sync.mjs）才进入主流程；
+// 被 import（如验证脚本）时仅暴露纯函数，便于白盒测试
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((e) => {
+    console.error('脚本异常：' + (e.stack || e.message));
+    process.exit(1);
+  });
+}
+
+export { compareVersionsDescending, datePathFromRelease, entryVersionKey, versionFromTag };

@@ -1,6 +1,6 @@
 # 线路1 自动同步（auto-sync）
 
-把「GitHub Releases → huang1111 网盘离线下载 → 直链 → 站端 `data/down` JSON → 提交」全链路自动化，跑在 GitHub Actions 上。站端零改动。
+把「GitHub Releases → huang1111 网盘离线下载 → 直链 → 站端 `data/down` JSON → 提交」全链路自动化，跑在 GitHub Actions 上。站端前端无需改动（下载节点按 `nextUrl` 惰性加载，对目录结构透明）。
 
 > 详细设计见 [`docs/auto-sync-design.md`](../../docs/auto-sync-design.md)，API 实测依据见 [`docs/huang1111-api-notes.md`](../../docs/huang1111-api-notes.md)。
 > 本目录内 `.mjs` 为 Node 20+ 原生 ESM（无需 npm install），`.py` 为 OCR 子进程助手。
@@ -47,6 +47,13 @@ node scripts/auto-sync/sync.mjs
 | `H1111_HOST` | `https://pan.huang1111.cn` | 网盘 API 源（一般不用改） |
 | `AUTO_SYNC_DOWNLOAD_TIMEOUT_MS` | `1200000`（20 分钟） | 单版本离线下载轮询上限 |
 | `GITHUB_TOKEN` | 无 | 本地一般不需要；GHA 自动注入 |
+
+## 数据结构（站内 `data/down/{id}/`）
+
+- **自动生成（新格式）**：`auto/{年}/{月}/{日}/{版本名}.json` —— 年月日取 Release 发布时间转 UTC+8（不补零）；版本名保留 tag 原样（含前导 `v`/`V`），空白与非法文件名字符归一为 `_`。网盘侧对应 `foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}/`。
+- **旧格式（历史保留，不再写入）**：`{段}/{段}/.../{段}.json`（由版本号按 `.` 拆段而来），解析器对旧格式保持兼容，新旧条目可共存。
+- **手动条目**：index.json 中无版本路径的条目（如 `boat`）原样透传，永远排在版本条目之前。
+- index.json 的版本条目按版本降序；带 `default: true` 的标记自动只保留在最新版本上。
 
 ## 检测逻辑
 
@@ -103,6 +110,6 @@ OCR 依赖的**包名不在仓库出现明文**（防止网盘站长扫描仓库
 
 ## 已知边界
 
-- 初版仅覆盖 `data/down/0`、`3`、`4` 三个标准结构；其余软件待后续扩展映射表
+- 软件映射见 `softwares.json`（当前：0=FCL、3=Zalith2、4=Amethyst、16=Acode）；其余软件待后续扩展映射表
 - 单次运行中途若会话过期（401）不做自动重登（下次运行重新登录）；其余均在约定重试策略内自动恢复
 - 自动版本条目带 `size` 字段（前端 `formatBytes` 显示），手动旧条目无 `size` 不影响
