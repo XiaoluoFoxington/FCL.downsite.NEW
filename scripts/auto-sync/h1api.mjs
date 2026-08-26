@@ -226,22 +226,67 @@ async function collectFinishedGids(dst, wantNames) {
   return gids;
 }
 
+// 收集正在下载中的任务（GET /aria2/downloading），返回匹配 dst 的文件名集合
+// 用于重试时跳过已在下载中的文件，避免重复 aria2 任务
+async function collectDownloadingNames(dst, wantNames) {
+  const dstNorm = dst.replace(/^\/+|\/+$/g, '') || '/';
+  const names = new Set();
+  try {
+    const r = await api('GET', '/aria2/downloading');
+    for (const t of r.json?.data || []) {
+      const tDst = (t.dst || '').replace(/^\/+|\/+$/g, '') || '/';
+      if (tDst === dstNorm) {
+        const taskName = t.name || t.files?.[0]?.path || '';
+        if (wantNames.includes(taskName)) names.add(taskName);
+      }
+    }
+  } catch {
+    // 拿不到就视为无下载中任务，按原逻辑提交
+  }
+  return names;
+}
+
 export async function offlineDownload(urls, netPath, wantNames, log) {
   const dst = '/' + netPath; // 实测 finished 任务 dst 带前导斜杠
   let lastErr = null;
   for (let attempt = 1; attempt <= RETRY.DOWNLOAD_ATTEMPTS; attempt += 1) {
-    logMsg(log, `  [离线下载] 第 ${attempt}/${RETRY.DOWNLOAD_ATTEMPTS} 次：提交 ${urls.length} 个 URL`);
+    logMsg(log, `  [离线下载] 第 ${attempt}/${RETRY.DOWNLOAD_ATTEMPTS} 次：准备处理 ${urls.length} 个文件`);
     try {
       await createDir(netPath, log);
+
+      // 检查正在下载的任务，避免重试时重复提交同一文件
+      const downloadingNames = await collectDownloadingNames(dst, wantNames);
+      if (downloadingNames.size > 0) {
+        logMsg(log, `  [离线下载] 发现 ${downloadingNames.size}/${wantNames.length} 个文件已在下载中，跳过重复提交`);
+      }
+
+      // 分离：已在下载的文件 → 跳过提交；其余 → 本次提交
+      const pendingUrls = [];
+      const pendingNames = [];
+      for (let i = 0; i < wantNames.length; i += 1) {
+        if (!downloadingNames.has(wantNames[i])) {
+          pendingUrls.push(urls[i]);
+          pendingNames.push(wantNames[i]);
+        }
+      }
+
       const baselineGids = await collectFinishedGids(dst, wantNames);
-      const r = await genericAttempts(
-        () => apiWithToken('POST', '/aria2/url', { url: urls, dst, preferred_node: 0 }),
-        '提交 aria2',
-        log,
-      );
-      const data = r.json?.data || [];
-      const bad = data.find((x) => x?.code !== 0);
-      if (bad) throw new H1Error('任务提交失败: ' + (bad.msg || ''));
+
+      if (pendingUrls.length > 0) {
+        logMsg(log, `  [离线下载] 提交 ${pendingUrls.length} 个新 URL`);
+        const r = await genericAttempts(
+          () => apiWithToken('POST', '/aria2/url', { url: pendingUrls, dst, preferred_node: 0 }),
+          '提交 aria2',
+          log,
+        );
+        const data = r.json?.data || [];
+        const bad = data.find((x) => x?.code !== 0);
+        if (bad) throw new H1Error('任务提交失败: ' + (bad.msg || ''));
+      } else {
+        logMsg(log, `  [离线下载] 全部 ${wantNames.length} 个文件已在下载中，跳过提交，直接轮询`);
+      }
+
+      // 轮询全部文件（含之前已在下载的 + 本次新提交的）
       const files = await pollForFiles(netPath, dst, wantNames, log, baselineGids);
       return files;
     } catch (e) {
