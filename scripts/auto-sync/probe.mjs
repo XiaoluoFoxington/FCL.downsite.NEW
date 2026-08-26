@@ -60,13 +60,17 @@ async function main() {
     ctx.log(`\n已写入 GITHUB_OUTPUT：needs_sync=${needsSync}`);
   }
 
+  // GHA 告警：有探测错误时在 Actions UI 显示黄色警告，但仍以 exit 0 完成 job，
+  // 确保 sync job 的 if 条件（needs.probe.outputs.needs_sync == 'true'）能正常评估
+  if (overallFailed && process.env.GITHUB_ACTIONS === 'true') {
+    console.log('::warning::预探测存在错误（详见上方日志），但仍将根据 needs_sync 决定是否调度 sync job');
+  }
   ctx.log(`\n==== 预探测结束：needs_sync=${needsSync}${overallFailed ? '（存在探测错误）' : ''} ====`);
   console.log('\n--- 完整日志 ---');
   console.log(ctx.runLog.join('\n'));
-  // 有候选 + 无错误 = exit 0（让 sync job 运行）
-  // 有候选 + 有错误 = exit 1（警告有错误，但仍然要尝试同步）
-  // 无候选 = exit 0（正常跳过）
-  process.exit(overallFailed ? 1 : 0);
+  // 永远 exit 0：GHA 将 exit ≠ 0 视为 job 失败，失败的 probe 会导致 sync job 被跳过，
+  // 即便 needs_sync=true 也无济于事；因此错误通过 ::warning:: 告警，退出码保持 0
+  process.exit(0);
 }
 
 main().catch(async (e) => {
@@ -77,5 +81,12 @@ main().catch(async (e) => {
     const fs = await import('node:fs');
     try { fs.appendFileSync(ghOutput, 'needs_sync=true\n'); } catch { /* ignore */ }
   }
-  process.exit(1);
+  // 异常也不 exit 1：避免因 probe 崩溃导致 sync job 被跳过
+  // 通过 ::error:: 在 GHA UI 显示红色错误标记
+  if (process.env.GITHUB_ACTIONS === 'true') {
+    console.log('::error::预探测发生严重异常：' + e.message + '（已默认写入 needs_sync=true）');
+  }
+  console.log('\n--- 完整日志 ---');
+  console.log(ctx.runLog.join('\n'));
+  process.exit(0);
 });
