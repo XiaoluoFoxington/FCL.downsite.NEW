@@ -11,7 +11,7 @@
 //   离线下载失败              → 提交+轮询最多 3 次
 //   其他任何失败（网络/HTTP） → 最多 2 次尝试
 //
-// 提交格式（用户确认）：`[GHA] 新增：内容：数据源：资源id-{id}：{版本号范围}呜~\n\n{日志}`
+// 提交格式（用户确认）：`[GHA] 新增：内容：数据源：资源id-{id}：{版本列表&分隔}呜~\n\n{日志}`
 // 每个软件一个 commit；全部完成后统一 push。
 
 import { execFileSync } from 'node:child_process';
@@ -183,7 +183,7 @@ function verifySyncedData(sw, synced) {
 }
 
 // ---------- 提交单个软件 ----------
-function commitSoftware(softwareId, range, bodyLines) {
+function commitSoftware(softwareId, versionList, bodyLines) {
   // 先暂存 data/down/{id} 全部变更
   git(['add', '--', `data/down/${softwareId}`]);
   // 无变更则不提交
@@ -194,7 +194,7 @@ function commitSoftware(softwareId, range, bodyLines) {
   } catch {
     /* 有变更 */
   }
-  const subject = `[GHA] 新增：内容：数据源：资源id-${softwareId}：${range}呜~`;
+  const subject = `[GHA] 新增：内容：数据源：资源id-${softwareId}：${versionList}呜~`;
   const body = bodyLines.join('\n');
   git([
     '-c', 'user.name=github-actions[bot]',
@@ -306,11 +306,10 @@ async function main() {
       const indexPath = updateIndex(sw.softwareId, origEntries, synced);
       log(`    ✅ 已更新 ${indexPath.replace(ROOT + '/', '')}（+${synced.length} 个版本）`);
       verifySyncedData(sw, synced);
-      const newVersionsSorted = synced.map((s) => s.version).sort(compareVersionsDescending);
-      const range = dsLatest ? `${dsLatest}-${newVersionsSorted[0]}` : String(newVersionsSorted[0]);
-      log(`    提交范围：${range}`);
+      const versionList = synced.map((s) => s.version).sort(compareVersionsDescending).join('&');
+      log(`    提交版本列表：${versionList}`);
       try {
-        if (commitSoftware(sw.softwareId, range, swLog)) anyCommit = true;
+        if (commitSoftware(sw.softwareId, versionList, swLog)) anyCommit = true;
       } catch (e) {
         overallFailed = true;
         log(`  ❌ 提交失败：${e.message}`);
