@@ -299,6 +299,6 @@ scripts/auto-sync/README.md          -- 使用/维护说明（secret 配置、�
 - [x] 共存版/特殊版半自动机制 → 初版不做；手动条目原样透传不受影响
 - [x] 历史版本是否保持不动 → 保持不动，仅新增同步
 - [x] 日期归档 + 双 job 预探测 → 已实施（2026-08-26）
-- [ ] GHA secret 配置（`H1111_USER`/`H1111_PASSWORD`）需站长在仓库 Settings → Secrets 手动添加（脚本与 workflow 已就绪）
+- [x] GHA secret 配置（`H1111_USER`/`H1111_PASSWORD`）需站长在仓库 Settings → Secrets 手动添加（脚本与 workflow 已就绪）
 - [ ] 后续扩软件：为 7（Pojav，子目录结构）、12（name+children）、14 等补映射表配置
 - [ ] OCR 依赖包名混淆是否足够（当前为十六进制编码；若担心被扫描可升级为更复杂的运行时拼装）
