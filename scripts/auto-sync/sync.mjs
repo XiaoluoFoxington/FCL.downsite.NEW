@@ -62,9 +62,10 @@ async function syncVersion(sw, version, release) {
     log(`  ⚠ 无可用资产（共 ${assets.length} 个 .apk），跳过该版本`);
     return null;
   }
-  // 网盘路径（根目录 foldcraftlauncher_cn_auto 即"auto"语义，内部与站内日期目录一致）
+  // 网盘路径（根目录 foldcraftlauncher_cn_auto 即"auto"语义；层级与数据源一致：
+  // {id}/{年}/{月}/{日}/{版本号}，版本号目录下才是文件，避免同一天多个版本互相覆盖）
   const datePath = datePathFromRelease(release);
-  const netPath = `foldcraftlauncher_cn_auto/${sw.softwareId}/${datePath}`;
+  const netPath = `foldcraftlauncher_cn_auto/${sw.softwareId}/${datePath}/${version}`;
   const wantFiles = entries.map((e) => e._file);
 
   // 2) 幂等：网盘目录已存在全部期望文件 → 跳过离线下载

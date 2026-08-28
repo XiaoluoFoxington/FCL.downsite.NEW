@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ENV, RETRY, TIMING } from './config.mjs';
+import { ENV, RETRY, TIMING, LIMIT } from './config.mjs';
 
 const BASE = ENV.HOST + '/api/v3';
 const ORIGIN = ENV.HOST;
@@ -136,6 +136,7 @@ async function recognizeCaptcha(log) {
     if (existsSync(CAPTCHA_PNG)) unlinkSync(CAPTCHA_PNG);
     if (existsSync(OCR_OUT)) unlinkSync(OCR_OUT);
   }
+  logMsg(log, `  [OCR] 识别结果：${code || '（空）'}`);
   return code; // 可能为空/长度≠4，由调用方判定
 }
 
@@ -273,15 +274,22 @@ export async function offlineDownload(urls, netPath, wantNames, log) {
       const baselineGids = await collectFinishedGids(dst, wantNames);
 
       if (pendingUrls.length > 0) {
-        logMsg(log, `  [离线下载] 提交 ${pendingUrls.length} 个新 URL`);
-        const r = await genericAttempts(
-          () => apiWithToken('POST', '/aria2/url', { url: pendingUrls, dst, preferred_node: 0 }),
-          '提交 aria2',
-          log,
-        );
-        const data = r.json?.data || [];
-        const bad = data.find((x) => x?.code !== 0);
-        if (bad) throw new H1Error('任务提交失败: ' + (bad.msg || ''));
+        // 分批发提交：huang1111 对单次离线下载任务数有限制（LIMIT.OFFLINE_BATCH）
+        for (let i = 0; i < pendingUrls.length; i += LIMIT.OFFLINE_BATCH) {
+          const batchUrls = pendingUrls.slice(i, i + LIMIT.OFFLINE_BATCH);
+          const batchNames = pendingNames.slice(i, i + LIMIT.OFFLINE_BATCH);
+          const batchNo = Math.floor(i / LIMIT.OFFLINE_BATCH) + 1;
+          const totalBatches = Math.ceil(pendingUrls.length / LIMIT.OFFLINE_BATCH);
+          logMsg(log, `  [离线下载] 提交第 ${batchNo}/${totalBatches} 批（${batchUrls.length} 个）：${batchNames.join(', ')}`);
+          const r = await genericAttempts(
+            () => apiWithToken('POST', '/aria2/url', { url: batchUrls, dst, preferred_node: 0 }),
+            '提交 aria2',
+            log,
+          );
+          const data = r.json?.data || [];
+          const bad = data.find((x) => x?.code !== 0);
+          if (bad) throw new H1Error('任务提交失败: ' + (bad.msg || ''));
+        }
       } else {
         logMsg(log, `  [离线下载] 全部 ${wantNames.length} 个文件已在下载中，跳过提交，直接轮询`);
       }

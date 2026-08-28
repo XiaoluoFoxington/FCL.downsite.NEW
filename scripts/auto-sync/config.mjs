@@ -26,3 +26,8 @@ export const TIMING = {
   POLL_INTERVAL_MS: 5000,    // 离线下载轮询间隔
   CAPTCHA_COOLDOWN_MS: 800,  // 验证码重试间隔
 };
+
+// 批量提交上限（huang1111 对离线下载任务数有限制，需分批提交）
+export const LIMIT = {
+  OFFLINE_BATCH: 5, // 离线下载每批提交的 URL 数
+};
