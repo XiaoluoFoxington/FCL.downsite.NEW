@@ -1,9 +1,9 @@
 # huang1111 网盘 API 逆向解析（Cloudreve v3 定制版）
 
-> 状态：3.8.5 已重测通过（e2e 12/12）；标注"仅 JS 发现"的端点未实测
-> 记录日期：2026-08-25（3.8.5 重测 2026-08-26）
-> 来源：真实登录态会话实测 + 前端 JS bundle 分析（`pan.huang1111.cn/static/js/`，`webpackJsonpcloudreve-frontend-pro`）
-> 用途：支撑 `docs/auto-sync-design.md` 的自动化方案；所有调用已实测通过（除标注"仅 JS 发现"外）
+> 状态：3.8.5 已重测通过（e2e 12/12）；2026-08-28 全面复核 + 扩展逆向（新增用户/存储/回收站/分享/WebDAV/增值等端点）再次通过
+> 记录日期：2026-08-25（3.8.5 重测 2026-08-26；2026-08-28 全面复核并修订过时/错误项 + 扩展新端点）
+> 来源：真实登录态会话实测 + 前端 JS bundle 分析（`pan.huang1111.cn/static/js/`）
+> 范围：仅收录已实测端点；"已失效/未实测"见 §9
 
 ---
 
@@ -18,61 +18,137 @@ https://pan.huang1111.cn/api/v3
 ### 0.2 认证
 
 - 全部 API 基于**会话 cookie**：`cloudreve-session`（`pan.huang1111.cn` 域）
-- 请求需带 `credentials: include`（同源 fetch 默认带，跨域需显式）
-- cookie 过期时 API 返回 `code: 401`（前端拦截器会跳转登录页）
-- 登录用户信息同时存于 `localStorage.user`（JSON），含 `id`、`user_name`、`nickname`、`group`（等级、权限）
+- 未登录 / cookie 过期 → `code: 401`（"Login required"）
+- 登录用户信息同时存于 `localStorage.user`（JSON），含 `id`、`user_name`、`nickname`、`group`
 
-### 0.2.1 登录（3.8.5：账号密码 + 验证码 + CSRF）
+### 0.3 登录（账号密码 + 验证码 + CSRF）
 
-3.8.5 起登录**必须**先取验证码（`GET /site/captcha`）再 POST，且所有写请求都要带 CSRF 头（见 0.2.2）。完整流程：
+登录**必须**先取验证码再 POST，且所有写请求都要带 CSRF 头（见 §0.4）。完整流程：
 
 ```
 ① GET  /site/captcha?_=<时间戳>      → data: "data:image/png;base64,..." + Set-Cookie 会话
-② GET  /site/config                  → 响应头 x-csrf-token（此时拿到的 token 用于下面 POST）
+② GET  /site/config                  → 响应头 x-csrf-token（用于下面 POST）
 ③ POST /user/session                 → body {userName, Password, captchaCode}；cookies 带①的会话
 ```
 
-- **验证码**：4 位字符 PNG（base64 in `data`）。识别用 OCR；识别结果需 `.upper()` + 过滤非 ASCII 字母数字（会把中文误识别进去），长度必须为 4，否则重取重试
-- **登录失败重试**：`code: 40026`（Verification failed）多为验证码识别错误，重试时重新 GET captcha（captcha 一次性，且 GET captcha 可能**轮换会话 cookie**——必须用新 cookie 重新 GET /site/config 拿新 CSRF，再 POST）
-- 实测 1~2 次即可登录成功（OCR 偶尔给出错误的 4 位猜测）；失败重试上限 10 次兜底
-- 登录成功响应 `data.user_name` / `nickname` / `group` 可直接确认身份等级
+- **验证码**：4 位字符 PNG（base64 in `data`）。识别结果需 `.upper()` + 过滤非 ASCII 字母数字，长度必须为 4，否则重取重试
+- **失败重试**：`code: 40026`（Verification failed）多为验证码识别错误，重试时重新 GET captcha（captcha 一次性，且 GET captcha 可能**轮换会话 cookie**——必须用新 cookie 重新 GET /site/config 拿新 CSRF，再 POST）；上限 10 次兜底，实测 1~2 次即成功
+- 登录成功响应 `data.user_name` / `nickname` / `group` 可确认身份等级
 
-### 0.2.2 CSRF（3.8.5 新增，写请求必须）
+### 0.4 CSRF（3.8.5 新增，所有写请求必须）
 
-- **`GET /site/config` 是唯一已确认的 `x-csrf-token` 响应头来源**（前端用 axios，3.8.5 起对写请求统一校验该头）
-- 每次写请求（POST/PUT/DELETE）前都应重新 `GET /site/config` 拿最新 token，并带 `X-CSRF-Token: <token>` 请求头
-- 实测：`GET /site/config` **不会**轮换 cookie/token；同一 token 可复用于多次写请求；但登录或 GET captcha 轮换会话 cookie 后必须重取
+- **`GET /site/config` 是唯一已确认的 `x-csrf-token` 响应头来源**；另有一条等价通道：浏览器会话 cookie 里的 `_csrf` cookie（两者取一即可）
+- 写请求（POST/PUT/DELETE）需带 `X-CSRF-Token: <token>` 头，并附 `Origin` / `Referer`（`https://pan.huang1111.cn`）
+- 实测 `GET /site/config` **不会**轮换 cookie/token；同一 token 可复用于多次写请求；但登录或 GET captcha 轮换会话 cookie 后必须重取
 - 漏带/带旧 token 的写请求 → `code: 40026`（Verification failed）
 
-### 0.3 响应信封（所有 API 统一）
+### 0.5 响应信封（所有 API 统一）
 
 ```jsonc
 {
-  "code": 0,        // 0=成功；非 0 见 0.4
+  "code": 0,        // 0=成功；非 0 见 0.6
   "data": ...,      // 成功时的业务数据
   "msg": ""         // 错误时的消息
 }
 ```
 
-### 0.4 常见错误码（实测 + JS i18n）
+### 0.6 常见错误码（实测 + JS i18n）
 
 | code | 含义 |
 |---|---|
 | 0 | 成功 |
 | 401 | 未登录 / 会话过期 |
-| 40001 | 参数错误（Invalid input parameters） |
-| 40016 | 路径不存在 / 对象不存在（Path not exist / Object not exist） |
-| 40026 | 验证失败（Verification failed）：验证码识别错误 / 会话轮换后用了旧 cookie / 漏带或带旧 CSRF token |
+| -1 | 查询失败（如 `GET /aria2/task/{gid}` 无效 gid） |
+| 404 | 对象不存在（如 `GET /object/property/{id}` 无效 id） |
+| 40001 | 参数错误（Invalid input parameters），msg 常带缺失字段名 |
 | 40007 | 当前用户组无权限执行该操作 |
-| 40008 | 站点配置缺失/异常（前端跳 /home） |
+| 40008 | 站点配置缺失/异常 |
+| 40016 | 路径不存在 / 对象不存在（Path not exist / Object not exist） |
+| 40026 | 验证失败（Verification failed）：验证码错误 / 会话轮换后用旧 cookie / 漏带或带旧 CSRF token |
+| 40058 | 分享 key 无效（`GET /share/info/{key}`、`GET /share/readme/{key}`） |
 
 ---
 
-## 1. 列目录 — `GET /directory/{路径}`
+## 1. 用户
 
-获取指定路径下的文件/目录列表。
+### 1.1 用户信息 — `GET /user/me`
 
-### 请求
+```
+GET /api/v3/user/me
+```
+
+需登录。实测响应（2026-08-28）：
+
+```jsonc
+{
+  "code": 0,
+  "data": {
+    "id": 100001,
+    "user_name": "XiaoluoFoxington",
+    "nickname": "...",
+    "group": { "id": 3, "name": "VIP2", "allowShare": true }
+  },
+  "msg": ""
+}
+```
+
+- 未登录 → `code: 401`
+- 与已失效的 `GET /me`（404）不同，这是当前有效端点
+
+### 1.2 存储空间 — `GET /user/storage`
+
+```
+GET /api/v3/user/storage
+```
+
+实测响应：
+
+```jsonc
+{
+  "code": 0,
+  "data": { "used": 130668774476, "free": 620950502324, "total": 751619276800, "recycled": 15762 },
+  "msg": ""
+}
+```
+
+- 单位字节；`recycled` 为回收站占用
+
+### 1.3 账号设置 — `GET /user/setting`
+
+```
+GET /api/v3/user/setting
+```
+
+返回账号设置全量 JSON（头像、主题、语言、登录保护等）。
+
+### 1.4 可用存储策略 — `GET /user/setting/policies`
+
+```
+GET /api/v3/user/setting/policies
+```
+
+返回当前账号可用的存储策略列表（数组，元素含 `id`、`name`）。实测返回 `[{"name":"自建存储SC4","id":"A3xh9"}]`。
+
+### 1.5 其他用户类端点（仅 JS 发现，未深入实测）
+
+| 端点 | 说明 |
+|---|---|
+| `GET /user/setting/nodes` | 可用下载节点（实测 `40007` 无权限） |
+| `GET /user/setting/tasks?page=N` | 下载节点任务列表（需 `page` 参数） |
+| `GET /user/storage` | 存储空间（见 §1.2） |
+| `PATCH /user/setting/nick` | 改昵称（body `{nick}`） |
+| `PATCH /user/setting/language` | 改语言 |
+| `PATCH /user/setting/homepage` | 改默认首页 |
+| `POST /user/setting/password/change` | 改密码 |
+| `GET /user/activate/{id}` | 激活账号 |
+| `POST /user/2fa` / `PATCH /user/setting/2fa` | 两步验证 |
+| `GET /user/setting/policies` | 可用存储策略（见 §1.4） |
+
+---
+
+## 2. 目录
+
+### 2.1 列目录 — `GET /directory/{路径}`
 
 ```
 GET /api/v3/directory/{路径}
@@ -80,18 +156,18 @@ GET /api/v3/directory/{路径}
 
 - 根目录：`/api/v3/directory/`（路径为空）
 - 路径**不要**以 `/` 开头（`directory//xxx` 会 40016）
-- 路径中的特殊字符（空格、中文）不需要手动编码，直接拼接即可（实测 `/foldcraftlauncher_cn/FCL/1.3.2.7` 可用；带空格的目录名如 ` 1.2.5.0` 需用 `encodeURIComponent` 整段编码后拼接）
+- 路径中的特殊字符（空格、中文）不需要手动编码，直接拼接即可；前导空格等极端情况需 `encodeURIComponent` 整段编码
 
-### 实测响应
+实测响应：
 
 ```jsonc
 {
   "code": 0,
   "data": {
-    "parent": "ZqDKk8UX",           // 目录 id（实测：GET /directory/{name} 的 data.parent = 该目录自身 id，删除目录时用这个，见 §5.2）
+    "parent": "ZqDKk8UX",           // 目录自身 id（删除目录时用，见 §4.1）
     "objects": [
       {
-        "id": "ZqDKk8UX",           // 文件/目录唯一 id（后续取直链用）
+        "id": "ZqDKk8UX",           // 文件/目录唯一 id（取直链用，见 §3.1）
         "name": "FCL",              // 名称
         "path": "/foldcraftlauncher_cn/FCL",  // 完整路径
         "thumb": false,
@@ -99,7 +175,7 @@ GET /api/v3/directory/{路径}
         "type": "dir",              // "dir" | "file"
         "date": "2026-01-01T01:05:18+08:00",
         "create_date": "2025-05-22T22:08:57+08:00",
-        "source_enabled": false     // 是否支持生成直链（关键字段，见 §4）
+        "source_enabled": false     // 是否支持生成直链（关键字段，见 §8）
       }
     ],
     "policy": {                     // 当前目录所属存储策略
@@ -114,18 +190,157 @@ GET /api/v3/directory/{路径}
 }
 ```
 
-### 要点
+要点：
 
-- **`source_enabled`**：只有 `true` 的文件才能走 §4 取直链。实测 `foldcraftlauncher_cn` 整棵目录树的文件都是 `true`（因为存储策略是 V2 直链空间）；若文件在 SCx 自建存储则通常为 `false`
-- `policy.max_size` 即当前直链空间单文件上限，可用于前置校验（FCL all 版 326MB < 2GB ✅）
+- `source_enabled`：只有 `true` 的文件才能取直链。直链空间（如 V2 直链空间）的文件通常为 `true`；SCx 自建存储通常为 `false`
+- `policy.max_size` 即当前空间单文件上限，可用于直链前置校验
+
+### 2.2 创建目录 — `PUT /directory`
+
+```
+PUT /api/v3/directory
+Content-Type: application/json
+
+{ "path": "/foldcraftlauncher_cn_auto/0/2026/8/26/v1.3.2.8" }
+```
+
+- ⚠️ 是 **PUT** 不是 POST（`POST /directory` 实测 404）
+- ⚠️ 写请求需带 CSRF（见 §0.4）
+- 请求体只需 `path`（目标目录完整路径，会连同中间目录一起创建）
+- 删除目录用的 id = 创建后 `GET /directory/{路径}` 的 `.data.parent`
 
 ---
 
-## 2. URL 离线下载 — `POST /aria2/url`
+## 3. 文件操作
 
-从 URL（HTTP/HTTPS，含 GitHub 直链）拉文件到网盘指定目录，由网盘服务器执行。
+### 3.1 批量取直链 — `POST /file/source`
 
-### 请求
+```
+POST /api/v3/file/source
+Content-Type: application/json
+
+{
+  "items": ["zdobenu1"],        // 文件 id 数组（来自 §2.1 的 objects[].id）
+  "captchaCode": "XXXX"         // ⚠️ 3.8.5 起必需：最新验证码（见下）
+}
+```
+
+- 头部必需：`X-CSRF-Token`（见 §0.4）
+- ⚠️ **`items` 是文件 id 数组，不是路径**
+- ⚠️ **接口本身需要登录态**（未登录 → `code: 401`）；生成的直链 URL（`/f/{code}/{name}`）才是公共可访问、无需登录的
+- ⚠️ 3.8.5 起需带 `captchaCode` + CSRF：
+  - 验证码来源与登录共用 `GET /site/captcha` → OCR（大写 + 过滤非字母数字，期望长度 4）
+  - **验证码一次性**：每次校验（无论对错）后即作废，**同码重试必败**（40026）；失败只能换新验证码
+- 若 session 在登录后被轮换过，需先重取 captcha + 重新 `GET /site/config`
+
+实测响应：
+
+```jsonc
+{
+  "code": 0,
+  "data": [
+    {
+      "id": "zdobenu1",                          // 文件 id（回显）
+      "url": "https://pan.huang1111.cn/f/z2mwtE/FCL-release-1.3.2.7-arm64-v8a.apk",
+      "name": "FCL-release-1.3.2.7-arm64-v8a.apk",
+      "parent": 4610440            // 文件父级数字 id（用途不明）
+    }
+  ],
+  "msg": ""
+}
+```
+
+- 返回**不含 size**；文件大小走 §2.1 `GET /directory` 的 `objects[].size`
+- 一次可批量传多个文件 id（实测 VIP2 的 `sourceBatch` 上限为 10000）；返回顺序与 `items` 一致
+- **`url` 是长期有效的公共直链**：
+  - 无需登录即可访问（302 正常）
+  - 302 重定向到真实下载服务器：`https://download-sc{1..N}.huang1111.cn/api/v3/slave/source/{...}?sign=...`（多节点负载均衡，实测曾命中 sc1 与 sc4；签名带时间戳，但入口 `/f/` URL 长期有效）
+  - 实测 2026-04 上传的文件直链，2026-08 仍可访问
+
+### 3.2 创建占位文件 — `POST /file/create`
+
+```
+POST /api/v3/file/create
+Content-Type: application/json
+
+{ "path": "/目标目录/文件名" }
+```
+
+- `path` 为**含文件名的完整路径**（最后一段即文件名），仅此一个字段生效；额外的 `name` / `size` 字段会被**忽略**（实测传 `{path, name:"x", size:1024}` 仍按 path 末尾命名、size 显示为 0）
+- 占位文件创建后**会显示在目录列表中**（`type:"file"`、`size:0`、`source_enabled` 随存储策略），但内容为空，需后续上传/写入实际内容
+- 同名文件已存在 → `40001`（"placeholder file already exist"）
+- 需 CSRF
+
+### 3.3 对象操作（重命名/复制/移动）
+
+对象操作的请求体统一为 `src` 结构（`{dirs:[目录id], items:[文件id]}`），实测均通过（2026-08-28）：
+
+| 端点 | 请求体（实测） | 说明 |
+|---|---|---|
+| `POST /object/rename` | `{action:"rename", src:{dirs,items}, new_name}` | 重命名（实测成功） |
+| `POST /object/copy` | `{src_dir, src:{dirs,items}, dst, conflict_action:"rename"}` | 复制到目标目录；`conflict_action` 冲突策略（"rename" 自动改名） |
+| `PATCH /object` | `{action:"move", src_dir, src:{dirs,items}, dst}` | 移动对象到目标目录（实测成功） |
+| `GET /object/property/{id}` | — | 对象属性（无效 id → `code: 404`） |
+
+- 复制/移动以 `src_dir`（源目录完整路径）+ `src`（选中对象 id 集合）定位源，`dst` 为目标目录路径
+- ⚠️ 注意：`POST /object/rename` **不是** `{id,name}` 结构（那种结构会 `40001`）
+
+### 3.4 批量打包下载 — `POST /file/archive`
+
+```
+POST /api/v3/file/archive
+Content-Type: application/json
+
+{ "items": [文件id], "dirs": [目录id] }
+```
+
+- 打包选中的文件/目录为归档并返回下载地址（分享页用 `POST /share/archive/{key}`）
+- 需 CSRF
+
+---
+
+## 4. 删除与回收站
+
+### 4.1 删除文件/目录 — `DELETE /object`
+
+```
+DELETE /api/v3/object
+Content-Type: application/json
+
+{
+  "items": ["O37jlEhz"],     // 文件 id 数组
+  "dirs": [],                // 目录 id 数组（删除目录时用，必须传 id 不能传名称）
+  "force": true,             // 实测：并不能跳过回收站，删除后仍进回收站（48h 自动清除）
+  "unlink": false            // 彻底删除开关（未深究，保持 false）
+}
+```
+
+实测响应：`{ "code": 0, "data": null, "msg": "" }`
+
+要点：
+
+- `items` 传**文件 id**，`dirs` 传**目录 id**（目录 id 来自 §2.1 的 `.data.parent` 或列表里的 `id`）；`dirs` 传名称 → `40016`
+- ⚠️ 每次 DELETE 前必须重取 CSRF（漏带/旧 token → `40026`）
+- `force:true` 实测**不绕过回收站**：文件仍出现在回收站（48 小时后自动清除），符合"不留永久垃圾"预期
+
+### 4.2 回收站
+
+```
+GET    /api/v3/recycle              → 回收站条目列表
+PATCH  /api/v3/recycle              → 恢复条目（body: {items:[id...]}）
+DELETE /api/v3/recycle              → 永久删除条目（body: {items:[id...]}）
+PATCH  /api/v3/recycle/all          → 全部恢复
+DELETE /api/v3/recycle/all          → 清空回收站（body: {items:[id...]}）
+```
+
+- `GET /recycle` 返回条目数组，元素含 `id`、`root_id`、`type`、`name`、`original_path`、`purge_status` 等（`purge_status: "ready"` 表示待清除）
+- 恢复/清空等操作需 CSRF
+
+---
+
+## 5. 离线下载（aria2）
+
+### 5.1 URL 离线下载 — `POST /aria2/url`
 
 ```
 POST /api/v3/aria2/url
@@ -133,16 +348,19 @@ Content-Type: application/json
 
 {
   "url": ["https://github.com/FCL-Team/FoldCraftLauncher/releases/download/1.3.2.8/FCL-release-1.3.2.8-armeabi-v7a.apk"],
-  "dst": "/foldcraftlauncher_cn_auto/0/1/3/2/8",   // 自动根目录/软件id/版本逐位拆分（见 auto-sync-design.md）
+  "dst": "/foldcraftlauncher_cn_auto/0/2026/8/26/v1.3.2.8",
   "preferred_node": 0
 }
 ```
 
-- `url`：**字符串数组**，可一次提交多个 URL（实测数组元素会逐个建任务）
-- `dst`：目标目录完整路径（**不存在时会自动创建**，e2e 实测把文件下进了全新目录；3.8.5 已放开自动建目录）
-- `preferred_node`：下载节点选择，`0` = 自动选择节点（前端 JS 里 `value:0` 对应"自动"）；实测不传/传 0 均成功
+- `url`：**字符串数组**，可一次提交多个 URL（数组元素会逐个建任务）
+- `dst`：目标目录完整路径。⚠️ **目录必须已存在**——不存在时实测返回 `code: 40016`，**不会自动创建**（2026-08-28 实测）。必须先 `PUT /directory` 建目录（§2.2）再提交
+- `preferred_node`：`0` = 自动选择节点；实测不传/传 0 均成功
+- ⚠️ 提交 POST 需带 CSRF 头；**不需要验证码**（验证码只用于登录和 `/file/source`）
+- 下载的**文件名 = URL 最后一段路径名**
+- 并行上限：VIP2 年付 6（3.8.5 更新后升至 8）；超出会排队或失败（未实测超限行为）
 
-### 实测响应
+实测响应（**不含 gid**）：
 
 ```jsonc
 {
@@ -154,49 +372,67 @@ Content-Type: application/json
 }
 ```
 
-### 要点
-
-- **提交响应不含 gid**：`data[]` 里只有 `{code,msg}`，没有任务 gid。gid 只能事后从 `GET /aria2/finished`（或 `/downloading`）里按 `files[0].path` 反查（e2e 已实现，见 §3.4 反查）
-- ⚠️ 提交 POST 也必须带 CSRF 头（见 §0.2.2）；e2e 实测只需 CSRF，**不需要验证码**（验证码只用于登录和 `/file/source`）
-- GitHub release 下载 URL（`https://github.com/.../releases/download/{tag}/{asset}`）实测可下载成功（README.md 6166 字节秒下；用户自测 164MB APK 也完成）
-- 下载的**文件名 = URL 最后一段路径名**（`README.md`、`FCL-release-...apk`）
-- ⚠️ **`dst` 会自动创建**（已实测，不再是 40016）；但自动化里仍建议显式 `PUT /directory` 建目录，既保证幂等又拿得到目录 id（见 §5.2）
-- 并行上限：VIP2 年付 6（3.8.5 更新后升至 8）；超出会排队或失败（未实测超限行为）
-- 结果数组与 `url` 数组一一对应，可逐项判断成功/失败
-
----
-
-## 3. 下载任务状态
-
-### 3.1 下载中 — `GET /aria2/downloading`
+### 5.2 下载中 — `GET /aria2/downloading`
 
 ```
 GET /api/v3/aria2/downloading
 ```
 
-实测响应（无任务时）：
+无任务时返回 `{ "code": 0, "data": [], "msg": "" }`；有任务时 `data` 为任务对象数组（结构见 §5.8）。
 
-```jsonc
-{ "code": 0, "data": [], "msg": "" }
-```
-
-有任务时 `data` 为任务对象数组（结构见 §3.3）。
-
-### 3.2 已完成/历史 — `GET /aria2/finished`
+### 5.3 已完成/历史 — `GET /aria2/finished`
 
 ```
 GET /api/v3/aria2/finished?page=1
 ```
 
-- `page`：从 1 开始，每页 10 条（前端逻辑 `t.data.length >= 10` 判断是否继续翻页）
+- `page`：从 1 开始，每页 10 条（`data.length >= 10` 时继续翻页）
 
-### 3.3 任务对象结构（实测）
+### 5.4 任务详情 — `GET /aria2/task/{gid}`
+
+```
+GET /api/v3/aria2/task/{gid}
+```
+
+- gid 无效 → `code: -1`（"Failed to query download details"）
+
+### 5.5 删除任务 — `DELETE /aria2/task/{gid}`
+
+```
+DELETE /api/v3/aria2/task/{gid}
+```
+
+需 CSRF。
+
+### 5.6 选择任务文件 — `PUT /aria2/select/{gid}`
+
+```
+PUT /api/v3/aria2/select/{gid}
+Content-Type: application/json
+
+{ "indexes": ["1"] }
+```
+
+需 CSRF（`indexes` 为文件序号数组，见 §5.8 `files[].index`）。
+
+### 5.7 磁力/种子离线下载 — `POST /aria2/torrent/{torrentId}`
+
+```
+POST /api/v3/aria2/torrent/{torrentId}
+Content-Type: application/json
+
+{ "dst": "/", "preferred_node": 0 }
+```
+
+- `torrentId` 为网盘内已上传种子文件的对象 id（无效 id → `40001` "Failed to parse object ID"）；需 CSRF
+
+### 5.8 任务对象结构（实测）
 
 ```jsonc
 {
   "name": "README.md",                          // 文件名
-  "gid": "6f492401808422ca",                    // aria2 任务 gid（提交响应里没有，只能靠反查拿到）
-  "status": 4,                                  // 状态码（实测）：1=排队/等待中, 2=下载中, 4=完成, 5=失败/错误
+  "gid": "6f492401808422ca",                    // aria2 任务 gid（提交响应里没有，只能反查）
+  "status": 4,                                  // 状态码：1=排队/等待中, 2=下载中, 4=完成, 5=失败/错误
   "dst": "/foldcraftlauncher_cn",               // 下载到的目录
   "error": "",                                  // 失败原因（空=无）
   "total": 6166,                                // 总字节数
@@ -221,142 +457,54 @@ GET /api/v3/aria2/finished?page=1
 }
 ```
 
-### 要点
-
 - **任务完成判定**：`status === 4` 且 `error === ''` 且 `files[0].completedLength === files[0].length`
-- 下载完成后文件出现在 `dst` 目录下，文件名 = `files[0].path`
-- 可用 `dst` + `files[0].path` 拼出完整路径，供 §1 列目录定位文件 id
+- 下载完成后文件出现在 `dst` 目录下，文件名 = `files[0].path`；可拼出完整路径供 §2.1 定位文件 id
 
-### 3.4 提交后如何拿到 gid（e2e 实测方案）
+### 5.9 提交后如何拿到 gid
 
 提交 `/aria2/url` 后**没有 gid**，轮询两种信号取其一：
 
-1. **看目录**：`GET /directory/<dst目录名>`，`objects[]` 里出现我们的文件名 → 下载完成，`objects[0].id` 就是文件 id。
-2. **看 finished**：`GET /aria2/finished?page=1`，按 `dst` + `files[0].path` 匹配本任务 → `gid` 反查成功，同时可读 `status`/`error` 判断成败。
+1. **看目录**：`GET /directory/<dst>`，`objects[]` 里出现目标文件名 → 下载完成，`objects[0].id` 即文件 id
+2. **看 finished**：`GET /aria2/finished?page=1`，按 `dst` + `files[0].path` 匹配本任务 → `gid` 反查成功，同时读 `status`/`error` 判断成败
 
-e2e 判定规则：
-
-- 每 2s 轮询一次，上限 ~100s（164MB APK 用时远小于此）
-- 先查 finished：存在 `status === 5`（错误）且文件名匹配 → 判失败
-- 再查目录：出现文件 → 判成功，并用 finished 里的 gid 补记任务号
-- 两处都查到才算闭环（防止 finished 页暂未刷新导致误判）
+判定规则：先查 finished（`status === 5` 且文件名匹配 → 判失败），再查目录（出现文件 → 判成功），两处都查到才算闭环（防止 finished 页暂未刷新导致误判）。轮询间隔/超时由调用方自行决定。
 
 ---
 
-## 4. 批量取直链 — `POST /file/source`
+## 6. 分享
 
-获取一个或多个文件的直链（公共可访问，无需登录）。
-
-### 请求
-
-```
-POST /api/v3/file/source
-Content-Type: application/json
-
-{
-  "items": ["zdobenu1"],        // 文件 id 数组（来自 §1 的 objects[].id）
-  "captchaCode": "XXXX"         // ⚠️ 3.8.5 起必需：最新验证码（见下）
-}
-```
-
-- 头部必需：`X-CSRF-Token: <来自 GET /site/config 的最新 token>`（见 §0.2.2 CSRF）
-- ⚠️ **`items` 是文件 id 数组，不是路径**（前端代码 `c = selected.filter(e => e.source_enabled && e.type==="file").map(e => e.id)`）
-
-### 3.8.5 实测补充：需要 验证码 + CSRF（重要）
-
-取直链虽然是"读"操作，但 3.8.5 站点要求带最新验证码 + CSRF token，否则报错：
-
-- 请求体带 `captchaCode`：验证码来源与登录共用 `GET /site/captcha` → OCR（大写 + 过滤非字母数字，期望长度 4）
-- 头部带 `X-CSRF-Token`：删/改类请求同款（详见 §0.2.2），建议每次取直链前都 GET 一次 `/site/config` 拿最新 token
-- ⚠️ **验证码一次性**：每次校验（无论对错）后即作废，**同码重试必败**（40026）；失败只能换新验证码再来
-- ⚠️ **OCR 误读率高，必须失败重试**（2026-08-26 实测）：OCR 对这类图误读约 50%（V↔Y、6↔B、漏字符；真实验证码恒为 4 位）。`POST /file/source` 偶发 `40026` 大多是 OCR 认错字，不是流程错。正确姿势：按登录同款循环，**失败就换新验证码重试（e2e 上限 10 次，大力出奇迹）**；OCR 结果长度≠4 直接判定必错，换图重来，不浪费 POST
-- 若 session 在登录后被轮换过，需先重取 captcha + 重新 GET /site/config
-
-### 实测响应
-
-```jsonc
-{
-  "code": 0,
-  "data": [
-    {
-      "id": "zdobenu1",                          // 文件 id（回显）
-      "url": "https://pan.huang1111.cn/f/z2mwtE/FCL-release-1.3.2.7-arm64-v8a.apk",
-      "name": "FCL-release-1.3.2.7-arm64-v8a.apk",
-      "parent": 4610440            // 文件父级数字 id（用途不明）
-    }
-  ],
-  "msg": ""
-}
-```
-
-- 返回**不含 size**；文件大小要走 §1 `GET /directory` 的 `objects[].size`
-- 直链 `https://pan.huang1111.cn/f/{code}/{name}` 长期有效、无需登录
-
-### 要点
-
-- 一次可批量传多个文件 id（前端有 `group.sourceBatch` 上限，实测 VIP2 的 `sourceBatch` 为 10000）
-- **`url` 是长期有效的公共直链**：
-  - 无需登录即可访问（实测无 cookie 的 curl 302 正常）
-  - 302 重定向到真实下载服务器：`https://download-sc1.huang1111.cn/api/v3/slave/source/{...}?sign=...`（签名带时间戳，但入口 `/f/` URL 长期有效）
-  - 实测 2026-04 上传的文件直链，2026-08 仍可访问
-- 返回顺序与 `items` 一致
+| 端点 | 请求体 | 说明 |
+|---|---|---|
+| `POST /share` | `{sessions:[对象id], type, password, downloads, expire, expire_mode, score, preview}` | 创建分享。`type` 分享类型、`password` 提取码（空=无）、`downloads` 下载次数限制（-1=不限）、`expire` 过期时间戳/`expire_mode` 过期模式、`score` 积分、`preview` 是否允许预览。实测 `{items:[id]}` 这种简化结构会 `40001` "Source resource cannot be empty"，需 `sessions` 字段 |
+| `GET /share/info/{key}` | — | 分享信息（key 无效 → `code: 40058`） |
+| `GET /share/readme/{key}?path=/路径` | — | 分享目录的 README 文本（key 无效 → `code: 40058`） |
+| `GET /share/search` | — | 分享搜索（需 `page` 参数） |
+| `POST /share/save/{key}` | `{path:"/目标路径"}` | 保存分享内容到自己的网盘（结构来自 JS） |
+| `POST /share/archive/{key}` | `{items:[文件id], dirs:[目录id], path}` | 分享页批量打包下载（返回下载地址） |
+| `POST /share/report/{key}` | `{des, reason, email?}` | 举报分享（`reason` 数字枚举；站点开启验证码时需带验证码） |
+| `PATCH /share/` / `DELETE /share/` | — | 修改 / 删除分享（需 CSRF） |
 
 ---
 
-## 5. 目录创建/删除
+## 7. 其他可用端点
 
-### 5.1 创建目录 — `PUT /directory`
-
-```
-PUT /api/v3/directory
-Content-Type: application/json
-
-{ "path": "/foldcraftlauncher_cn_auto/1/3/2/8" }
-```
-
-- ⚠️ 是 **PUT** 不是 POST（`POST /directory` 实测 404）
-- ⚠️ 写请求需带 CSRF：先 GET `/site/config` 拿最新 `x-csrf-token` 再 PUT（见 §0.2.2）
-- 请求体只需 `path`（目标目录完整路径，会连同中间目录一起创建）
-- **删除目录时用的 id** 在创建后用 `GET /directory/{路径}` 的 `.data.parent` 拿（等于该目录对象 id；见 §1）
-
-### 5.2 删除文件/目录 — `DELETE /object`
-
-删除一个或多个文件/目录。
-
-### 请求
-
-```
-DELETE /api/v3/object
-Content-Type: application/json
-
-{
-  "items": ["O37jlEhz"],     // 文件 id 数组
-  "dirs": [],                // 目录 id 数组（删除目录时用，必须传 id 不能传名称）
-  "force": true,             // 实测：并不能跳过回收站，删除后文件仍进回收站（48h 自动清除）
-  "unlink": false            // 彻底删除开关（未深究，保持 false）
-}
-```
-
-### 实测响应
-
-```jsonc
-{ "code": 0, "data": null, "msg": "" }
-```
-
-### 要点
-
-- 实测删除根目录文件成功（README.md，id=`8d6mPLtv`），HTTP 200 + `code: 0`
-- `items` 传**文件 id**，`dirs` 传**目录 id**（同 `file/source` 的约定；目录 id 来自 §1 的 `GET /directory` 响应 `.data.parent` 或列表里的 `id`）
-- ⚠️ **每次 DELETE 前必须重取 CSRF**：必要时先 GET `/site/config` 拿最新 token（漏带/旧 token → `40026`）
-- **`force:true` 实测并不绕过回收站**：文件仍出现在回收站（`purge_status: "ready"`，48 小时后自动清除）。本端删除低频，按 `{force:true, unlink:false}` 删除会把文件放进回收站等待自动清理，符合"不留永久垃圾"预期
-- **`dirs` 必须传 id 不能传名称**：传目录名 → `40016`（probe4 教训）
-- 测试脚本用此端点**自动清理测试产生的文件**，网盘不留垃圾（e2e 第⑧步实测通过：删文件 + 删目录 + 再列目录确认 `40016`）
+| 端点 | 说明 |
+|---|---|
+| `GET /webdav/accounts` | WebDAV 账号列表（返回 `{accounts, folders}`） |
+| `GET /vas/product` | 当前生效的增值套餐（如 VIP2 年付） |
+| `GET /vas/activity` | 活动列表（数组） |
+| `GET /site/config` | 站点配置 + CSRF 来源（见 §0.4） |
+| `GET /site/captcha` | 图形验证码（见 §0.3） |
+| `POST /tag/filter` | 创建标签（body `{expression,name,color,icon}`） |
+| `POST /tag/link` | 给路径打标签（body `{path,name}`） |
+| `DELETE /tag/{id}` | 删除标签 |
+| `POST /support/tickets` | 提交支持工单 |
+| `GET /support/unread` | 未读工单数 |
+| `GET /toolbox/config` | 工具箱配置 |
 
 ---
 
-## 6. 直链前置条件（重要）
-
-官方文档 + 实测确认：
+## 8. 直链前置条件
 
 | 条件 | 说明 |
 |---|---|
@@ -368,77 +516,36 @@ Content-Type: application/json
 
 ---
 
-## 7. 前端 JS 中发现但**未实测**的端点（3.8.5 前代码）
+## 9. 已失效 / 未实测端点
 
-以下端点从 `main.51b96baf.chunk.js` / chunks 中提取，供参考；**未在本会话实测**，使用时需自行验证（创建目录已实测，见 §5.1）：
+以下端点经实测**已失效**或**仅从 JS 发现未实测**，使用时需自行验证：
 
-| 用途 | 方法/路径 | 请求体（来自 JS） |
-|---|---|---|
-| 磁力/种子离线下载 | `POST /aria2/torrent/{torrentId}` | `{dst, preferred_node}` |
-| 选择下载任务中的文件 | `PUT /aria2/select/{gid}` | `{indexes: [...]}` |
-| 删除下载任务 | `DELETE /aria2/task/{gid}` | — |
-| 用户信息 | `GET /me` | — （⚠️ 实测 `/api/v3/me` 返回 404，此端点可能已变更或需特殊头） |
-| 目录搜索 | `GET /file/search/{关键词}` | — |
-| 分享列表 | `GET /share/list/{shareKey}` | — |
-| 分享预览 | `GET /share/preview/{key}?path=...` | — |
-| 上传会话 | `POST /file/upload`（Cloudreve 标准） | 未在本站验证 |
-
----
-
-## 8. 已验证的完整自动化调用链（3.8.5 重测通过，e2e 12/12）
-
-```
-① GET  /site/captcha + OCR + GET /site/config            → 登录（含验证码+CSRF，失败重试≤5次）
-② PUT  /directory        {path:"/foldcraftlauncher_cn_auto/0/1/3/2/8"}  → 建目录（幂等）
-③ GET  /directory/...    → 拿目录 id（.data.parent），确认已存在（去重）
-④ POST /aria2/url        {url:[...], dst:"...", preferred_node:0}   → 提交离线下载（响应无 gid）
-⑤ GET  /aria2/finished?page=1 + GET /directory/{dst}     → 轮询：finished.status==4/5 或目录出现文件（反查 gid）
-⑥ GET  /directory/{dst}  → 按文件名匹配，拿新文件 id + size
-⑦ GET  /site/captcha + OCR + GET /site/config            → 取直链前重取 验证码 + CSRF
-⑧ POST /file/source      {items:[id...], captchaCode}    → 批量取直链（带 X-CSRF-Token）
-⑨ 写 data/down JSON + git push
-⑩ DELETE /object         {items:[id...], dirs:[dirId...], force:true}  → 删除测试/临时文件（重取 CSRF）
-```
+| 端点 | 实测结果 |
+|---|---|
+| `GET /me` | **404**（已失效；用户信息用 `GET /user/me`） |
+| `GET /file/search/{关键词}` | **404**（已失效；目录搜索疑似不存在） |
+| `GET /share/list/{shareKey}` | **301**（路径已变更；分享信息用 `GET /share/info/{key}`） |
+| `GET /share/preview/{key}` | **404**（已失效；README 用 `GET /share/readme/{key}`） |
+| `POST /file/upload` | 未在本站验证（Cloudreve 标准上传会话） |
+| `GET /source` | **有效但需 `page` 参数**（直链记录；不传 → `40001` "Page too short"） |
+| `GET /share/search` | **有效但需 `page` 参数**（分享搜索；不传 → `40001` "Page cannot be empty"） |
+| `POST /file/compress` | 实测 `40007` 无权限（VIP2 对当前存储不可用），结构与前端一致 `{items,name,dst}` |
+| `POST /file/decompress` | 实测 `40007` 无权限（同上），结构 `{id,dst}` |
+| `DELETE /file/upload` | 清理全部上传会话（需 CSRF，未验证） |
 
 ---
 
-## 9. 踩坑记录
+## 10. 踩坑记录
 
 | 坑 | 现象 | 解决 |
 |---|---|---|
-| **JSON body 带 BOM** | `code: 40001` 参数错误 | body 必须无 BOM（`UTF8Encoding($false)` 写入） |
-| **PowerShell 传参剥引号** | 请求体变成 `{items:[id]}` 缺引号 → 40001 | body 写入临时文件，脚本从文件读取 |
-| **目录路径多前导斜杠** | `directory//foldcraftlauncher_cn` → `40016 Path not exist` | 路径去前导 `/` |
-| **目录名含空格/特殊字符** | ` 1.2.5.0`（前导空格）直接拼接可能失败 | 整段 `encodeURIComponent` 后拼接 |
-| **BiDi awaitPromise 不生效** | `JSON.stringify(async fn)` 返回 `{}` | 两步式：先注入 `window.__out=null; (fn).then(r=>window.__out=r)`，再轮询读取 |
+| **aria2 的 dst 目录不存在** | `POST /aria2/url` → `40016`（**不会自动创建**，2026-08-28 实测） | 提交前先 `PUT /directory` 建目录（§2.2），再提交 |
 | **items 传路径** | `POST /file/source {items:["/路径"]}` → 40001 | items 必须是**文件 id** |
-| **GET /source/{path}** | 404 | 取直链是 `POST /file/source`，不是 `GET /source/{path}` |
-| **POST /directory** | 404 | 创建目录是 **`PUT /directory`**，body 只传 `{path}`（§5.1） |
-| **DELETE /object/{id}** | 404 | 删除是 **`DELETE /object`**，body 传 `{items:[文件id], dirs:[目录id]}`（§5.2） |
-| **dirs 传目录名** | `40016` | `dirs` 必须传**目录 id**（来自 §1 `.data.parent`），不能传名称 |
-| **提交 aria2 后拿 gid** | 提交响应里没有 gid | 按 §3.4：轮询 `finished` + 目录出现文件来反查 |
-| **file/source 漏验证码/CSRF** | 报错（`40026` 类） | 3.8.5 起取直链也要 `captchaCode` + `X-CSRF-Token`（§4） |
-| **file/source 验证码一次性 + OCR 误读** | 偶发 `40026`；**同码重试必败**（验证码已作废） | 失败**换新验证码**重试（e2e 上限 10 次）；OCR 长度≠4 直接换图（§4） |
-| **DELETE 漏 CSRF** | `40026` | 每次写请求前 GET `/site/config` 重取 token（§0.2.2） |
-| **force:true 想跳过回收站** | 文件仍进回收站（purge_status: ready） | 接受"进回收站 48h 后自动清除"，或按需处理回收站（§5.2） |
-
----
-
-## 10. 3.8.5 更新影响（2026-08-26 01:00-04:00 站点关闭）—— 重测结论
-
-官方预告（blog 文章 74）涉及 API 可能变动的点，**3.8.5 实机重测结果如下**：
-
-| 预告点 | 实测结论 |
-|---|---|
-| 1. 直链系统重构 | `POST /file/source` **仍在用**，但请求需新增 `captchaCode` + `X-CSRF-Token`（此前不带也能成功）；响应结构不变（`{id,url,name,parent}`） |
-| 2. 离线下载重构 | `POST /aria2/url` **仍在用**，行为变化：`dst` 目录不存在时会**自动创建**（此前 40016）；提交响应仍无 gid，需轮询反查 |
-| 3. 新增工具箱（GitHub 下载） | 不影响本方案端点 |
-| 4. 权益升级（并行 6→8） | 不影响本方案（单任务串行） |
-
-**认证变化（3.8.5 新增，最重要）**：
-
-- 登录改为 账号密码 + 图形验证码（`/site/captcha`）+ CSRF（`/site/config`），流程见 §0.2.1 / §0.2.2
-- **所有写请求（POST/PUT/DELETE）都要带 `X-CSRF-Token`**，否则 `40026`
-- 登录/验证码 GET 会轮换 session cookie，CSRF 头必须用最新 token；建议每次写请求前都 GET 一次 `/site/config`
-
-**§1~§4 兼容性：全部通过**（e2e 12/12：登录 → 建目录 → aria2 提交 → 离线下载完成 → 列目录 → 取直链 → HTTP 验证 → 删除清理）。
+| **POST /directory** | 404 | 创建目录是 **`PUT /directory`**，body 只传 `{path}`（§2.2） |
+| **DELETE /object/{id}** | 404 | 删除是 **`DELETE /object`**，body 传 `{items:[文件id], dirs:[目录id]}`（§4.1） |
+| **dirs 传目录名** | `40016` | `dirs` 必须传**目录 id**（来自 §2.1 `.data.parent`） |
+| **目录路径多前导斜杠** | `directory//xxx` → `40016` | 路径去前导 `/` |
+| **file/source 漏验证码/CSRF** | `40026` 类 | 3.8.5 起取直链也要 `captchaCode` + `X-CSRF-Token`（§3.1） |
+| **file/source 验证码一次性 + OCR 误读** | 偶发 `40026`；**同码重试必败** | 失败**换新验证码**重试（上限 10 次）；OCR 长度≠4 直接换图 |
+| **DELETE 漏 CSRF** | `40026` | 每次写请求前 GET `/site/config` 重取 token（§0.4） |
+| **force:true 想跳过回收站** | 文件仍进回收站 | 接受"进回收站 48h 后自动清除"，或按需处理回收站（§4.2） |
