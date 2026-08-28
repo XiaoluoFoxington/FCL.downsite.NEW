@@ -27,6 +27,14 @@
     "includePrerelease": false
   },
   {
+    "softwareId": 15,
+    "githubRepo": "github.com/Mystic-Stars",
+    "mode": "name",
+    "archNames": [],
+    "fallbackArch": null,
+    "includePrerelease": false
+  },
+  {
     "softwareId": 16,
     "githubRepo": "Acode-Foundation/Acode",
     "assetFilter": "\\.apk$",
