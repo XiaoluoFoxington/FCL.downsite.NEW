@@ -295,7 +295,8 @@ export async function offlineDownload(urls, netPath, wantNames, log) {
       const baselineGids = await collectFinishedGids(dst, wantNames);
 
       if (pendingUrls.length > 0) {
-        // 分批发提交：huang1111 对单次离线下载任务数有限制（LIMIT.OFFLINE_BATCH）
+        // 分批发提交：每批提交后轮询等待本批下载完成，再提交下一批，
+        // 确保任意时刻网盘并行任务数不超过 LIMIT.OFFLINE_BATCH
         for (let i = 0; i < pendingUrls.length; i += LIMIT.OFFLINE_BATCH) {
           const batchUrls = pendingUrls.slice(i, i + LIMIT.OFFLINE_BATCH);
           const batchNames = pendingNames.slice(i, i + LIMIT.OFFLINE_BATCH);
@@ -310,12 +311,17 @@ export async function offlineDownload(urls, netPath, wantNames, log) {
           const data = r.json?.data || [];
           const bad = data.find((x) => x?.code !== 0);
           if (bad) throw new H1Error('任务提交失败: ' + (bad.msg || ''));
+          // 等待本批下载完成后再提交下一批
+          logMsg(log, `  [离线下载] 等待第 ${batchNo} 批下载完成…`);
+          await pollForFiles(netPath, dst, batchNames, log, baselineGids);
+          logMsg(log, `  [离线下载] ✅ 第 ${batchNo} 批下载完成`);
         }
       } else {
         logMsg(log, `  [离线下载] 全部 ${wantNames.length} 个文件已在下载中，跳过提交，直接轮询`);
+        await pollForFiles(netPath, dst, wantNames, log, baselineGids);
       }
 
-      // 轮询全部文件（含之前已在下载的 + 本次新提交的）
+      // 最终确认全部文件都在（含之前已在下载的 + 本次各批新下载的）
       const files = await pollForFiles(netPath, dst, wantNames, log, baselineGids);
       return files;
     } catch (e) {
