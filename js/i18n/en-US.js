@@ -178,6 +178,7 @@ const enUS = {
       detailInvalid: 'Detail data of software {id} is invalid',
       settingsInvalid: 'Settings data format is invalid: expected an array',
       unknownTag: 'Software (ID: {itemId}) references a non-existent tag (ID: {id})',
+      unknownTagName: 'Unknown tag-{id}',
     },
   },
 

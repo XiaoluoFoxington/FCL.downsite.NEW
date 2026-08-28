@@ -179,6 +179,7 @@ const esES = {
       detailInvalid: 'Los datos de detalle del software {id} no son válidos',
       settingsInvalid: 'El formato de los datos de configuración no es válido: se esperaba una matriz',
       unknownTag: 'El software (ID: {itemId}) hace referencia a una etiqueta inexistente (ID: {id})',
+      unknownTagName: 'Etiqueta desconocida-{id}',
     },
   },
 

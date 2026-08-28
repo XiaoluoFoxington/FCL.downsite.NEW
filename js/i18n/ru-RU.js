@@ -178,6 +178,7 @@ const ruRU = {
       detailInvalid: 'Некорректный формат данных о ПО {id}',
       settingsInvalid: 'Некорректный формат данных настроек: ожидался массив',
       unknownTag: 'ПО (ID: {itemId}) ссылается на несуществующий тег (ID: {id})',
+      unknownTagName: 'Неизвестный тег-{id}',
     },
   },
 

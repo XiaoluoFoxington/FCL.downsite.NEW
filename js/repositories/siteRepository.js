@@ -1,5 +1,6 @@
 import { getJSON } from '../http/client.js';
 import { t } from '../common/i18n.js';
+import { logWarn } from '../common/logger.js';
 
 /**
  * 本站静态数据仓库。
@@ -65,6 +66,26 @@ export async function getTags(options = {}) {
     assertArray(await getJSON('/data/tag.json', { ...options, cache: true }), t('common.repository.tags')),
     t('common.repository.tags'),
   );
+}
+
+/**
+ * 把目录中引用但标签表缺失的 ID 补全为"未知标签-{id}"，避免孤立引用导致页面渲染失败。
+ * 不修改入参数组；没有孤儿标签时原样返回。
+ * 对每个孤立引用记录控制台警告，便于站长定位是哪个软件引用了不存在的标签。
+ * @param {Array<{id: number|string, name: string}>} tags 已加载的标签数组
+ * @param {Iterable<{itemId: number|string, id: number|string}>} references 软件对标签的全部引用
+ * @returns {Array<{id: number|string, name: string}>} 补全后的标签数组
+ */
+export function completeOrphanTags(tags, references) {
+  const knownIds = new Set(tags.map((tag) => tag.id));
+  const orphanIds = new Set();
+  for (const { itemId, id } of references) {
+    if (knownIds.has(id)) continue;
+    orphanIds.add(id);
+    logWarn(t('common.repository.unknownTag', { itemId, id }));
+  }
+  if (!orphanIds.size) return tags;
+  return tags.concat([...orphanIds].map((id) => ({ id, name: t('common.repository.unknownTagName', { id }) })));
 }
 
 /**

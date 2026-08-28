@@ -1,7 +1,6 @@
-import { getMirrors, getSoftware, getTags } from '../repositories/siteRepository.js';
+import { completeOrphanTags, getMirrors, getSoftware, getTags } from '../repositories/siteRepository.js';
 import { renderDetail, renderDetailError, renderDetailLoading } from '../views/detailView.js';
 import { logError } from '../common/logger.js';
-import { t } from '../common/i18n.js';
 
 /**
  * 详情 controller 只协调数据与 view：软件详情、标签与线路目录可并行加载，
@@ -20,12 +19,9 @@ export function createDetailController(elements, softwareId) {
         getTags(),
         getMirrors(),
       ]);
-      // 在渲染前验证外键，避免把孤立的 tagId 默默展示成数字。
-      const knownTags = new Set(tags.map((tag) => tag.id));
-      basic.tagIds.forEach((id) => {
-        if (!knownTags.has(id)) throw new Error(t('common.repository.unknownTag', { itemId: basic.id, id }));
-      });
-      renderDetail(elements, softwareId, basic, detail, tags, mirrors);
+      // 资源引用了不存在的标签 ID 时不崩页面：现场补全为"未知标签-{id}"。
+      const allTags = completeOrphanTags(tags, basic.tagIds.map((id) => ({ itemId: basic.id, id })));
+      renderDetail(elements, softwareId, basic, detail, allTags, mirrors);
     } catch (error) {
       logError(error, '详情页');
       renderDetailError(elements, error, load);

@@ -1,9 +1,8 @@
 import { readPreference } from '../domain/preferences.js';
-import { getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
+import { completeOrphanTags, getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
 import { debounce, setFilterIndicator } from '../views/commonView.js';
 import { enableFilterHelpInserts, renderFilterHelpTags, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
 import { logError } from '../common/logger.js';
-import { t } from '../common/i18n.js';
 
 /** 条件之间的关系符号。 */
 const RELATION_CHARS = '&|!';
@@ -145,14 +144,13 @@ export function createListController(elements) {
     try {
       // 目录与标签无依赖关系，列表页首屏固定为两次并行静态请求。
       const [software, tags] = await Promise.all([getSoftwareCatalog(), getTags()]);
-      const knownTags = new Set(tags.map((tag) => tag.id));
-      software.forEach((item) => item.tagIds.forEach((id) => {
-        if (!knownTags.has(id)) throw new Error(t('common.repository.unknownTag', { itemId: item.id, id }));
-      }));
+      // 资源引用了不存在的标签 ID 时不崩页面：现场补全为"未知标签-{id}"。
+      const references = software.flatMap((item) => item.tagIds.map((id) => ({ itemId: item.id, id })));
+      const allTags = completeOrphanTags(tags, references);
       catalog = software;
-      tagMap = new Map(tags.map((tag) => [tag.id, tag.name]));
+      tagMap = new Map(allTags.map((tag) => [tag.id, tag.name]));
       // 把全部可用标签列进筛选帮助面板，点击即可插入 tag: <标签名>。
-      renderFilterHelpTags(elements.filterHelpTags, tags);
+      renderFilterHelpTags(elements.filterHelpTags, allTags);
       applyFilters();
     } catch (error) {
       logError(error, '资源列表');

@@ -178,6 +178,7 @@ const jaJP = {
       detailInvalid: 'ソフトウェア {id} の詳細データの形式が正しくありません',
       settingsInvalid: '設定データの形式が正しくありません：配列である必要があります',
       unknownTag: 'ソフトウェア（ID：{itemId}）が存在しないタグ（ID：{id}）を参照しています',
+      unknownTagName: '不明タグ-{id}',
     },
   },
 

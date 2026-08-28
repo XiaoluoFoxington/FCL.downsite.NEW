@@ -178,6 +178,7 @@ const frFR = {
       detailInvalid: 'Le format des données détaillées du logiciel {id} est invalide',
       settingsInvalid: 'Le format des données de paramètres est invalide : un tableau était attendu',
       unknownTag: 'Le logiciel (ID : {itemId}) référence une étiquette inexistante (ID : {id})',
+      unknownTagName: 'Étiquette inconnue-{id}',
     },
   },
 

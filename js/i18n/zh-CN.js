@@ -179,6 +179,7 @@ const zhCN = {
       detailInvalid: '软件 {id} 的详情数据格式不正确',
       settingsInvalid: '设置数据格式不正确：应为数组',
       unknownTag: '软件（ID：{itemId}）引用了不存在的标签（ID：{id}）',
+      unknownTagName: '未知标签-{id}',
     },
   },
 
