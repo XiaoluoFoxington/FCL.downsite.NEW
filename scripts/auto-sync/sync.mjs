@@ -218,15 +218,24 @@ function push() {
 
 // ---------- 主流程 ----------
 async function main() {
+  ctx.start('total');
   log(`==== 线路1 自动同步开始（${SOFTWARES.length} 个软件） ====`);
   let overallFailed = false;
   let anyCommit = false;
 
+  // 汇总页表头
+  ctx.sum('## 线路1 自动同步汇总');
+  ctx.sum(`- 开始时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`);
+  ctx.sum('| 软件 | 仓库 | 待同步版本 | 结果 | 耗时 |');
+  ctx.sum('|---|---|---|---|---|');
+
   // ---- 阶段 1：全量预探测候选（不登录、不动网盘、不读凭据），全部无候选就直接退出 ----
   log('\n==== 阶段 1：预探测候选 ====');
+  ctx.start('probe-phase');
   const pending = [];
   for (const sw of SOFTWARES) {
-    log(`\n---- 预探测软件 id=${sw.softwareId}（${sw.githubRepo}） ----`);
+    ctx.group(`预探测软件 id=${sw.softwareId}（${sw.githubRepo}）`);
+    ctx.start('sw-' + sw.softwareId);
     try {
       const { latest: dsLatest, entries: origEntries } = parseDataSourceIndex(sw.softwareId);
       log(`数据源最新版本：${dsLatest || '（无）'}`);
@@ -252,18 +261,32 @@ async function main() {
       }
       candidates.sort((a, b) => compareVersionsDescending(b.version, a.version));
 
-      if (!candidates.length) { log('（已是最新，无需同步）'); continue; }
+      if (!candidates.length) {
+        log('（已是最新，无需同步）');
+        ctx.sum(`| ${sw.softwareId} | ${sw.githubRepo} | — | ✅ 已是最新 | ${(ctx.end('sw-' + sw.softwareId) / 1000).toFixed(1)}s |`);
+        continue;
+      }
       log(`→ 需同步 ${candidates.length} 个版本`);
       pending.push({ sw, dsLatest, origEntries, candidates });
+      ctx.sum(`| ${sw.softwareId} | ${sw.githubRepo} | ${candidates.map((c) => c.version).join('<br>')} | ⏳ 待同步 | ${(ctx.end('sw-' + sw.softwareId) / 1000).toFixed(1)}s |`);
     } catch (e) {
       overallFailed = true;
-      log(`❌ 软件 ${sw.softwareId} 预探测失败：${e.message}`);
+      ctx.error(`软件 ${sw.softwareId} 预探测失败：${e.message}`);
+      ctx.sum(`| ${sw.softwareId} | ${sw.githubRepo} | — | ❌ ${String(e.message || '').replace(/\|/g, '\\|')} | ${(ctx.end('sw-' + sw.softwareId) / 1000).toFixed(1)}s |`);
+    } finally {
+      ctx.endGroup();
     }
   }
+  ctx.log(`阶段 1 耗时：${(ctx.end('probe-phase') / 1000).toFixed(1)}s`);
 
   if (!pending.length) {
+    const totalSec = (ctx.end('total') / 1000).toFixed(1);
+    ctx.sum('---');
+    ctx.sum('> 全部软件均已是最新，无需登录 huang1111，直接结束');
+    ctx.sum(`- 总耗时：${totalSec}s`);
     log('\n==== 全部软件均已是最新，无需登录 huang1111，直接结束 ====');
-    log(`==== 线路1 自动同步结束（${overallFailed ? '存在失败项' : '全部成功'}） ====`);
+    log(`==== 线路1 自动同步结束（${overallFailed ? '存在失败项' : '全部成功'}），总耗时 ${totalSec}s ====`);
+    await ctx.flushSummary();
     console.log('\n--- 完整日志 ---');
     console.log(ctx.runLog.join('\n'));
     process.exit(overallFailed ? 1 : 0);
@@ -275,11 +298,14 @@ async function main() {
     process.exit(2);
   }
   log(`\n==== 阶段 2：登录 huang1111，同步 ${pending.length} 个软件 ====`);
+  ctx.start('login');
   log('登录 huang1111 …');
   await h1.login(ENV.USER, ENV.PASSWORD, (m) => log(m));
+  ctx.log(`登录耗时：${(ctx.end('login') / 1000).toFixed(1)}s`);
 
   for (const { sw, dsLatest, origEntries, candidates } of pending) {
-    log(`\n########## 软件 id=${sw.softwareId}（${sw.githubRepo}） ##########`);
+    ctx.group(`软件 id=${sw.softwareId}（${sw.githubRepo}）`);
+    ctx.start('sync-' + sw.softwareId);
     const swLog = [];
     // 拦截 ctx.log：每个软件的日志同时写入 swLog（供 commit body 用）和全局 runLog
     const origLog = ctx.log.bind(ctx);
@@ -300,7 +326,11 @@ async function main() {
           log(`  ❌ 版本 ${cand.version} 同步失败（已按重试策略耗尽仍失败）：${e.message}`);
         }
       }
-      if (!synced.length) { log('（本次无成功同步的版本）'); continue; }
+      if (!synced.length) {
+        log('（本次无成功同步的版本）');
+        ctx.sum(`| ${sw.softwareId} | ${sw.githubRepo} | ${candidates.map((c) => c.version).join('<br>')} | ⚠ 无成功同步 | ${(ctx.end('sync-' + sw.softwareId) / 1000).toFixed(1)}s |`);
+        continue;
+      }
 
       // 更新 index.json + 提交前校验
       const indexPath = updateIndex(sw.softwareId, origEntries, synced);
@@ -310,31 +340,47 @@ async function main() {
       log(`    提交版本列表：${versionList}`);
       try {
         if (commitSoftware(sw.softwareId, versionList, swLog)) anyCommit = true;
+        ctx.sum(`| ${sw.softwareId} | ${sw.githubRepo} | ${synced.map((s) => s.version).join('<br>')} | ✅ 已同步 | ${(ctx.end('sync-' + sw.softwareId) / 1000).toFixed(1)}s |`);
       } catch (e) {
         overallFailed = true;
         log(`  ❌ 提交失败：${e.message}`);
+        ctx.sum(`| ${sw.softwareId} | ${sw.githubRepo} | ${synced.map((s) => s.version).join('<br>')} | ❌ 提交失败 | ${(ctx.end('sync-' + sw.softwareId) / 1000).toFixed(1)}s |`);
       }
     } catch (e) {
       overallFailed = true;
-      log(`  ❌ 软件 ${sw.softwareId} 处理失败：${e.message}`);
+      ctx.error(`软件 ${sw.softwareId} 处理失败：${e.message}`);
+      ctx.sum(`| ${sw.softwareId} | ${sw.githubRepo} | ${candidates.map((c) => c.version).join('<br>')} | ❌ ${String(e.message || '').replace(/\|/g, '\\|')} | ${(ctx.end('sync-' + sw.softwareId) / 1000).toFixed(1)}s |`);
     } finally {
       ctx.log = origLog; // 恢复全局 log
+      ctx.endGroup();
     }
   }
 
   // push（有提交才推）
+  ctx.start('push');
   if (anyCommit) {
     log('\n==== 提交已完成，推送远程 ====');
     try {
       push();
     } catch (e) {
       overallFailed = true;
-      log(`❌ push 失败：${e.message}`);
+      ctx.error(`push 失败：${e.message}`);
     }
   } else {
     log('\n==== 无提交，跳过 push ====');
   }
-  log(`==== 线路1 自动同步结束（${overallFailed ? '存在失败项' : '全部成功'}） ====`);
+  ctx.log(`push 耗时：${(ctx.end('push') / 1000).toFixed(1)}s`);
+
+  // 汇总页结尾
+  const totalSec = (ctx.end('total') / 1000).toFixed(1);
+  ctx.sum('---');
+  ctx.sum(`- 总耗时：${totalSec}s`);
+  ctx.sum(`- 整体结果：${overallFailed ? '**存在失败项（详见上方日志）**' : '**全部成功**'}`);
+  if (overallFailed && ENV.IS_GHA) {
+    console.log(`::error::线路1自动同步存在失败项，总耗时 ${totalSec}s，请查看上方日志`);
+  }
+  log(`==== 线路1 自动同步结束（${overallFailed ? '存在失败项' : '全部成功'}），总耗时 ${totalSec}s ====`);
+  await ctx.flushSummary();
   console.log('\n--- 完整日志 ---');
   console.log(ctx.runLog.join('\n'));
   process.exit(overallFailed ? 1 : 0);

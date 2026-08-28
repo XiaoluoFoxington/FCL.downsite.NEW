@@ -12,12 +12,59 @@ const ROOT = join(HERE, '..', '..');
 const SOFTWARES = JSON.parse(readFileSync(join(HERE, 'softwares.json'), 'utf8'));
 
 // ---------- 日志（可变 ctx.log 以便调用方在作用域内拦截） ----------
+const stamp = () => new Date().toISOString().replace('T', ' ').slice(0, 19);
+
 export const ctx = {
   runLog: [],
+  summaryLines: [], // GITHUB_STEP_SUMMARY markdown 行
+  _timers: {},
   log(msg) {
-    const line = `[${new Date().toISOString().replace('T', ' ').slice(0, 19)}] ${msg}`;
+    const line = `[${stamp()}] ${msg}`;
     this.runLog.push(line);
     console.log(line);
+  },
+  // GHA 折叠分组：Actions UI 可折叠；本地退化为普通分隔行
+  group(title) {
+    const plain = `[${stamp()}] ══ ${title} ══`;
+    this.runLog.push(plain);
+    if (ENV.IS_GHA) {
+      console.log(`::group::${title}`);
+    } else {
+      console.log(plain);
+    }
+  },
+  endGroup() {
+    if (ENV.IS_GHA) console.log('::endgroup::');
+  },
+  // GHA 注释标记（错误/警告），同时写普通日志行
+  error(msg) {
+    if (ENV.IS_GHA) console.log(`::error::${msg}`);
+    this.log(`❌ ${msg}`);
+  },
+  warn(msg) {
+    if (ENV.IS_GHA) console.log(`::warning::${msg}`);
+    this.log(`⚠ ${msg}`);
+  },
+  // 阶段计时
+  start(name) {
+    this._timers[name] = Date.now();
+    return this._timers[name];
+  },
+  end(name) {
+    const ms = Date.now() - (this._timers[name] || Date.now());
+    delete this._timers[name];
+    return ms;
+  },
+  // 汇总页（GITHUB_STEP_SUMMARY）收集
+  sum(text) {
+    this.summaryLines.push(text);
+  },
+  async flushSummary() {
+    const p = process.env.GITHUB_STEP_SUMMARY;
+    if (p && this.summaryLines.length) {
+      const fs = await import('node:fs');
+      fs.appendFileSync(p, this.summaryLines.join('\n') + '\n');
+    }
   },
 };
 
