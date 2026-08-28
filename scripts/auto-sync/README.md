@@ -14,7 +14,7 @@ auto-sync/
   sync.mjs          主流程：检测 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push
   h1api.mjs         huang1111 API 封装（登录/CSRF/验证码/目录/离线下载/直链 + 重试策略）
   config.mjs        环境变量与重试常量
-  softwares.json    软件映射表（当前：0=FCL、3=Zalith2、4=Amethyst、16=Acode）
+  softwares.json    软件映射表（当前：0=FCL、3=Zalith2、4=Amethyst、15=Axolotl、16=Acode）
   ocr_helper.py     验证码 OCR 助手（依赖包名仓库内无明文，见下文）
 ```
 
@@ -60,6 +60,17 @@ node scripts/auto-sync/sync.mjs
 - **旧格式（历史保留，不再写入）**：`{段}/{段}/.../{段}.json`（由版本号按 `.` 拆段而来），解析器对旧格式保持兼容，新旧条目可共存。
 - **手动条目**：index.json 中无版本路径的条目（如 `boat`）原样透传，永远排在版本条目之前。
 - index.json 的版本条目按版本降序；带 `default: true` 的标记自动只保留在最新版本上。
+
+### `softwares.json` 软件配置字段
+
+| 字段 | 说明 |
+|---|---|
+| `softwareId` / `githubRepo` | 站内资源 id 与 GitHub 仓库 |
+| `mode` | `arch`（按架构匹配 `.apk`）或 `name`（按资产名逐个收录） |
+| `archNames` / `fallbackArch` | `arch` 模式下的架构列表与兜底架构 |
+| `assetFilter` | 正则（字符串），为空则不过滤，收录全部资产 |
+| `includePrerelease` | 是否把 prerelease 当候选 |
+| `keepLatest` | **保留最新版本数**：`0`/`null` 不删除、全部保留；`1` 仅保留最新 1 个版本；`N` 保留最新 N 个。同步完成后自动清理最旧超出版本——**联动删除**网盘版本目录、本地 JSON 与 index.json 对应条目（避免站内留下失效直链） |
 
 ## GHA 双 job 架构
 

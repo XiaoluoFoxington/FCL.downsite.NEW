@@ -32,6 +32,7 @@
     "mode": "name",
     "archNames": [],
     "fallbackArch": null,
+    "keepLatest": 2,
     "includePrerelease": false
   },
   {

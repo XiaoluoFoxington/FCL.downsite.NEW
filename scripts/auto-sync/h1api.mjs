@@ -208,6 +208,27 @@ export async function createDir(netPath, log) {
   return listDir(netPath, log);
 }
 
+// ---------- 删除目录（Cloudreve DELETE /object，见 api-notes §5.2） ----------
+// 目录进回收站（force:true 也不跳过，48h 自动清除）；需 CSRF，删除前先列目录拿目录自身 id
+export async function deleteDir(netPath, log) {
+  const found = await listDir(netPath, log);
+  if (!found.exists) {
+    logMsg(log, `  [删除] 目录已不存在，跳过：/${netPath}`);
+    return false;
+  }
+  const dirId = found.parent;
+  if (!dirId) throw new H1Error(`删除目录失败：未取得目录 id（/${netPath}）`);
+  logMsg(log, `  [删除] 删除目录 /${netPath}（id=${dirId}）`);
+  const r = await genericAttempts(
+    () => apiWithToken('DELETE', '/object', { items: [], dirs: [dirId], force: true }),
+    `删除目录 ${netPath}`,
+    log,
+  );
+  if (r.json?.code !== 0) throw new H1Error(`删除目录失败(HTTP ${r.httpStatus}): ${r.json?.msg || r.raw}`);
+  logMsg(log, `  [删除] ✅ 已删除 /${netPath}`);
+  return true;
+}
+
 // ---------- 离线下载 ----------
 // urls: GitHub release asset 直链数组；wantNames: 期望出现的文件名数组
 // 返回 Map<文件名, {id,size}>；失败（提交或轮询超时/任务错误）抛 H1Error

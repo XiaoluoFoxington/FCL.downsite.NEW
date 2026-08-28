@@ -15,7 +15,7 @@
 // 每个软件一个 commit；全部完成后统一 push。
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -137,6 +137,74 @@ function updateIndex(softwareId, origEntries, synced) {
   const indexPath = join(ROOT, 'data', 'down', String(softwareId), 'index.json');
   writeFileSync(indexPath, JSON.stringify(entries, null, 2));
   return indexPath;
+}
+
+// ---------- 从 index.json 条目 nextUrl 解析网盘相对路径段（年/月/日/版本） ----------
+// 仅匹配新格式 auto 条目；旧格式/手动条目返回 null
+const AUTO_PATH_RE = /^\/data\/down\/\d+\/auto\/(\d+\/\d+\/\d+\/[^/]+)\.json$/;
+function autoPathFromEntry(nextUrl) {
+  const m = AUTO_PATH_RE.exec(String(nextUrl || ''));
+  return m ? m[1] : null;
+}
+
+// ---------- keepLatest 保留清理（网盘目录 + index.json 条目 + 本地 JSON 联动） ----------
+// 读取当前 index.json 的全部版本条目，按版本号降序保留最新 keep 个，最旧的超出部分：
+//   ① 删除网盘对应版本目录（foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}/{版本}）
+//   ② 删除本地 data/down/{id}/auto/.../{版本}.json
+//   ③ 从 index.json 移除该条目并写回
+// 返回被清理的版本数组；keepLatest <= 0 或无可清理时返回 []
+async function pruneSoftware(sw) {
+  const keep = Number(sw.keepLatest) || 0;
+  if (keep <= 0) return [];
+  const indexPath = join(ROOT, 'data', 'down', String(sw.softwareId), 'index.json');
+  let entries = [];
+  try {
+    entries = JSON.parse(readFileSync(indexPath, 'utf8'));
+  } catch (e) {
+    log(`  [清理] 读取 index.json 失败，跳过保留清理：${e.message}`);
+    return [];
+  }
+  if (!Array.isArray(entries)) return [];
+
+  const vers = entries
+    .map((entry, idx) => ({ idx, key: entryVersionKey(entry.nextUrl), entry }))
+    .filter((x) => x.key != null);
+  if (vers.length <= keep) return [];
+  vers.sort((a, b) => compareVersionsDescending(a.key, b.key));
+
+  const toDelete = vers.slice(keep); // 最旧的超出部分
+  const keepSet = new Set(vers.slice(0, keep).map((v) => v.key));
+  log(`  [清理] keepLatest=${keep}，现有版本 ${vers.length} 个，清理 ${toDelete.length} 个最旧版本：${toDelete.map((t) => t.key).join(', ') || ''}`);
+
+  const pruned = [];
+  for (const { key, entry } of toDelete) {
+    try {
+      const netRel = autoPathFromEntry(entry.nextUrl);
+      if (netRel) {
+        await h1.deleteDir(`foldcraftlauncher_cn_auto/${sw.softwareId}/${netRel}`, (m) => log(m));
+      } else {
+        log(`  [清理] 版本 ${key} 非新格式路径，无法映射网盘目录，跳过网盘删除`);
+      }
+      const jsonRel = String(entry.nextUrl).replace(/^\//, '');
+      const localPath = join(ROOT, jsonRel);
+      if (existsSync(localPath)) {
+        unlinkSync(localPath);
+        log(`  [清理] 已删除本地 ${jsonRel}`);
+      }
+      pruned.push(key);
+    } catch (e) {
+      log(`  [清理] ❌ 版本 ${key} 清理失败：${e.message}`);
+    }
+  }
+  if (pruned.length) {
+    const next = entries.filter((entry) => {
+      const key = entryVersionKey(entry.nextUrl);
+      return key == null || keepSet.has(key); // 手动条目 + 保留版本
+    });
+    writeFileSync(indexPath, JSON.stringify(next, null, 2));
+    log(`  [清理] ✅ 已更新 index.json（移除 ${pruned.length} 个条目）`);
+  }
+  return pruned;
 }
 
 // ---------- 提交前数据校验（JSON 可解析、直链前缀、size、index 一致性） ----------
@@ -337,6 +405,8 @@ async function main() {
       const indexPath = updateIndex(sw.softwareId, origEntries, synced);
       log(`    ✅ 已更新 ${indexPath.replace(ROOT + '/', '')}（+${synced.length} 个版本）`);
       verifySyncedData(sw, synced);
+      // keepLatest 保留清理（联动网盘 + index.json + 本地 JSON）
+      await pruneSoftware(sw);
       const versionList = synced.map((s) => s.version).sort(compareVersionsDescending).join('&');
       log(`    提交版本列表：${versionList}`);
       try {
