@@ -226,6 +226,27 @@ export async function deleteDir(netPath, log) {
   );
   if (r.json?.code !== 0) throw new H1Error(`删除目录失败(HTTP ${r.httpStatus}): ${r.json?.msg || r.raw}`);
   logMsg(log, `  [删除] ✅ 已删除 /${netPath}`);
+
+  // 向上清理空父目录：逐级检查上级目录是否已无任何对象，空则一并删除（含 foldcraftlauncher_cn_auto 根），
+  // 直到遇到非空目录或没有更上层为止；避免 keepLatest 清理后残留一串空目录
+  const segments = netPath.split('/').filter(Boolean);
+  for (let depth = segments.length - 1; depth >= 1; depth -= 1) {
+    const parentPath = segments.slice(0, depth).join('/');
+    const parent = await listDir(parentPath, log);
+    if (!parent.exists) continue; // 上级已被删，继续往上
+    if ((parent.objects || []).length > 0) break; // 上级非空，停止清理
+    const pid = parent.parent;
+    if (!pid) break;
+    logMsg(log, `  [删除] 空父目录 /${parentPath} 一并删除（id=${pid}）`);
+    const pr = await genericAttempts(
+      () => apiWithToken('DELETE', '/object', { items: [], dirs: [pid], force: true }),
+      `删空父目录 ${parentPath}`,
+      log,
+    );
+    if (pr.json?.code !== 0) {
+      logMsg(log, `  [删除] ⚠ 空父目录删除失败(HTTP ${pr.httpStatus}): ${pr.json?.msg || pr.raw}（继续尝试更上层）`);
+    }
+  }
   return true;
 }
 
