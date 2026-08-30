@@ -4,6 +4,10 @@
 
 import { logInfo, logError } from "../common/logger.js";
 
+// 模块级状态：供可重复触发的彩蛋效果复用/清理（彩色文字、代码雨）
+let rainbowStyle = null;
+let codeRain = null;
+
 /**
  * 随机运行一个彩蛋事件
  */
@@ -26,8 +30,6 @@ export function runEvent(eventId) {
     logError(`未找到事件id: ${eventId}`);
   }
 }
-
-window.test = runEvent;
 
 // 彩蛋事件们-------------------------------------------------------------------------------------------
 
@@ -57,8 +59,11 @@ const events = [
     id: 3,
     name: '彩色文字',
     run: () => {
-      const style = document.createElement('style');
-      style.innerHTML = `
+      // 已存在则复用，避免重复点击累积多个 style 标签
+      if (!rainbowStyle) {
+        const style = document.createElement('style');
+        style.id = 'rainbow-style';
+        style.innerHTML = `
           @keyframes rainbow {
             0% { color: red; }
             20% { color: orange; }
@@ -70,7 +75,9 @@ const events = [
           .rainbow-text {
             animation: rainbow 1s infinite;
           }`;
-      document.head.appendChild(style);
+        document.head.appendChild(style);
+        rainbowStyle = style;
+      }
       document.querySelectorAll('*').forEach(el => el.classList.add('rainbow-text'));
     }  
   },
@@ -83,10 +90,6 @@ const events = [
       audio.play().catch(e => {
         logError("千万别点：钢管落地：自动播放被阻止（请允许此网站自动播放）：", e);
       });
-
-      if (!audio.paused) {
-        audio.remove();
-      }
     }  
   },
   {
@@ -142,15 +145,34 @@ const events = [
     id: 6,
     name: '汉字乱码',
     run: () => {
-      document.body.innerHTML = document.body.innerHTML.replace(/[\u4e00-\u9fa5]/g, function (c) {
-        return String.fromCharCode(c.charCodeAt(0) ^ 0xA5);
+      // 逐文本节点替换，避免重写 body.innerHTML 导致事件监听器全部失效
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+          return node.parentElement && /[\u4e00-\u9fa5]/.test(node.nodeValue)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT;
+        }
       });
+      const textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+      for (const node of textNodes) {
+        node.nodeValue = node.nodeValue.replace(/[\u4e00-\u9fa5]/g, function (c) {
+          return String.fromCharCode(c.charCodeAt(0) ^ 0xA5);
+        });
+      }
     }
   },
   {
     id: 7,
     name: '二进制代码雨',
     run: () => {
+      // 重复触发前先清理上一场代码雨，避免 canvas/interval 叠加
+      if (codeRain) {
+        clearInterval(codeRain.intervalId);
+        codeRain.canvas.remove();
+        codeRain = null;
+      }
+
       const chars = '01';
       const canvas = document.createElement('canvas');
       canvas.width = window.innerWidth;
@@ -158,6 +180,7 @@ const events = [
       canvas.style.position = 'fixed';
       canvas.style.top = '0';
       canvas.style.left = '0';
+      canvas.style.pointerEvents = 'none'; // 全屏画布不遮挡页面点击
       document.body.appendChild(canvas);
 
       const ctx = canvas.getContext('2d');
@@ -187,7 +210,7 @@ const events = [
         }
       }
 
-      setInterval(draw, 33);
+      codeRain = { canvas, intervalId: setInterval(draw, 33) };
     }
   }
 ]
