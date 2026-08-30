@@ -1,5 +1,5 @@
 # 线路1 自动同步（GitHub Releases → huang1111 离线下载 → 直链 → 写 JSON → 分软件提交 → push）
-# 触发：UTC+8 每天 00:00 与 12:00（= UTC 16:00 与 04:00，cron 用 UTC）+ 手动 dispatch
+# 触发：UTC+8 每天 04:00 与 16:00（= UTC 20:00 与 08:00，cron 用 UTC）+ 手动 dispatch
 #
 # 说明：
 #   - 先 probe 后 sync：probe job 只跑 checkout + node 20 + 预探测（不登录、不动网盘），
@@ -17,8 +17,8 @@ name: 线路1自动同步
 
 on:
   schedule:
-    # UTC+8 00:00 / 12:00 → UTC 16:00（前一日）/ 04:00
-    - cron: '0 4,16 * * *'
+    # UTC+8 04:00 / 16:00 → UTC 20:00（前一日）/ 08:00
+    - cron: '0 8,20 * * *'
   workflow_dispatch:
 
 permissions:
