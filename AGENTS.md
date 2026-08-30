@@ -20,4 +20,4 @@
 - `makeAbsoluteUrl` 函数必须处理特殊协议（`data:`、`mailto:`、`#`、`//`），以避免 URL 拼接错误。
 - 配置中的正则表达式模式必须使用 try/catch 进行校验，以防止渲染崩溃。
 - 来自外部来源（即使是静态文件）的 HTML 内容在插入 DOM 之前必须使用 DOMPurify 进行净化。
-- harness 沙箱环境无法用 schannel 建立 TLS（报 `SEC_E_NO_CREDENTIALS`），git 推送需单次覆盖 `git -c http.sslbackend=openssl push`；用户本机终端不受影响，勿因此改动全局 git 配置。
+- DeepSeekHarness 沙箱环境无法用 schannel 建立 TLS（报 `SEC_E_NO_CREDENTIALS`），git 推送需单次覆盖 `git -c http.sslbackend=openssl push`；用户本机终端不受影响，勿因此改动全局 git 配置。

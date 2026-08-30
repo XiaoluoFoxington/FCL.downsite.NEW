@@ -6,6 +6,7 @@ import { getRunTime } from '../domain/siteInfo.js';
 import { mountBookmarkList } from '../views/bookmarkView.js';
 import { logError } from './logger.js';
 import { t, translateDynamicContent, isRTLLang, getCurrentLang } from './i18n.js';
+import { ramdonRun } from '../controllers/doNotClickController.js';
 
 /**
 * 所有页面共用的抽屉（LTR 在右侧，RTL 镜像到左侧）。
@@ -81,6 +82,14 @@ async function loadDrawerContent(drawer) {
         mountBookmarkList(bookmarkBody);
         window.mdui?.mutation();
       }
+    }
+
+    // 千万别点彩蛋按钮事件监听器
+    const doNotClickBtn = drawer.querySelector('#do-not-click-btn');
+    if (doNotClickBtn) {
+      doNotClickBtn.addEventListener('click', () => {
+        ramdonRun();
+      }, { signal: ac.signal });
     }
 
     // 注入动态内容
