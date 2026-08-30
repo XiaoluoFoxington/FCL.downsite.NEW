@@ -155,7 +155,10 @@ export function createSelectorView(container, stopButton, matchedArchitecture, o
     items.forEach((item, index) => {
       const option = document.createElement('option');
       option.value = String(index);
-      option.textContent = item.name || t('common.selectors.noName');
+      // tag 与 name 相同时无展示意义，仅当不同才渲染为 {name}({tag})
+      option.textContent = (item.tag && item.tag !== item.name)
+        ? `${item.name}(${item.tag})`
+        : (item.name || t('common.selectors.noName'));
       select.appendChild(option);
     });
     const description = document.createElement('div');

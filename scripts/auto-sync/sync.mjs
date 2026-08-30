@@ -102,7 +102,7 @@ async function syncVersion(sw, version, release) {
   writeFileSync(jsonPath, JSON.stringify(sized, null, 2));
   log(`  ✅ 已写 ${jsonRel}（${sized.length} 个文件，共 ${sized.reduce((s, e) => s + (e.size || 0), 0)} 字节）`);
   for (const e of sized) log(`     · ${e.arch || e.name}: ${e.url}（${e.size || '?'} 字节）`);
-  return { version, files: sized, jsonRel };
+  return { version, files: sized, jsonRel, title: release.name ?? null };
 }
 
 // ---------- 更新 index.json（保留手动条目，新增版本降序插入，default 移到最新） ----------
@@ -117,9 +117,10 @@ function updateIndex(softwareId, origEntries, synced) {
   }
   for (const s of synced) {
     if (versionEntries.some((x) => x.key === s.version)) continue;
+    // name=发布标题（release.name），tag=版本号；key 仍是版本号，用于排序/去重
     versionEntries.push({
       key: s.version,
-      entry: { name: s.version, nextUrl: '/' + s.jsonRel },
+      entry: { name: s.title || s.version, nextUrl: '/' + s.jsonRel, tag: s.version },
     });
   }
   versionEntries.sort((a, b) => compareVersionsDescending(a.key, b.key));
