@@ -86,6 +86,13 @@
             "step": 1000,
             "default": 10000,
             "storageKey": "fdn-logger-duration"
+          },
+          {
+            "id": 10,
+            "name": "关闭统计脚本加载失败日志Toast",
+            "type": "switch",
+            "default": true,
+            "storageKey": "fdn-logger-analyticsToastDisabled"
           }
         ]
       },

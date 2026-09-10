@@ -504,6 +504,7 @@ const esES = {
       '赞助提醒计次': 'Recuento de recordatorios de patrocinio',
       '启用 Toast 提示': 'Habilitar notificaciones Toast',
       'Toast 持续时间（ms）': 'Duración del Toast (ms)',
+      '关闭统计脚本加载失败日志Toast': 'Desactivar el Toast del fallo de carga del script de estadísticas',
       '图标尺寸（px）': 'Tamaño de icono (px)',
       '资源列表页默认打开方式': 'Método de apertura predeterminado de la lista de recursos',
       '书签默认打开方式': 'Método de apertura predeterminado de marcadores',

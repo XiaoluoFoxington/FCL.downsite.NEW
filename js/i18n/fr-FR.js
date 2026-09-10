@@ -503,6 +503,7 @@ const frFR = {
       '赞助提醒计次': 'Compteur du rappel de sponsoring',
       '启用 Toast 提示': 'Activer les notifications Toast',
       'Toast 持续时间（ms）': "Durée d'affichage des Toast (ms)",
+      '关闭统计脚本加载失败日志Toast': "Désactiver le Toast en cas d'échec de chargement du script d'analytics",
       '图标尺寸（px）': 'Taille des icônes (px)',
       '资源列表页默认打开方式': "Méthode d'ouverture par défaut de la liste des ressources",
       '书签默认打开方式': "Méthode d'ouverture par défaut des favoris",

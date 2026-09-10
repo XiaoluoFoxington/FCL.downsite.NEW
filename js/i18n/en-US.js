@@ -503,6 +503,7 @@ const enUS = {
       '赞助提醒计次': 'Sponsor Reminder Count',
       '启用 Toast 提示': 'Enable Toast Notifications',
       'Toast 持续时间（ms）': 'Toast Duration (ms)',
+      '关闭统计脚本加载失败日志Toast': 'Disable Analytics Script Failure Log Toast',
       '图标尺寸（px）': 'Icon Size (px)',
       '资源列表页默认打开方式': 'Default Open Method for Resource List',
       '书签默认打开方式': 'Default Open Method for Bookmarks',

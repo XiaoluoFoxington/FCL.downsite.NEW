@@ -91,8 +91,9 @@ function translateContext(context) {
  * @param {'info' | 'warn' | 'error'} level
  * @param {any} err 可转换为 Error 的任何值
  * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
+ * @param {{ noToast?: boolean }} [options] 额外选项；noToast 为 true 时跳过本次 Toast 提示（控制台输出不受影响）
  */
-function _log(level, err, context) {
+function _log(level, err, context, options) {
   const error = extractError(err);
   const contextText = translateContext(context);
   const prefix = contextText ? `${contextText}: ` : '';
@@ -106,7 +107,7 @@ function _log(level, err, context) {
   }
 
   // 2. Toast 提示
-  if (toastConfig.enableToast) {
+  if (toastConfig.enableToast && !(options && options.noToast)) {
     try {
       const icon = ICON_MAP[level] || 'info';
       // 对 message 进行 HTML 转义，防止 XSS
@@ -125,24 +126,27 @@ function _log(level, err, context) {
 /** 记录信息日志
  * @param {any} err 可转换为 Error 的任何值
  * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
+ * @param {{ noToast?: boolean }} [options] 额外选项；noToast 为 true 时跳过本次 Toast 提示
  */
-export function logInfo(err, context) {
-  _log('info', err, context);
+export function logInfo(err, context, options) {
+  _log('info', err, context, options);
 }
 
 /** 记录警告日志
  * @param {any} err 可转换为 Error 的任何值
  * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
+ * @param {{ noToast?: boolean }} [options] 额外选项；noToast 为 true 时跳过本次 Toast 提示
  */
-export function logWarn(err, context) {
-  _log('warn', err, context);
+export function logWarn(err, context, options) {
+  _log('warn', err, context, options);
 }
 /** 记录错误日志
  * @param {any} err 可转换为 Error 的任何值
  * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
+ * @param {{ noToast?: boolean }} [options] 额外选项；noToast 为 true 时跳过本次 Toast 提示
  */
-export function logError(err, context) {
-  _log('error', err, context);
+export function logError(err, context, options) {
+  _log('error', err, context, options);
 }
 
 // =========================== 全局兜底监听 ===========================
