@@ -254,6 +254,7 @@ export async function deleteDir(netPath, log) {
 // urls: GitHub release asset 直链数组；wantNames: 期望出现的文件名数组
 // 返回 Map<文件名, {id,size}>；失败（提交或轮询超时/任务错误）抛 H1Error
 // 记录提交前已存在的同 dst+文件名任务 gid，避免历史失败任务在重试时被误判为“本次失败”
+// 每次提交前先列目标目录：已出现的预期文件跳过提交（超时重试时上次任务可能已完成，重复提交会产生 xxx(1)）
 async function collectFinishedGids(dst, wantNames) {
   const dstNorm = dst.replace(/^\/+|\/+$/g, '') || '/';
   const gids = new Set();
@@ -297,17 +298,28 @@ export async function offlineDownload(urls, netPath, wantNames, log) {
     try {
       await createDir(netPath, log);
 
+      // 提交前先看目录：已出现的预期文件跳过提交，防止超时重试后重复提交产生 xxx(1)
+      const dirNow = await listDir(netPath, log);
+      const existingNames = new Set(
+        (dirNow.exists ? dirNow.objects : [])
+          .filter((o) => o.type === 'file' && wantNames.includes(o.name))
+          .map((o) => o.name),
+      );
+      if (existingNames.size > 0) {
+        logMsg(log, `  [离线下载] 目录已存在 ${existingNames.size} 个预期文件，跳过提交：${[...existingNames].join(', ')}`);
+      }
+
       // 检查正在下载的任务，避免重试时重复提交同一文件
       const downloadingNames = await collectDownloadingNames(dst, wantNames);
       if (downloadingNames.size > 0) {
         logMsg(log, `  [离线下载] 发现 ${downloadingNames.size}/${wantNames.length} 个文件已在下载中，跳过重复提交`);
       }
 
-      // 分离：已在下载的文件 → 跳过提交；其余 → 本次提交
+      // 分离：目录已有/已在下载的文件 → 跳过提交；其余 → 本次提交
       const pendingUrls = [];
       const pendingNames = [];
       for (let i = 0; i < wantNames.length; i += 1) {
-        if (!downloadingNames.has(wantNames[i])) {
+        if (!existingNames.has(wantNames[i]) && !downloadingNames.has(wantNames[i])) {
           pendingUrls.push(urls[i]);
           pendingNames.push(wantNames[i]);
         }
@@ -338,7 +350,7 @@ export async function offlineDownload(urls, netPath, wantNames, log) {
           logMsg(log, `  [离线下载] ✅ 第 ${batchNo} 批下载完成`);
         }
       } else {
-        logMsg(log, `  [离线下载] 全部 ${wantNames.length} 个文件已在下载中，跳过提交，直接轮询`);
+        logMsg(log, `  [离线下载] 全部 ${wantNames.length} 个文件已在目录或下载中，跳过提交，直接轮询`);
         await pollForFiles(netPath, dst, wantNames, log, baselineGids);
       }
 

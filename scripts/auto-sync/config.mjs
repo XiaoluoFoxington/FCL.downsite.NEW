@@ -12,7 +12,7 @@ export const ENV = {
   GITHUB_REF_NAME: process.env.GITHUB_REF_NAME || '',
   IS_GHA: process.env.GITHUB_ACTIONS === 'true',
   // 单个版本的离线下载轮询上限（毫秒），可按需覆盖
-  DOWNLOAD_TIMEOUT_MS: Number(process.env.AUTO_SYNC_DOWNLOAD_TIMEOUT_MS || 20 * 60 * 1000),
+  DOWNLOAD_TIMEOUT_MS: Number(process.env.AUTO_SYNC_DOWNLOAD_TIMEOUT_MS || 2 * 60 * 1000),
 };
 
 // 重试策略（用户确认的口径："重试 N 次" = 最多尝试 N 次，与验证码 10 次尝试的实现一致）
@@ -24,7 +24,7 @@ export const RETRY = {
 
 export const TIMING = {
   POLL_INTERVAL_MS: 5000,    // 离线下载轮询间隔
-  CAPTCHA_COOLDOWN_MS: 800,  // 验证码重试间隔
+  CAPTCHA_COOLDOWN_MS: 1000,  // 验证码重试间隔
 };
 
 // 批量提交上限（huang1111 对离线下载任务数有限制，需分批提交）
