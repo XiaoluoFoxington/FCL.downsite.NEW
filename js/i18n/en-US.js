@@ -247,12 +247,12 @@ const enUS = {
 
   // Mirror names (data/mirror.json, keyed by mirror id)
   mirror: {
-    0: 'Mirror 1',
-    1: 'Mirror 2',
+    0: 'Webmaster (huang1111)',
+    1: 'Maple Mirror',
     4: 'Mirror 5',
     7: 'Mirror 8',
     8: 'Mirror 9',
-    9: 'Mirror 10',
+    9: 'Lemwoo Mirror',
     10: 'Mirror 11',
     11: 'Mirror 12',
   },

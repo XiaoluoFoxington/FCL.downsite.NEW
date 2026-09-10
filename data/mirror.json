@@ -1,18 +1,17 @@
 [
   {
     "id": 0,
-    "name": "线路1",
+    "name": "站长提供 (huang1111)",
     "baseUrl": "/data/down",
-    "description": "由站长手动更新，可能不是最新版本。",
-    "notJoinRandom": true,
+    "description": "由GitHub Actions自动更新。",
     "contributeId": [0]
   },
   {
     "id": 1,
-    "name": "线路2",
+    "name": "枫源镜像",
     "baseUrl": "https://fyhub.cn",
     "apiVer": "fengyuan",
-    "description": "枫源镜像。",
+    "description": "源：fyhub.cn",
     "contributeId": [1]
   },
   {
@@ -39,10 +38,10 @@
   },
   {
     "id": 9,
-    "name": "线路10",
+    "name": "柠泽资源站",
     "baseUrl": "https://miawa.cn",
     "apiVer": "Lemwood",
-    "description": "柠泽资源站。",
+    "description": "源：miawa.cn",
     "contributeId": [2]
   },
   {
