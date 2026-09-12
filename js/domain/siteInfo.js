@@ -7,7 +7,7 @@ import { readPreference, writePreference } from '../domain/preferences.js';
 import { t } from '../common/i18n.js';
 
 const START_DATE = new Date(2025, 2, 19, 2, 19, 45); // 建站时间（月份0-based）
-const VISIT_COUNT_KEY = 'fdn-visitCount';
+const DOWN_VISIT_COUNT_KEY = 'fdn-downVisitCount';
 
 /**
  * 获取当前时间与建站时间的时间差
@@ -40,20 +40,20 @@ export function getRunTime() {
 }
 
 /**
- * 获取当前网站访问次数
- * @returns {number} 当前网站访问次数
+ * 获取当前下载页访问次数
+ * @returns {number} 当前下载页访问次数
  */
-export function getVisitCount() {
-  return Number(readPreference(VISIT_COUNT_KEY, '0') || 0); // 双重兜底
+export function getDownVisitCount() {
+  return Number(readPreference(DOWN_VISIT_COUNT_KEY, '0') || 0); // 双重兜底
 }
 
 /**
- * 将网站访问次数增加1
- * @returns {number} 新的网站访问次数
+ * 将下载页访问次数增加1
+ * @returns {number} 新的下载页访问次数
  */
-export function incrementVisitCount() {
-  const currentCount = getVisitCount();
+export function incrementDownVisitCount() {
+  const currentCount = getDownVisitCount();
   const newCount = currentCount + 1;
-  writePreference(VISIT_COUNT_KEY, newCount);
+  writePreference(DOWN_VISIT_COUNT_KEY, newCount);
   return newCount;
 }

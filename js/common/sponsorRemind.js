@@ -1,4 +1,4 @@
-import { incrementVisitCount } from '../domain/siteInfo.js';
+import { incrementDownVisitCount } from '../domain/siteInfo.js';
 import { readPreference, writePreference } from '../domain/preferences.js';
 import { createPanel } from '../views/uiComponents.js';
 import { getText } from '../http/client.js';
@@ -7,7 +7,7 @@ import { renderStatus } from '../views/commonView.js';
 import { t } from './i18n.js';
 
 /**
- * 赞助提醒，用于在访问次数达到10的倍数时显示赞助提醒
+ * 赞助提醒，用于在下载页访问次数达到5的倍数时显示赞助提醒（容器仅存在于下载页）
  */
 
 const SPONSOR_REMIND_PERMANENT_DISABLED_KEY = 'fdn-sponsorRemindPermanentDisabled';
@@ -19,17 +19,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 /**
  * 是否允许显示赞助提醒，条件如下：
- * - 访问次数必须是10的倍数
+ * - 下载页访问次数必须是5的倍数
  * - 没有设置永久关闭
- * @returns {object} 是否允许显示赞助提醒和当前访问次数
+ * @returns {object} 是否允许显示赞助提醒和当前下载页访问次数
  * @property {boolean} allowShow 是否允许显示赞助提醒
- * @property {number} visitCount 当前访问次数
+ * @property {number} visitCount 当前下载页访问次数
  */
 function allowShowSponsorRemind() {
-  const visitCount = incrementVisitCount();
+  const visitCount = incrementDownVisitCount();
   const isPermanentDisabled = readPreference(SPONSOR_REMIND_PERMANENT_DISABLED_KEY, 'false') === 'true';
   return {
-    allowShow: visitCount % 10 === 0 && !isPermanentDisabled,
+    allowShow: visitCount % 5 === 0 && !isPermanentDisabled,
     visitCount
   };
 }

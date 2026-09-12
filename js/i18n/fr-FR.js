@@ -640,9 +640,9 @@ const frFR = {
   // Rappel de parrainage (data/sponsorRemind.html)
   sponsorRemind: {
     title: 'Nous avons besoin de votre soutien !',
-    visitCount: 'Bonjour, vous avez visité ce site {count} fois !',
+    visitCount: 'Vous avez visité la page de téléchargement {count} fois !',
     desc: "Les coûts de bande passante de téléchargement sont élevés, l'exploitation du site est difficile, mais nous restons attachés à l'open source et à l'absence de publicité pour maintenir ce site à but non lucratif. Si vous trouvez ce site utile et que votre situation financière le permet, votre soutien est le bienvenu ! Votre parrainage nous aidera à continuer à exploiter ce site. Merci infiniment !",
-    optional: "Ce n'est pas obligatoire, vous pouvez tout à fait choisir de ne pas soutenir. Cet avis s'affiche simplement parce que votre nombre de visites a atteint un multiple de 10. Si vous ne cliquez pas sur « Fermer définitivement », cet avis réapparaîtra lorsque votre nombre de visites atteindra le prochain multiple de 10.",
+    optional: "Ce n'est pas obligatoire, vous pouvez tout à fait choisir de ne pas soutenir. Cet avis s'affiche simplement parce que votre nombre de visites de la page de téléchargement a atteint un multiple de 5. Si vous ne cliquez pas sur « Fermer définitivement », cet avis réapparaîtra lorsque votre nombre de visites de la page de téléchargement atteindra le prochain multiple de 5.",
     sponsorUs: 'Nous soutenir',
     closeForever: 'Fermer définitivement',
   },

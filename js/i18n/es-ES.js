@@ -641,9 +641,9 @@ const esES = {
   // Recordatorio de patrocinio (data/sponsorRemind.html)
   sponsorRemind: {
     title: '¡Necesitamos tu patrocinio!',
-    visitCount: '¡Hola! Has visitado este sitio {count} veces.',
+    visitCount: 'Has visitado la página de descargas {count} veces.',
     desc: 'Los costes del ancho de banda de descarga son altos y mantener este sitio es difícil, pero seguimos comprometidos con el código abierto y sin anuncios, manteniendo este sitio sin fines de lucro. Si te resulta útil y tu situación económica lo permite, ¡agradecemos tu patrocinio! Tu apoyo nos ayudará a mantener este sitio en funcionamiento. ¡Muchas gracias!',
-    optional: 'Esto no es obligatorio; puedes elegir no patrocinar. Este aviso solo aparece porque tu recuento de visitas ha alcanzado un múltiplo de 10. Si no haces clic en "Cerrar para siempre", este aviso volverá a aparecer cuando tu recuento de visitas alcance el siguiente múltiplo de 10.',
+    optional: 'Esto no es obligatorio; puedes elegir no patrocinar. Este aviso solo aparece porque tu recuento de visitas a la página de descargas ha alcanzado un múltiplo de 5. Si no haces clic en "Cerrar para siempre", este aviso volverá a aparecer cuando tu recuento de visitas a la página de descargas alcance el siguiente múltiplo de 5.',
     sponsorUs: 'Patrocinarnos',
     closeForever: 'Cerrar para siempre',
   },

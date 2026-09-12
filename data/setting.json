@@ -58,11 +58,11 @@
           },
           {
             "id": 3,
-            "name": "赞助提醒计次",
+            "name": "下载页访问计次",
             "type": "number",
             "min": 0,
             "default": 0,
-            "storageKey": "fdn-visitCount"
+            "storageKey": "fdn-downVisitCount"
           }
         ]
       },

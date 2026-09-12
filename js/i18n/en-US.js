@@ -640,9 +640,9 @@ const enUS = {
   // Sponsor reminder (data/sponsorRemind.html)
   sponsorRemind: {
     title: 'We need your sponsorship!',
-    visitCount: 'Hello, you have visited this website {count} times!',
+    visitCount: 'You have visited the download page {count} times!',
     desc: 'Download bandwidth costs are high and running this site is difficult, but we remain committed to open source and ad-free, keeping this site non-profit. If you find this site helpful and your financial situation allows, we welcome your sponsorship! Your support will help us keep this site running. Thank you so much!',
-    optional: 'This is not mandatory; you can choose not to sponsor. This notice only appears because your visit count has reached a multiple of 10. If you do not click "Close Forever", this notice will appear again when your visit count reaches the next multiple of 10.',
+    optional: 'This is not mandatory; you can choose not to sponsor. This notice only appears because your download page visit count has reached a multiple of 5. If you do not click "Close Forever", this notice will appear again when your download page visit count reaches the next multiple of 5.',
     sponsorUs: 'Sponsor Us',
     closeForever: 'Close Forever',
   },
