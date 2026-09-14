@@ -6,6 +6,10 @@
 //   2. 若数据源没有版本 → 只取 Release 最新一个
 //   3. 否则 → 落后 Release 多少版本，就把落后的全部下载
 //
+// 离线下载成功判据（用户确认）：
+//   只看网盘目录（listDir）里是否出现全部期望文件、且每个文件 size 与 GitHub asset 精确相等。
+//   不依赖 /aria2/finished 的 status，也不依赖 POST /aria2/url 返回的 code。
+//
 // 重试策略（用户确认，见 config.mjs RETRY）：
 //   验证码类失败（登录/取直链）→ 换新验证码最多 10 次
 //   离线下载失败              → 提交+轮询最多 3 次
@@ -52,6 +56,7 @@ function currentBranch() {
 
 // ---------- 单个版本同步：下载（如缺）→ 取直链 → 写 JSON ----------
 // 返回 { version, files:[{arch|name,url,size}], jsonRel } 或 null
+// 离线下载成功与否只由 h1.offlineDownload 内部按目录文件列表判定（文件名 + size 精确匹配）
 async function syncVersion(sw, version, release) {
   log(`  ══ 版本 ${version} ══`);
   // 1) 筛选资产（assetFilter 正则）
@@ -66,26 +71,36 @@ async function syncVersion(sw, version, release) {
   // {id}/{年}/{月}/{日}/{版本号}，版本号目录下才是文件，避免同一天多个版本互相覆盖）
   const datePath = datePathFromRelease(release);
   const netPath = `foldcraftlauncher_cn_auto/${sw.softwareId}/${datePath}/${version}`;
-  const wantFiles = entries.map((e) => e._file);
+  // 期望文件：文件名 + GitHub asset 的精确字节数；成败只看目录里是否出现同名且 size 相等的文件
+  const wantFiles = entries.map((e) => ({ name: e._file, size: e.size }));
 
-  // 2) 幂等：网盘目录已存在全部期望文件 → 跳过离线下载
+  // 2) 幂等：网盘目录已存在全部期望文件（且 size 匹配）→ 跳过离线下载
   let dir = await h1.listDir(netPath, log);
-  const hadAllFiles = dir.exists && wantFiles.every((f) => dir.objects.some((o) => o.type === 'file' && o.name === f));
+  const hadAllFiles =
+    dir.exists &&
+    wantFiles.every((w) =>
+      dir.objects.some((o) => o.type === 'file' && o.name === w.name && Number(o.size) === Number(w.size)),
+    );
   if (!hadAllFiles) {
     await h1.offlineDownload(entries.map((e) => e.url), netPath, wantFiles, log);
     dir = await h1.listDir(netPath, log);
   } else {
-    log('  [幂等] 网盘目录已全部存在，跳过离线下载');
+    log('  [幂等] 网盘目录已全部存在且 size 匹配，跳过离线下载');
   }
   if (!dir.exists) throw new Error(`下载完成后目录仍不存在：/${netPath}`);
 
   // 3) 文件 id + size 映射
   const fileMeta = new Map(dir.objects.filter((o) => o.type === 'file').map((o) => [o.name, o]));
-  const missing = wantFiles.filter((f) => !fileMeta.has(f));
-  if (missing.length) throw new Error(`目录中缺少文件：${missing.join(', ')}`);
+  const missing = wantFiles
+    .filter((w) => {
+      const o = fileMeta.get(w.name);
+      return !o || Number(o.size) !== Number(w.size);
+    })
+    .map((w) => w.name);
+  if (missing.length) throw new Error(`目录中缺少或 size 不匹配的文件：${missing.join(', ')}`);
 
   // 4) 批量取直链（验证码重试 ≤10 在 h1api 内）
-  const ids = wantFiles.map((f) => fileMeta.get(f).id);
+  const ids = wantFiles.map((w) => fileMeta.get(w.name).id);
   const sources = await h1.getSources(ids, log);
   const urlById = new Map(sources.map((s) => [s.id, s.url]));
   const sized = entries.map((e) => {

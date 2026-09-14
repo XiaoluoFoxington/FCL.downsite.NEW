@@ -165,14 +165,15 @@ export async function fetchReleases(githubRepo, includePrerelease) {
 }
 
 // ---------- 资产 → 版本文件条目 ----------
-// mode=arch：按 archNames 顺序输出 [{arch,url,size}]；无法按后缀识别的 .apk 归入 fallbackArch
-// mode=name：按资产名排序输出 [{name,url,size}]
+// mode=arch：按 archNames 顺序输出 [{arch,url,size,_file}]；无法按后缀识别的 .apk 归入 fallbackArch
+// mode=name：按资产名排序输出 [{name,url,size,_file}]
+// size 为 GitHub asset 的精确字节数，用于离线下载成功后与网盘目录里的文件大小做精确比对
 export function mapAssetsToEntries(mode, archNames, fallbackArch, assets) {
   if (mode === 'name') {
     const out = [];
     for (const a of assets) {
       const name = String(a.name).replace(/\.apk$/i, '');
-      out.push({ name, url: a.browser_download_url, _file: a.name });
+      out.push({ name, url: a.browser_download_url, _file: a.name, size: a.size });
     }
     out.sort((x, y) => x.name.localeCompare(y.name));
     return out;
@@ -199,12 +200,12 @@ export function mapAssetsToEntries(mode, archNames, fallbackArch, assets) {
   const out = [];
   for (const arch of archNames) {
     const a = byArch.get(arch);
-    if (a) out.push({ arch, url: a.browser_download_url, _file: a.name });
+    if (a) out.push({ arch, url: a.browser_download_url, _file: a.name, size: a.size });
   }
   // fallback 命中且 archNames 不含该架构时，额外输出
   if (fallbackUsed && !archNames.includes(fallbackArch)) {
     const a = byArch.get(fallbackArch);
-    if (a) out.push({ arch: fallbackArch, url: a.browser_download_url, _file: a.name });
+    if (a) out.push({ arch: fallbackArch, url: a.browser_download_url, _file: a.name, size: a.size });
   }
   return out;
 }

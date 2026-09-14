@@ -6,8 +6,13 @@
 //   PUT  /directory               → 建目录（幂等，中间目录自动创建）
 //   GET  /directory/{路径}        → 列目录（objects：id/name/size/type）
 //   POST /aria2/url               → 提交离线下载（响应无 gid，轮询反查）
-//   GET  /aria2/finished?page=1   → 任务历史（status: 1=排队 2=下载中 4=完成 5=错误）
+//   GET  /aria2/downloading       → 正在下载的任务（仅用于跳过重复提交）
 //   POST /file/source             → 批量取直链（验证码 + CSRF，验证码一次性）
+//
+// 成功判据（用户确认）：
+//   离线下载是否成功，**只看目录（GET /directory）**里是否出现了全部期望文件、
+//   且每个文件的 size 与 GitHub asset 的精确字节数一致。
+//   不再查询 /aria2/finished，也不依赖任何 API 返回的 status / code 作为成败判据。
 //
 // 重试策略（用户确认）：
 //   验证码类失败（登录/取直链）→ 换新验证码最多 10 次
@@ -251,27 +256,8 @@ export async function deleteDir(netPath, log) {
 }
 
 // ---------- 离线下载 ----------
-// urls: GitHub release asset 直链数组；wantNames: 期望出现的文件名数组
-// 返回 Map<文件名, {id,size}>；失败（提交或轮询超时/任务错误）抛 H1Error
-// 记录提交前已存在的同 dst+文件名任务 gid，避免历史失败任务在重试时被误判为“本次失败”
-// 每次提交前先列目标目录：已出现的预期文件跳过提交（超时重试时上次任务可能已完成，重复提交会产生 xxx(1)）
-async function collectFinishedGids(dst, wantNames) {
-  const dstNorm = dst.replace(/^\/+|\/+$/g, '') || '/';
-  const gids = new Set();
-  try {
-    const f = await api('GET', '/aria2/finished?page=1');
-    for (const t of f.json?.data || []) {
-      const tDst = (t.dst || '').replace(/^\/+|\/+$/g, '') || '/';
-      if (tDst === dstNorm && wantNames.includes(t.name) && t.gid) gids.add(String(t.gid));
-    }
-  } catch {
-    // 基线只用于排除“上一次失败”的历史任务；拿不到时仍以目录出现文件为准
-  }
-  return gids;
-}
-
-// 收集正在下载中的任务（GET /aria2/downloading），返回匹配 dst 的文件名集合
-// 用于重试时跳过已在下载中的文件，避免重复 aria2 任务
+// 收集正在下载中的任务（GET /aria2/downloading），返回匹配 dst 的文件名集合。
+// 仅用于「重试时跳过已在下载中的文件」，不参与成败判定。
 async function collectDownloadingNames(dst, wantNames) {
   const dstNorm = dst.replace(/^\/+|\/+$/g, '') || '/';
   const names = new Set();
@@ -290,73 +276,93 @@ async function collectDownloadingNames(dst, wantNames) {
   return names;
 }
 
-export async function offlineDownload(urls, netPath, wantNames, log) {
-  const dst = '/' + netPath; // 实测 finished 任务 dst 带前导斜杠
+// urls: GitHub release asset 直链数组；wantFiles: [{ name, size }]，与 urls 一一对应
+// 返回 Map<文件名, {id,size}>（取自目录，size 与期望精确相等）
+// 成败只看 pollForFiles：目录里出现全部期望文件且 size 匹配
+// 失败（提交或轮询超时）抛 H1Error
+export async function offlineDownload(urls, netPath, wantFiles, log) {
+  const dst = '/' + netPath; // 实测提交时 dst 带前导斜杠
+  const wantNames = wantFiles.map((w) => w.name);
   let lastErr = null;
   for (let attempt = 1; attempt <= RETRY.DOWNLOAD_ATTEMPTS; attempt += 1) {
-    logMsg(log, `  [离线下载] 第 ${attempt}/${RETRY.DOWNLOAD_ATTEMPTS} 次：准备处理 ${urls.length} 个文件`);
+    logMsg(log, `  [离线下载] 第 ${attempt}/${RETRY.DOWNLOAD_ATTEMPTS} 次：准备处理 ${wantFiles.length} 个文件`);
     try {
       await createDir(netPath, log);
 
-      // 提交前先看目录：已出现的预期文件跳过提交，防止超时重试后重复提交产生 xxx(1)
+      // 1) 目录中已存在且 size 匹配 → 跳过提交
       const dirNow = await listDir(netPath, log);
-      const existingNames = new Set(
-        (dirNow.exists ? dirNow.objects : [])
-          .filter((o) => o.type === 'file' && wantNames.includes(o.name))
-          .map((o) => o.name),
-      );
-      if (existingNames.size > 0) {
-        logMsg(log, `  [离线下载] 目录已存在 ${existingNames.size} 个预期文件，跳过提交：${[...existingNames].join(', ')}`);
+      const existingOk = new Set();
+      if (dirNow.exists) {
+        const byName = new Map(
+          dirNow.objects.filter((o) => o.type === 'file').map((o) => [o.name, o]),
+        );
+        for (const w of wantFiles) {
+          const o = byName.get(w.name);
+          if (o && Number(o.size) === Number(w.size)) existingOk.add(w.name);
+        }
+      }
+      if (existingOk.size > 0) {
+        logMsg(log, `  [离线下载] 目录已存在 ${existingOk.size} 个匹配文件，跳过提交：${[...existingOk].join(', ')}`);
       }
 
-      // 检查正在下载的任务，避免重试时重复提交同一文件
+      // 2) 已在下载中的任务 → 跳过重复提交（避免 xxx(1)）
       const downloadingNames = await collectDownloadingNames(dst, wantNames);
       if (downloadingNames.size > 0) {
-        logMsg(log, `  [离线下载] 发现 ${downloadingNames.size}/${wantNames.length} 个文件已在下载中，跳过重复提交`);
+        logMsg(log, `  [离线下载] 发现 ${downloadingNames.size} 个文件已在下载中，跳过重复提交`);
       }
 
-      // 分离：目录已有/已在下载的文件 → 跳过提交；其余 → 本次提交
-      const pendingUrls = [];
-      const pendingNames = [];
-      for (let i = 0; i < wantNames.length; i += 1) {
-        if (!existingNames.has(wantNames[i]) && !downloadingNames.has(wantNames[i])) {
-          pendingUrls.push(urls[i]);
-          pendingNames.push(wantNames[i]);
+      // 3) 待提交列表（url ↔ file 成对，避免下标错位）
+      const pending = [];
+      for (let i = 0; i < wantFiles.length; i += 1) {
+        const w = wantFiles[i];
+        if (!existingOk.has(w.name) && !downloadingNames.has(w.name)) {
+          pending.push({ url: urls[i], file: w });
         }
       }
 
-      const baselineGids = await collectFinishedGids(dst, wantNames);
-
-      if (pendingUrls.length > 0) {
-        // 分批发提交：每批提交后轮询等待本批下载完成，再提交下一批，
-        // 确保任意时刻网盘并行任务数不超过 LIMIT.OFFLINE_BATCH
-        for (let i = 0; i < pendingUrls.length; i += LIMIT.OFFLINE_BATCH) {
-          const batchUrls = pendingUrls.slice(i, i + LIMIT.OFFLINE_BATCH);
-          const batchNames = pendingNames.slice(i, i + LIMIT.OFFLINE_BATCH);
+      // 4) 分批提交：每批提交后轮询等待本批文件就绪，再提交下一批，
+      //    确保任意时刻网盘并行任务数不超过 LIMIT.OFFLINE_BATCH
+      if (pending.length > 0) {
+        for (let i = 0; i < pending.length; i += LIMIT.OFFLINE_BATCH) {
+          const batch = pending.slice(i, i + LIMIT.OFFLINE_BATCH);
           const batchNo = Math.floor(i / LIMIT.OFFLINE_BATCH) + 1;
-          const totalBatches = Math.ceil(pendingUrls.length / LIMIT.OFFLINE_BATCH);
-          logMsg(log, `  [离线下载] 提交第 ${batchNo}/${totalBatches} 批（${batchUrls.length} 个）：${batchNames.join(', ')}`);
+          const totalBatches = Math.ceil(pending.length / LIMIT.OFFLINE_BATCH);
+          logMsg(
+            log,
+            `  [离线下载] 提交第 ${batchNo}/${totalBatches} 批（${batch.length} 个）：${batch.map((b) => b.file.name).join(', ')}`,
+          );
           const r = await genericAttempts(
-            () => apiWithToken('POST', '/aria2/url', { url: batchUrls, dst, preferred_node: 0 }),
+            () =>
+              apiWithToken('POST', '/aria2/url', {
+                url: batch.map((b) => b.url),
+                dst,
+                preferred_node: 0,
+              }),
             '提交 aria2',
             log,
           );
-          const data = r.json?.data || [];
-          const bad = data.find((x) => x?.code !== 0);
-          if (bad) throw new H1Error('任务提交失败: ' + (bad.msg || ''));
-          // 等待本批下载完成后再提交下一批
-          logMsg(log, `  [离线下载] 等待第 ${batchNo} 批下载完成…`);
-          await pollForFiles(netPath, dst, batchNames, log, baselineGids);
-          logMsg(log, `  [离线下载] ✅ 第 ${batchNo} 批下载完成`);
+          // 不因返回 code!==0 直接失败：可能"任务已存在/重复/部分 URL 失败"，
+          // 真实状态由随后的目录轮询决定
+          const bad = (r.json?.data || []).filter((x) => x?.code !== 0);
+          if (bad.length > 0) {
+            logMsg(
+              log,
+              `  [离线下载] 第 ${batchNo} 批提交返回非零码 ${bad.length} 个（${bad
+                .map((b) => b.msg || '')
+                .filter(Boolean)
+                .join('; ')}），以目录文件列表为准继续等待`,
+            );
+          }
+          logMsg(log, `  [离线下载] 等待第 ${batchNo} 批文件就绪…`);
+          await pollForFiles(netPath, batch.map((b) => b.file), log);
+          logMsg(log, `  [离线下载] ✅ 第 ${batchNo} 批文件已就绪`);
         }
       } else {
-        logMsg(log, `  [离线下载] 全部 ${wantNames.length} 个文件已在目录或下载中，跳过提交，直接轮询`);
-        await pollForFiles(netPath, dst, wantNames, log, baselineGids);
+        logMsg(log, `  [离线下载] 全部 ${wantFiles.length} 个文件已在目录或下载中，跳过提交，直接轮询`);
       }
 
-      // 最终确认全部文件都在（含之前已在下载的 + 本次各批新下载的）
-      const files = await pollForFiles(netPath, dst, wantNames, log, baselineGids);
-      return files;
+      // 5) 最终全量确认（含之前已在下载的 + 本次各批新下载的）
+      return await pollForFiles(netPath, wantFiles, log);
     } catch (e) {
       lastErr = e;
       logMsg(log, `  [离线下载] 第 ${attempt} 次失败：${e.message}`);
@@ -366,27 +372,14 @@ export async function offlineDownload(urls, netPath, wantNames, log) {
   throw new H1Error(`离线下载失败：${RETRY.DOWNLOAD_ATTEMPTS} 次均未成功（${lastErr?.message || ''}）`);
 }
 
-// 轮询：finished 任务错误(5) 或 目录出现全部期望文件
-// 返回 Map<文件名, {id,size}>
-async function pollForFiles(netPath, dst, wantNames, log, baselineGids = new Set()) {
-  const dstNorm = dst.replace(/^\/+|\/+$/g, '') || '/';
+// 轮询：唯一成功判据 —— 目录里出现全部期望文件，且 size 精确相等。
+// 不再查询 /aria2/finished，也不依赖任何 API 的 status/code 作为成败判据。
+// wantFiles: [{ name, size }]，返回 Map<文件名, {id,size}>
+async function pollForFiles(netPath, wantFiles, log) {
+  const total = wantFiles.length;
   const deadline = Date.now() + ENV.DOWNLOAD_TIMEOUT_MS;
+  let lastMatched = -1;
   while (Date.now() < deadline) {
-    // 1) finished 任务错误检测（status=5），但排除提交前已存在的历史任务
-    try {
-      const f = await api('GET', '/aria2/finished?page=1');
-      for (const t of f.json?.data || []) {
-        const tDst = (t.dst || '').replace(/^\/+|\/+$/g, '') || '/';
-        if (baselineGids.has(String(t.gid || ''))) continue;
-        if (tDst === dstNorm && wantNames.includes(t.name) && t.status === 5) {
-          throw new H1Error(`aria2 任务错误(status=5): ${t.error || t.name}`);
-        }
-      }
-    } catch (e) {
-      if (e instanceof H1Error) throw e; // 任务明确失败 → 立即报错，交给上层重试
-      // 其它（网络抖动）→ 继续轮询
-    }
-    // 2) 目录出现全部期望文件 → 成功
     let dir;
     try {
       dir = await listDir(netPath, log);
@@ -394,15 +387,37 @@ async function pollForFiles(netPath, dst, wantNames, log, baselineGids = new Set
       dir = { exists: false, objects: [] }; // 轮询中的瞬时失败，继续等
     }
     if (dir.exists) {
-      const files = new Map();
+      const byName = new Map();
       for (const o of dir.objects) {
-        if (o.type === 'file' && wantNames.includes(o.name)) files.set(o.name, { id: o.id, size: o.size });
+        if (o.type === 'file') byName.set(o.name, o);
       }
-      if (wantNames.every((n) => files.has(n))) return files;
+      const matched = new Map();
+      const mismatched = [];
+      for (const w of wantFiles) {
+        const o = byName.get(w.name);
+        if (!o) continue;
+        if (Number(o.size) === Number(w.size)) {
+          matched.set(w.name, { id: o.id, size: o.size });
+        } else {
+          mismatched.push(`${w.name}(${o.size}≠${w.size})`);
+        }
+      }
+      // 进度只在"已匹配数量"变化时打，避免每 5s 刷屏
+      if (matched.size !== lastMatched) {
+        logMsg(
+          log,
+          `  [离线下载] 轮询中：${matched.size}/${total} 个文件已就绪` +
+            (mismatched.length ? `；size 不符：${mismatched.join(', ')}` : ''),
+        );
+        lastMatched = matched.size;
+      }
+      if (matched.size === total) return matched;
     }
     await sleep(TIMING.POLL_INTERVAL_MS);
   }
-  throw new H1Error(`轮询超时(${Math.round(ENV.DOWNLOAD_TIMEOUT_MS / 1000)}s)：${netPath} 未出现全部期望文件`);
+  throw new H1Error(
+    `轮询超时(${Math.round(ENV.DOWNLOAD_TIMEOUT_MS / 1000)}s)：${netPath} 未出现全部期望文件（含 size 校验）`,
+  );
 }
 
 // ---------- 批量取直链（验证码重试 ≤10，换新验证码） ----------
