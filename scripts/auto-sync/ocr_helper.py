@@ -8,19 +8,23 @@
   （可选传入输出文件路径，结果同时写入该文件，便于调用方避免管道捕获）
 
 说明（重要）:
-  依赖包名与类名不在此文件明文出现，而是以十六进制编码给出，
-  防止网盘站长根据仓库内容反向定位并升级验证码机制。
-  安装依赖时请在运行环境使用同样编码还原后的包名安装。
+  依赖包名与类名不在此文件明文出现，一律从运行环境变量 OCR_PKG_NAME / OCR_CLS_NAME 读取
+  （GHA 中由仓库 Secret 注入），防止网盘站长根据仓库内容反向定位并升级验证码机制。
+  未提供时本脚本直接报错退出，不内置任何包名/类名回退。
 """
 import importlib
+import os
 import sys
 
-# 依赖包名/类名的十六进制编码（bytes.fromhex 还原，避免仓库内明文）
-_PKG_NAME = bytes.fromhex("646464646f6372").decode("ascii")   # ← 依赖包名（十六进制）
-_CLS_NAME = bytes.fromhex("446464644f6372").decode("ascii")   # ← 依赖类名（十六进制）
+# 依赖包名/类名严格从运行环境读取（GHA Secret 注入），仓库代码内不出现明文。
+_PKG_NAME = (os.environ.get("OCR_PKG_NAME") or "").strip()
+_CLS_NAME = (os.environ.get("OCR_CLS_NAME") or "").strip()
 
 
 def main():
+    if not _PKG_NAME or not _CLS_NAME:
+        print("缺少 OCR_PKG_NAME / OCR_CLS_NAME 环境变量（由 Secret 注入），且代码内无明文回退", file=sys.stderr)
+        sys.exit(2)
     if len(sys.argv) < 2:
         print("usage: python ocr_helper.py <captcha.png> [out.txt]", file=sys.stderr)
         sys.exit(2)

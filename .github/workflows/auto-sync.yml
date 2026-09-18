@@ -12,7 +12,9 @@
 # 需要配置仓库 Secrets：
 #   H1111_USER      — huang1111 登录账号
 #   H1111_PASSWORD  — huang1111 登录密码
-#   OCR_PKG_NAME    — OCR 依赖 pip 包名，不在 workflow 明文出现
+#   OCR_PKG_NAME    — OCR 依赖 pip 包名（pip install 用 + 运行时注入）
+#   OCR_CLS_NAME    — OCR 依赖类名（运行时注入）
+#   （包名/类名全部只存 Secret 并运行时注入，仓库任何代码内均不出现明文）
 
 name: 线路1自动同步
 
@@ -84,6 +86,8 @@ jobs:
         env:
           H1111_USER: ${{ secrets.H1111_USER }}
           H1111_PASSWORD: ${{ secrets.H1111_PASSWORD }}
+          OCR_PKG_NAME: ${{ secrets.OCR_PKG_NAME }}
+          OCR_CLS_NAME: ${{ secrets.OCR_CLS_NAME }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 汇总失败标记
