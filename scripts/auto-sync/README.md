@@ -120,11 +120,12 @@ probe job（轻量，必跑）          sync job（重量，按需跑）
 
 ## OCR 依赖安装（GHA 自动执行）
 
-OCR 依赖的**包名不在仓库出现明文**（防止网盘站长扫描仓库后针对性升级验证码）：
+OCR 依赖的**包名与类名都只存仓库 Secret，代码内不出现任何明文**（防止网盘站长扫描仓库后针对性升级验证码）：
 
-- `ocr_helper.py` 内通过十六进制编码还原包名/类名（`bytes.fromhex(...)` 运行时解码）
-- GHA workflow 安装步骤同样用十六进制还原包名后 `pip install`
-- 如需手动安装（本地开发），运行环境按同法还原包名安装即可；明文版助手只在仓库外（`huang1111-api-test/ocr_helper.py`）
+- 仓库 Secrets 需配置 `OCR_PKG_NAME`（pip 包名）与 `OCR_CLS_NAME`（类名）
+- GHA workflow 安装步骤用 `secrets.OCR_PKG_NAME` 注入后 `pip install`
+- `ocr_helper.py` 运行时从环境变量 `OCR_PKG_NAME` / `OCR_CLS_NAME` 读取（由 sync 步 `env` 注入），未提供则直接报错退出，无内置回退
+- 如需手动安装（本地开发），先在环境里 `export OCR_PKG_NAME=... OCR_CLS_NAME=...` 再运行；漏配环境变量时助手会明确报错
 
 ## 新增/维护软件
 
@@ -142,7 +143,7 @@ OCR 依赖的**包名不在仓库出现明文**（防止网盘站长扫描仓库
 | Actions 运行失败（红色） | 查看该次运行日志：登录失败 / 某版本下载失败 / 直链失败，均会输出中文原因；下次运行自动重试 |
 | 某版本一直失败 | 本地手动跑一次看完整日志；常见：GitHub 资产命名变化（改映射表）、验证码 10 次全错（偶发，重跑） |
 | index.json 顺序乱了 | 手动条目（boat 等）永远排在版本条目之前，版本条目按版本降序；确认数据源 JSON 未被外部改动破坏 |
-| OCR 报错 | 检查运行环境是否安装了 OCR 依赖（GHA 自动装；本地手动装需还原包名） |
+| OCR 报错 | 检查 sync 步是否注入了 `OCR_PKG_NAME` / `OCR_CLS_NAME` 两个 Secret（漏配环境变量时助手会报错退出）；本地手动装需 `export` 这两个变量 |
 
 ## 已知边界
 

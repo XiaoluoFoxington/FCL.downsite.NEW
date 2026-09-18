@@ -235,9 +235,9 @@ scripts/auto-sync/README.md          -- 使用/维护说明（secret 配置、�
 
 ### 3.8 OCR 依赖包名混淆（防站长针对性升级）
 
-- `ocr_helper.py` 中依赖**包名不出现明文**，以十六进制编码给出（`bytes.fromhex` 运行时还原）
-- GHA 安装步骤同样用十六进制还原包名后 `pip install`（仓库内无明文）
-- 本地开发用的明文版助手在仓库外（`huang1111-api-test/ocr_helper.py`），不入库
+- OCR 依赖的**包名与类名都只存仓库 Secret**（`OCR_PKG_NAME` / `OCR_CLS_NAME`），仓库任何代码内不出现明文
+- GHA workflow 安装步骤用 `secrets.OCR_PKG_NAME` 注入后 `pip install`
+- `ocr_helper.py` 运行时从环境变量 `OCR_PKG_NAME` / `OCR_CLS_NAME` 读取（由 sync 步 `env` 注入），未提供则直接报错退出，不内置任何回退
 
 ## 4. 错误处理与恢复
 
