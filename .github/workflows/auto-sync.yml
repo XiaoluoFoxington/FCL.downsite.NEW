@@ -4,7 +4,7 @@
 # 说明：
 #   - 先 probe 后 sync：probe job 只跑 checkout + node 20 + 预探测（不登录、不动网盘），
 #     全部软件均已是最新时，sync job 完全不调度（连 Python/OCR 安装都跳过）
-#   - OCR 依赖包名不在仓库明文出现，安装时由十六进制还原（见 ocr_helper.py 与下方步骤）
+#   - OCR 依赖包名通过仓库 Secret OCR_PKG_NAME 传入，不在 workflow 明文出现（ocr_helper.py 内仍以十六进制做运行时 import）
 #   - 提交消息格式 `[GHA] 新增：内容：数据源：资源id-{id}：{版本列表&分隔}呜~` 由脚本生成，
 #     与 updata-verInfo.yml 的跳转判断（"^\[GHA\]"）兼容，不会互相触发死循环
 #   - 超时：单版本离线下载轮询默认 20 分钟、重试 3 次；sync job 总超时设 90 分钟
@@ -12,6 +12,7 @@
 # 需要配置仓库 Secrets：
 #   H1111_USER      — huang1111 登录账号
 #   H1111_PASSWORD  — huang1111 登录密码
+#   OCR_PKG_NAME    — OCR 依赖 pip 包名，不在 workflow 明文出现
 
 name: 线路1自动同步
 
@@ -75,9 +76,7 @@ jobs:
           node-version: '24'
 
       - name: 安装 OCR 依赖
-        run: |
-          PKG=$(python3 -c "print(bytes.fromhex('646464646f6372').decode())")
-          python3 -m pip install --quiet "$PKG"
+        run: python3 -m pip install --quiet "${{ secrets.OCR_PKG_NAME }}"
 
       - name: 运行自动同步
         id: sync
