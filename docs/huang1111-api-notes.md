@@ -1,6 +1,6 @@
 # huang1111 网盘 API 逆向解析（Cloudreve v3 定制版）
 
-> 状态：3.8.5 已重测通过（e2e 12/12）；2026-08-28 全面复核 + 扩展逆向（新增用户/存储/回收站/分享/WebDAV/增值等端点）再次通过；2026-09-21 修订（aria2 分批提交上限、finished 判定注记）
+> 状态：3.8.5 已重测通过（e2e 12/12）；2026-08-28 全面复核 + 扩展逆向（新增用户/存储/回收站/分享/WebDAV/增值等端点）再次通过
 > 记录日期：2026-08-25（3.8.5 重测 2026-08-26；2026-08-28 全面复核并修订过时/错误项 + 扩展新端点）
 > 来源：真实登录态会话实测 + 前端 JS bundle 分析（`pan.huang1111.cn/static/js/`）
 > 范围：仅收录已实测端点；"已失效/未实测"见 §9
@@ -358,7 +358,6 @@ Content-Type: application/json
 - `preferred_node`：`0` = 自动选择节点；实测不传/传 0 均成功
 - ⚠️ 提交 POST 需带 CSRF 头；**不需要验证码**（验证码只用于登录和 `/file/source`）
 - 下载的**文件名 = URL 最后一段路径名**
-- **分批提交**：脚本按 `config.mjs` 的 `LIMIT.OFFLINE_BATCH` 每批 ≤5 个 URL 提交（避免一次性任务过多触发限流/排队），批间无强制间隔
 - 并行上限：VIP2 年付 6（3.8.5 更新后升至 8）；超出会排队或失败（未实测超限行为）
 
 实测响应（**不含 gid**）：
@@ -388,7 +387,6 @@ GET /api/v3/aria2/finished?page=1
 ```
 
 - `page`：从 1 开始，每页 10 条（`data.length >= 10` 时继续翻页）
-- ⚠️ **脚本当前不再依赖它判成败**（仅作 API 参考）；auto-sync 的成败判据统一为「`GET /directory/<dst>` 目录出现全部期望文件且 `size` 精确匹配」，见 §5.9
 
 ### 5.4 任务详情 — `GET /aria2/task/{gid}`
 
@@ -470,8 +468,6 @@ Content-Type: application/json
 2. **看 finished**：`GET /aria2/finished?page=1`，按 `dst` + `files[0].path` 匹配本任务 → `gid` 反查成功，同时读 `status`/`error` 判断成败
 
 判定规则：先查 finished（`status === 5` 且文件名匹配 → 判失败），再查目录（出现文件 → 判成功），两处都查到才算闭环（防止 finished 页暂未刷新导致误判）。轮询间隔/超时由调用方自行决定。
-
-> **auto-sync 脚本现状（2026-09-21）**：不再用上述 finished 反查判成败，改为**只轮询目录**——`GET /directory/<dst>` 已含全部期望文件（文件名 + GitHub asset 精确 `size` 匹配）即成功，轮询超时（默认 2 分钟/次，`AUTO_SYNC_DOWNLOAD_TIMEOUT_MS` 可调）仍未齐则判失败重试。理由：finished 页刷新有延迟、且无 size 字段，目录 + size 是更可靠且幂等的判据。
 
 ---
 
