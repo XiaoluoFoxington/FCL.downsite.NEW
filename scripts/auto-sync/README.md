@@ -3,7 +3,7 @@
 把「GitHub Releases → huang1111 网盘离线下载 → 直链 → 站端 `data/down` JSON → 提交」全链路自动化，跑在 GitHub Actions 上。站端前端无需改动（下载节点按 `nextUrl` 惰性加载，对目录结构透明）。
 
 > 详细设计见 [`docs/auto-sync-design.md`](../../docs/auto-sync-design.md)，API 实测依据见 [`docs/huang1111-api-notes.md`](../../docs/huang1111-api-notes.md)。
-> 本目录内 `.mjs` 为 Node 20+ 原生 ESM（无需 npm install），`.py` 为 OCR 子进程助手。
+> 本目录内 `.mjs` 为 Node 18+ 原生 ESM（无需 npm install），GHA 上使用 Node 24；`.py` 为 OCR 子进程助手。
 
 ## 目录结构
 
@@ -51,7 +51,7 @@ node scripts/auto-sync/sync.mjs
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `H1111_HOST` | `https://pan.huang1111.cn` | 网盘 API 源（一般不用改） |
-| `AUTO_SYNC_DOWNLOAD_TIMEOUT_MS` | `1200000`（20 分钟） | 单版本离线下载轮询上限 |
+| `AUTO_SYNC_DOWNLOAD_TIMEOUT_MS` | `120000`（2 分钟） | 单版本离线下载轮询上限 |
 | `GITHUB_TOKEN` | 无 | 本地一般不需要；GHA 自动注入 |
 
 ## 数据结构（站内 `data/down/{id}/`）
@@ -77,8 +77,8 @@ node scripts/auto-sync/sync.mjs
 ```
 probe job（轻量，必跑）          sync job（重量，按需跑）
 ├─ checkout                    ├─ checkout
-├─ setup-node 20               ├─ setup-python 3.11
-└─ node probe.mjs              ├─ setup-node 20
+├─ setup-node 24               ├─ setup-python 3.11
+└─ node probe.mjs              ├─ setup-node 24
    （拉 GitHub Releases +     ├─ pip install OCR 依赖
     读本地 index.json 做基线） └─ node sync.mjs
    输出 needs_sync=true/false    （离线下载 → 直链 → 写 JSON → 提交 → push）
@@ -147,6 +147,6 @@ OCR 依赖的**包名与类名都只存仓库 Secret，代码内不出现任何�
 
 ## 已知边界
 
-- 软件映射见 `softwares.json`（当前：0=FCL、3=Zalith2、4=Amethyst、16=Acode）；其余软件待后续扩展映射表
+- 软件映射见 `softwares.json`（当前：0=FCL、3=Zalith2、4=Amethyst、15=Axolotl、16=Acode）；其余软件待后续扩展映射表
 - 单次运行中途若会话过期（401）不做自动重登（下次运行重新登录）；其余均在约定重试策略内自动恢复
 - 自动版本条目带 `size` 字段（前端 `formatBytes` 显示），手动旧条目无 `size` 不影响

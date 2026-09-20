@@ -1,7 +1,7 @@
 # 线路1 自动更新设计方案
 
-> 状态：**已实施（v2，2026-08-26）**——日期归档 + 双 job 预探测架构已落地；本地真实运行验证通过
-> 历史："设计草案（待审阅）" → 2026-08-25 实现初版 → 2026-08-26 迭代：日期归档替代逐位拆分、双 job 预探测（probe→sync）、lib.mjs 纯函数抽取
+> 状态：**已实施（v3，2026-09-21）**——日期归档 + 双 job 预探测架构已落地；本地真实运行验证通过
+> 历史："设计草案（待审阅）" → 2026-08-25 实现初版 → 2026-08-26 迭代：日期归档替代逐位拆分、双 job 预探测（probe→sync）、lib.mjs 纯函数抽取 → 2026-09-21 迭代：网盘侧目录增加版本号层级、`keepLatest` 保留清理（联动删除）、离线下载成败判据改为"目录文件 + size 精确匹配"（不再依赖 `/aria2/finished`）、映射新增 15（Axolotl）、Node 升级 24、下载轮询超时默认 2 分钟
 > 目标：将线路1（id 0，`/data/down`）从"站长手动维护"改造为"GitHub Actions 自动更新"，保留现有网盘分发模式，站端零代码改动。
 
 ## 1. 背景与目标
@@ -49,13 +49,14 @@
 现有网盘目录（`foldcraftlauncher_cn`）**结构混乱且不一致**（FCL 用 `new/{逐位拆分}` 嵌套、zalith2 平铺、pojav 直接放文件），**脚本一律不读现有文件树**。所有脚本产生的文件统一放到**新的专用根目录**，按 Release 发布时间归档：
 
 ```
-foldcraftlauncher_cn_auto/{软件id}/{年}/{月}/{日}/版本文件.后缀名
+foldcraftlauncher_cn_auto/{软件id}/{年}/{月}/{日}/{版本名}/版本文件.后缀名
 ```
 
-例如：`foldcraftlauncher_cn_auto/0/2026/8/26/FCL-release-1.3.2.8-arm64-v8a.apk`
+例如：`foldcraftlauncher_cn_auto/0/2026/8/26/v1.3.2.8/FCL-release-1.3.2.8-arm64-v8a.apk`
 
-- `{软件id}` = 站端 `data/software.json` 的 id（0=FCL、3=Zalith2、4=Amethyst、16=Acode、...）
-- `{年}/{月}/{日}` = Release 发布时间转 UTC+8（不补零，如 `2026/8/26`），同一天的版本归到同一目录
+- `{软件id}` = 站端 `data/software.json` 的 id（0=FCL、3=Zalith2、4=Amethyst、15=Axolotl、16=Acode、...）
+- `{年}/{月}/{日}` = Release 发布时间转 UTC+8（不补零，如 `2026/8/26`）
+- `{版本名}` = 与站端 JSON 文件名一致的版本号目录，**版本号目录下才是文件**——同一天发布的多个版本落到不同目录，互不覆盖
 - 该目录只由脚本读写，与手动维护的 `foldcraftlauncher_cn/` 完全隔离
 
 ### 2.3 已验证的 huang1111 API（Cloudreve v3 定制版）
@@ -67,10 +68,10 @@ foldcraftlauncher_cn_auto/{软件id}/{年}/{月}/{日}/版本文件.后缀名
 | 登录（含验证码） | `GET /site/captcha` + `GET /site/config` + `POST /user/session` | `{userName, Password, captchaCode}` | ✅ 3.8.5 必需；失败换新验证码重试，上限 10 次（实测 1~2 次即中） |
 | 取 CSRF | `GET /site/config` | — | ✅ 唯一来源（响应头 `x-csrf-token`）；每次写请求前重取 |
 | 列目录 | `GET /api/v3/directory/{路径}` | — | ✅ 返回 objects（含文件 id、name、size、type）+ `.data.parent`=该目录自身 id |
-| 创建目录 | `PUT /api/v3/directory` | `{"path":"/目标目录"}` | ✅ 3.8.5 实测；`dst` 不存在时 aria2 也会自动建 |
+| 创建目录 | `PUT /api/v3/directory` | `{"path":"/目标目录"}` | ✅ 3.8.5 实测；**`dst` 目录不存在时 aria2 返回 40016，不会自动创建**（2026-08-28 复核），脚本先 `PUT /directory` 建目录再提交 |
 | **URL 离线下载** | `POST /api/v3/aria2/url` | `{"url":[...], "dst":"/目标目录", "preferred_node":0}` | ✅ 提交成功（需 CSRF 头，不需要验证码）；响应**无 gid**，轮询反查 |
-| 查下载中 | `GET /api/v3/aria2/downloading` | — | ✅ |
-| 查已完成 | `GET /api/v3/aria2/finished?page=N` | — | ✅ 返回任务（gid、status、files、dst）；status 4=完成 5=失败 |
+| 查下载中 | `GET /api/v3/aria2/downloading` | — | ✅（脚本仅用于"跳过已在下载中的文件"，避免重复任务） |
+| 查已完成 | `GET /api/v3/aria2/finished?page=N` | — | ✅ 返回任务（gid、status、files、dst）；status 4=完成 5=失败（**脚本当前不再依赖它判成败**，仅作 API 参考） |
 | **批量取直链** | `POST /api/v3/file/source` | `{"items":[文件id数组], "captchaCode":"..."}` | ✅ 3.8.5 起需带 captchaCode + CSRF 头；返回 `[{id,url,name}]`，直链格式 `https://pan.huang1111.cn/f/{code}/{文件名}` |
 | 删除文件/目录 | `DELETE /api/v3/object` | `{"items":[文件id], "dirs":[目录id], "force":true}` | ✅ 需 CSRF 头；force 不绕过回收站（48h 自动清除） |
 
@@ -89,7 +90,7 @@ foldcraftlauncher_cn_auto/{软件id}/{年}/{月}/{日}/版本文件.后缀名
 // data/down/0/index.json —— 版本列表
 [
   { "name": "最后一个有Boat后端的版本", "nextUrl": "/data/down/0/boat.json", "description": "..." },  // 手动特殊条目
-  { "name": "v1.3.2.8", "nextUrl": "/data/down/0/auto/2026/8/26/v1.3.2.8.json", "default": true },  // 默认=最新
+  { "name": "1.3.3.3", "nextUrl": "/data/down/0/auto/2026/9/18/1.3.3.3.json", "tag": "1.3.3.3", "default": true },  // 默认=最新
   ...
 ]
 
@@ -101,7 +102,7 @@ foldcraftlauncher_cn_auto/{软件id}/{年}/{月}/{日}/版本文件.后缀名
 ]
 ```
 
-- **自动生成（新格式）**：`auto/{年}/{月}/{日}/{版本名}.json`——年月日取 Release 发布时间转 UTC+8（不补零）；版本名保留 tag 原样（含前导 `v`/`V`），空白与非法文件名字符归一为 `_`
+- **自动生成（新格式）**：`auto/{年}/{月}/{日}/{版本名}.json`——年月日取 Release 发布时间转 UTC+8（不补零）；版本名保留 tag 原样（含前导 `v`/`V`），空白与非法文件名字符归一为 `_`；index.json 中的自动条目额外带 `tag` 字段（Release tag 原样），`name` 取 Release 标题
 - **旧格式（历史保留，不再写入）**：`{段}/{段}/.../{段}.json`（由版本号按 `.` 拆段而来），解析器对旧格式保持兼容，新旧条目可共存
 - `size`：文件字节数，来自 `GET /directory` 响应的 `objects[].size`；下载表格会通过 `formatBytes` 渲染为可读大小（`selectorView.js` 已支持）
 - 现有手动维护的 JSON 无 size 字段（前端缺省显示空）；**自动生成的条目必须带 size**，与手动条目并存无冲突
@@ -115,14 +116,14 @@ foldcraftlauncher_cn_auto/{软件id}/{年}/{月}/{日}/版本文件.后缀名
 GHA workflow（每天 2 次：UTC+8 00:00 / 12:00，即 UTC 16:00 / 04:00）
   │
   ├─ 【probe job】——轻量预探测（必跑，~5s）
-  │   ├─ checkout + setup-node 20
+  │   ├─ checkout + setup-node 24
   │   └─ node probe.mjs
   │       · 读仓库已有 data/down/{id}/index.json 作基线
   │       · 拉 GitHub Releases（不读凭据、不动网盘、不跑 git）
   │       · 全量软件均已是最新 → 输出 needs_sync=false → sync job 不调度
   │
   └─ 【sync job】——重量同步（仅当 needs_sync=true 时调度）
-      ├─ checkout + setup-python 3.11 + setup-node 20 + pip install OCR
+      ├─ checkout + setup-python 3.11 + setup-node 24 + pip install OCR
       └─ node sync.mjs
           │
           ├─ ① 一次性登录 huang1111（跨软件复用 session）
@@ -130,28 +131,34 @@ GHA workflow（每天 2 次：UTC+8 00:00 / 12:00，即 UTC 16:00 / 04:00）
           │
           ├─ ② 对每个有候选的软件：
           │     ├─ 从 probe 阶段已计算的 candidates 遍历（旧的先处理）
-          │     ├─ 幂等检查：GET /directory/foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日} 已含全部文件则跳过下载
-          │     ├─ 提交离线下载 POST /api/v3/aria2/url（带 X-CSRF-Token）
-          │     │    {url: [各架构 assets 直链], dst: "foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}", preferred_node: 0}
-          │     │    （dst 不存在会自动创建；脚本仍先 PUT /directory 兜底）
-          │     ├─ 轮询：GET /aria2/finished?page=1 + GET /directory/{dst}
-          │     │    （提交响应无 gid！按 dst+文件名判错 status==5 或目录出现文件判成功）
+          │     ├─ 幂等检查：GET /directory/foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}/{版本名}
+          │     │    已含全部期望文件（文件名 + GitHub asset 精确 size）则跳过下载
+          │     ├─ 先 PUT /directory 建目录（dst 不存在时 aria2 会 40016）
+          │     ├─ 提交前查 GET /aria2/downloading，已在下载中的文件跳过（避免重复任务）
+          │     ├─ 分批提交离线下载 POST /api/v3/aria2/url（带 X-CSRF-Token，每批 ≤5 个 URL）
+          │     │    {url: [各架构 assets 直链], dst: "foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}/{版本名}", preferred_node: 0}
+          │     ├─ 轮询：仅 GET /directory/{dst}——目录出现全部文件且 size 精确匹配即成功
+          │     │    （成败只看目录，不再查 /aria2/finished，也不依赖提交响应的 code）
           │     └─ 失败重试：离线下载「提交+轮询」整段最多 3 次
           │
           ├─ ③ 对每个完成的新版本：
-          │     ├─ GET /directory/foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日} 按文件名匹配拿文件 id + size
+          │     ├─ GET /directory/foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}/{版本名} 按文件名匹配拿文件 id + size
           │     └─ POST /file/source {items: [文件id...], captchaCode: "..."} 批量取直链
           │          （需带 captchaCode + 最新 X-CSRF-Token，验证码一次性 + OCR 误读率高 → 失败换新验证码重试，最多 10 次）
           │
           ├─ ④ 生成/更新仓库 JSON：
           │     ├─ 写 data/down/{id}/auto/{年}/{月}/{日}/{版本名}.json（[{arch|name,url,size}]）
           │     │    url 来自直链、size 来自目录响应
-          │     └─ 更新 data/down/{id}/index.json（保留手动条目、新版本降序插入、default 移到最新、重名跳过）
+          │     ├─ 更新 data/down/{id}/index.json（保留手动条目、新版本降序插入、default 移到最新、重名跳过）
+          │     │    自动条目带 name（Release 标题）+ tag 字段
+          │     ├─ 提交前数据校验（JSON 可解析、url 均为 {HOST}/f/ 前缀、size 合法、index 一致性）
+          │     └─ keepLatest 保留清理：保留最新 N 个版本，联动删除最旧超出版本的
+          │          网盘版本目录 + 本地 JSON + index.json 条目
           │
           └─ ⑤ 分软件 git commit（固定消息格式，见 3.7）+ 全部完成后统一 push
 ```
 
-**为什么分双 job？** 日常定时任务（多数时候无新 Release）只需跑 probe job（~5 秒），省掉 Python 3.11 安装、OCR 依赖 pip install、Node 20 重复安装、以及全部网盘操作。sync job 仅在有候选时才启动（container 都不拉起）。
+**为什么分双 job？** 日常定时任务（多数时候无新 Release）只需跑 probe job（~5 秒），省掉 Python 3.11 安装、OCR 依赖 pip install、Node 24 重复安装、以及全部网盘操作。sync job 仅在有候选时才启动（container 都不拉起）。
 
 ### 3.2 触发与凭据
 
@@ -175,12 +182,15 @@ GHA workflow（每天 2 次：UTC+8 00:00 / 12:00，即 UTC 16:00 / 04:00）
   "mode": "arch",                     // arch=按架构出条目；name=按文件名出条目（如 Amethyst 的 Amethyst/Debug）
   "archNames": ["all","arm64-v8a","armeabi-v7a","x86","x86_64"],  // arch 模式的架构列表（也是输出顺序）
   "fallbackArch": null,               // 无法按后缀识别架构时的兜底架构（Zalith2 的 all 包无后缀，填 "all"）
-  "includePrerelease": false          // 是否包含 prerelease 版本
+  "includePrerelease": false,         // 是否包含 prerelease 版本
+  "keepLatest": null                  // 保留清理：只保留最新 N 个版本（N≥2），超过后联动删除
+                                      // 网盘版本目录 + 本地版本 JSON + index.json 条目；null/缺省 = 不清理
 }
 ```
 
-- **当前映射**：0（FCL）/ 3（Zalith2）/ 4（Amethyst）/ 16（Acode）
-- 网盘目标目录由脚本按 `foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}/` 自动拼接，无需配置
+- **当前映射**：0（FCL）/ 3（Zalith2）/ 4（Amethyst）/ 15（Axolotl）/ 16（Acode）
+- 网盘目标目录由脚本按 `foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}/{版本名}/` 自动拼接，无需配置
+- `keepLatest` 为**可选字段**，仅对需要控制网盘占用/列表长度/文件数的软件配置（如 15 号 Axolotl 配置 `keepLatest: 3`，多架构产物较多时限制保留数量）
 
 ### 3.4 版本路径映射（日期归档）
 
@@ -216,7 +226,7 @@ scripts/auto-sync/
   lib.mjs                           -- 纯函数 + 共享状态（版本比较/归一化、数据源基线、GitHub Releases 拉取、资产映射、日志 ctx）
   probe.mjs                         -- 预探测（只读，不登录、不动网盘、不跑 git）
   sync.mjs                          -- 主流程（一次性登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push）
-  softwares.json                    -- 软件映射表（0/3/4/16）
+  softwares.json                    -- 软件映射表（0/3/4/15/16）
   h1api.mjs                         -- huang1111 API 封装（captcha/config/session/directory/aria2/source）
   config.mjs                        -- 环境变量（H1111_USER/H1111_PASSWORD/H1111_HOST/GITHUB_TOKEN）与重试常量
   ocr_helper.py                     -- 验证码 OCR 子进程助手（依赖包名十六进制混淆，仓库无明文）
@@ -246,20 +256,20 @@ scripts/auto-sync/README.md          -- 使用/维护说明（secret 配置、�
 | 场景 | 策略 |
 |---|---|
 | 验证码类失败（登录、取直链） | 每次换新验证码，最多 10 次尝试（OCR 长度≠4 直接换图，不浪费 POST） |
-| 离线下载失败（提交/轮询/任务错误） | 整段「提交+轮询」最多 3 次；超时默认 20 分钟/次（`AUTO_SYNC_DOWNLOAD_TIMEOUT_MS` 可调） |
+| 离线下载失败（提交/轮询/任务错误） | 整段「提交+轮询」最多 3 次；超时默认 2 分钟/次（`AUTO_SYNC_DOWNLOAD_TIMEOUT_MS` 可调） |
 | 其他任何失败（网络/HTTP/接口异常） | 最多 2 次尝试 |
 
 | 场景 | 处理 |
 |---|---|
 | probe job 失败 | 若全部软件探测失败（overallFailed=true）→ 输出 `needs_sync=true`（宁可多跑一次同步 job，也不遗漏）；若单个软件探测失败但其他有候选 → 照常触发 sync job |
 | 登录失败（验证码识别错/CSRF 轮换/网络） | 内部按上表重试；仍失败 → 该软件标记失败，运行结束退出码非 0 → workflow 失败（Actions 页面红色即告警），下次运行自动重试 |
-| 离线下载失败（GitHub 被墙/超时） | 轮询 `finished.status==5`/`error` 判失败；本版本跳过（不写 JSON），继续处理其余版本，退出码非 0；下次运行重试 |
+| 离线下载失败（GitHub 被墙/超时） | 轮询目录未在超时内出现全部期望文件（文件名 + size 精确匹配）即判失败；本版本跳过（不写 JSON），继续处理其余版本，退出码非 0；下次运行重试 |
 | 会话过期（API 返回 401） | 单次运行只在开始时建立会话；若中途失效会以错误形式暴露，下次运行自动重登（当前版本不自动重登，属已知边界） |
 | 直链获取失败（多为验证码 OCR 误读） | 换新验证码最多 10 次；仍失败 → 该版本标记失败、跳过写 JSON、下次运行重试 |
 | 下载到一半用户手动删除 | 目录查询拿不到期望文件 → 轮询超时判失败，重试提交 |
 | 同版本重复触发 | 以仓库已有 index.json 为基线去重（重名跳过）；离线下载前先查 `foldcraftlauncher_cn_auto/{id}/{年}/{月}/{日}` 目录，已含全部文件则跳过下载 |
 | 手动条目冲突 | 脚本只增不删 index.json 条目；手动条目（boat 等）原样透传 |
-| GHA 运行超时 | probe job `timeout-minutes: 10`；sync job `timeout-minutes: 90`；单版本下载超时时长 20 分钟/次；未完成的版本下次运行续跑（落后检测天然续跑点） |
+| GHA 运行超时 | probe job `timeout-minutes: 10`；sync job `timeout-minutes: 90`；单版本下载超时时长 2 分钟/次；未完成的版本下次运行续跑（落后检测天然续跑点） |
 
 ## 5. 风险与缓解
 

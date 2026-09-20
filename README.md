@@ -49,40 +49,64 @@
 ## 项目结构
 
 ```
+.github/workflows/         -- GitHub Actions 工作流
+  auto-sync.yml            -- 线路1 自动同步（GitHub Releases → 网盘 → data/down，双 job：probe + sync）
+  updata-verInfo.yml       -- 版本标识（Git Hash）自动更新
+docs/                      -- 文档
+  i18n.md                  -- i18n 国际化模块使用与维护文档
+  auto-sync-design.md      -- 线路1 自动更新设计方案
+  huang1111-api-notes.md   -- huang1111 网盘 API 逆向解析（Cloudreve v3 定制版）
+scripts/auto-sync/         -- 线路1 自动同步脚本（probe/sync/lib/h1api/config/softwares.json/ocr_helper.py + README）
 data/
-  software.json          -- 软件基础数据源（ID、名称、图标、标签、详情路径）
-  tag.json               -- 标签定义
-  mirror.json            -- 下载线路配置
-  setting.json           -- 站点设置项定义
-  feedback.json          -- 反馈渠道
-  verInfo.json           -- 版本标识（Git Hash）
-  software/{id}/         -- 各软件详情页数据（detail.json、intro.html 等）
-  down/{id}/             -- 各版本下载数据
-  mirror/{id}/           -- 本地镜像数据
-html/                    -- 页面模板
-  index.html             -- 首页
-  list.html              -- 资源列表页
-  detail.html            -- 软件详情页
-  down.html              -- 下载页
-  intro.html             -- 介绍页（内嵌渲染）
-  about.html             -- 关于页
-  sponsor.html           -- 赞助页
-  behavior.html          -- 行为设置页
-css/                     -- 样式文件
-  mdui.theme.enhanced.css-- 自制主题增强样式
-  mdui.patch.css         -- 补丁样式
-  xf.css                 -- 网站自定义样式
-js/                      -- 脚本目录
-  adapters/download/     -- 下载数据适配器，每种镜像站数据结构对应一个文件
-  common/                -- 通用功能（抽屉菜单、主题、无障碍、赞助提醒、公告等）
-  controllers/           -- 页面状态管理
-  domain/                -- 领域模型（书签、偏好设置、系统信息、主题、站点信息）
-  http/                  -- HTTP 请求封装（超时、取消、错误处理、页面缓存）
-  repositories/          -- 数据获取层（此站数据、镜像数据）
-  security/              -- 安全策略（内容安全策略）
-  views/                 -- DOM 渲染层
-  *.js                   -- 各页面入口文件
-media/                   -- 静态资源（图片、缩略图等）
+  software.json            -- 软件基础数据源（ID、名称、图标、标签、详情路径）
+  tag.json                 -- 标签定义
+  mirror.json              -- 下载线路配置
+  setting.json             -- 站点设置项定义
+  feedback.json            -- 反馈渠道
+  verInfo.json             -- 版本标识（Git Hash）
+  contribute.json          -- 贡献者数据
+  usedProj.json            -- 开源项目引用数据
+  announcement*.html       -- 公告（中文 + 各语言本地化副本）
+  drawer.html              -- 抽屉导航模板（含 data-i18n 标记）
+  sponsorRemind.html       -- 赞助提醒模板（含 {{key}} 占位符）
+  software/{id}/           -- 各软件详情页数据（detail.json、icon.avif、intro*.html、media/ 等）
+  down/{id}/               -- 各版本下载数据（index.json + 版本 JSON；含 auto/ 自动同步产物、旧逐位拆分格式）
+  mirror/{id}/             -- 本地镜像数据
+html/                      -- 页面模板
+  index.html               -- 首页
+  list.html                -- 资源列表页
+  detail.html              -- 软件详情页
+  down.html                -- 下载页
+  intro.html               -- 介绍页（内嵌渲染）
+  about.html               -- 关于页
+  sponsor.html             -- 赞助页
+  behavior.html            -- 行为设置页
+  language.html            -- 语言设置页
+  theme.html               -- 主题设置页
+  rh.html                  -- RH 页
+  template.html            -- 模板页
+css/                       -- 样式文件
+  mdui.theme.enhanced.css  -- 自制主题增强样式
+  mdui.patch.css           -- 补丁样式
+  xf.css                   -- 网站自定义样式
+  rtl.css                  -- RTL 书写方向镜像样式
+js/                        -- 脚本目录
+  adapters/download/       -- 下载数据适配器，每种镜像站数据结构对应一个文件
+  common/                  -- 通用功能（抽屉、i18n、主题、无障碍、赞助提醒、公告、日志、吐司、版本水印等）
+  controllers/             -- 页面状态管理
+  domain/                  -- 领域模型（书签、偏好设置、系统信息、主题、站点信息）
+  http/                    -- HTTP 请求封装（超时、取消、错误处理、页面缓存）
+  i18n/                    -- 各语言语言包（zh-CN/en-US/ja-JP/fr-FR/ru-RU/ar/es-ES）
+  repositories/            -- 数据获取层（此站数据、镜像数据）
+  security/                -- 安全策略（内容安全策略）
+  views/                   -- DOM 渲染层
+  *.js                     -- 各页面入口文件（index/list/detail/down/intro/about/sponsor/behavior/language/theme/rh/404）
+media/                     -- 静态资源
+  font/                    -- 字体
+  img/                     -- 图片（预览图、缩略图、贡献者头像、二维码等）
+  sound/                   -- 音效
+404.html                   -- 404 页
+robots.txt / sitemap.xml / BingSiteAuth.xml  -- 站点根级配置文件
 ```
 
 ## 架构说明
