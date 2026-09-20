@@ -201,7 +201,7 @@ GET /api/v3/directory/{路径}
 PUT /api/v3/directory
 Content-Type: application/json
 
-{ "path": "/foldcraftlauncher_cn_auto/0/2026/8/26/v1.3.2.8" }
+{ "path": "/测试/新建目录" }
 ```
 
 - ⚠️ 是 **PUT** 不是 POST（`POST /directory` 实测 404）
@@ -347,8 +347,8 @@ POST /api/v3/aria2/url
 Content-Type: application/json
 
 {
-  "url": ["https://github.com/FCL-Team/FoldCraftLauncher/releases/download/1.3.2.8/FCL-release-1.3.2.8-armeabi-v7a.apk"],
-  "dst": "/foldcraftlauncher_cn_auto/0/2026/8/26/v1.3.2.8",
+  "url": ["https://example.com/releases/软件包-v1.0.apk"],
+  "dst": "/目标目录（需已存在）",
   "preferred_node": 0
 }
 ```
@@ -467,7 +467,9 @@ Content-Type: application/json
 1. **看目录**：`GET /directory/<dst>`，`objects[]` 里出现目标文件名 → 下载完成，`objects[0].id` 即文件 id
 2. **看 finished**：`GET /aria2/finished?page=1`，按 `dst` + `files[0].path` 匹配本任务 → `gid` 反查成功，同时读 `status`/`error` 判断成败
 
-判定规则：先查 finished（`status === 5` 且文件名匹配 → 判失败），再查目录（出现文件 → 判成功），两处都查到才算闭环（防止 finished 页暂未刷新导致误判）。轮询间隔/超时由调用方自行决定。
+判定由调用方自行决定（轮询间隔/超时亦同）。常见做法二选一或组合：
+- 查 `finished` 任务 `status` / `error` 判断成败（`status === 5` 即失败）；
+- 查目标目录 `objects` 是否出现目标文件名（出现即下载完成，`objects[].id` 即文件 id）。
 
 ---
 
