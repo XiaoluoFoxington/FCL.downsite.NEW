@@ -1,0 +1,27 @@
+[
+  {
+    "arch": "all",
+    "url": "https://pan.huang1111.cn/f/54bjHm/ZalithLauncher-2.6_hotfix.apk",
+    "size": 354439913
+  },
+  {
+    "arch": "arm64-v8a",
+    "url": "https://pan.huang1111.cn/f/bzB1c1/ZalithLauncher-2.6_hotfix-arm64-v8a.apk",
+    "size": 181357034
+  },
+  {
+    "arch": "armeabi-v7a",
+    "url": "https://pan.huang1111.cn/f/eyBEf1/ZalithLauncher-2.6_hotfix-armeabi-v7a.apk",
+    "size": 173275725
+  },
+  {
+    "arch": "x86",
+    "url": "https://pan.huang1111.cn/f/454guW/ZalithLauncher-2.6_hotfix-x86.apk",
+    "size": 161813579
+  },
+  {
+    "arch": "x86_64",
+    "url": "https://pan.huang1111.cn/f/v847SZ/ZalithLauncher-2.6_hotfix-x86_64.apk",
+    "size": 187186347
+  }
+]
