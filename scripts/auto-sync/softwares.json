@@ -43,5 +43,14 @@
     "archNames": [],
     "fallbackArch": null,
     "includePrerelease": false
+  },
+  {
+    "softwareId": 17,
+    "githubRepo": "rikkahub/rikkahub",
+    "assetFilter": "\\.apk$",
+    "mode": "arch",
+    "archNames": ["arm64-v8a"],
+    "fallbackArch": null,
+    "includePrerelease": false
   }
 ]

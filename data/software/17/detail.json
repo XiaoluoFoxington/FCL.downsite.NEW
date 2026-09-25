@@ -1,0 +1,40 @@
+{
+  "info": [
+    {
+      "name": "developer",
+      "href": "https://github.com/rikkahub"
+    },
+    {
+      "name": "official website",
+      "href": "https://rikka-ai.com"
+    },
+    {
+      "name": "Github",
+      "href": "https://github.com/rikkahub/rikkahub"
+    }
+  ],
+  "intro": [
+    {
+      "title": "GH-README",
+      "url": "https://raw.githubusercontent.com/rikkahub/rikkahub/refs/heads/master",
+      "file": "/README.md",
+      "type": "md"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/rikkahub/rikkahub/releases",
+  "download": [
+    {
+      "mirrorId": 0,
+      "key": "/17/index.json"
+    },
+    {
+      "mirrorId": 4,
+      "key": "/api/releases?owner=rikkahub&repo=rikkahub&versions=20"
+    }
+  ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ]
+}

@@ -114,5 +114,11 @@
     "icon": "/data/software/16/icon.avif",
     "tagIds": [7, 6, 13],
     "detailUrl": "/data/software/16/detail.json"
+  },
+  {
+    "id": 17,
+    "name": "RikkaHub",
+    "tagIds": [7, 6],
+    "detailUrl": "/data/software/17/detail.json"
   }
 ]
