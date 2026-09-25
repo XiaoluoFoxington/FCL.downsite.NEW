@@ -62,6 +62,9 @@ const ar = {
     feedbackLoadFailed: 'فشل تحميل قنوات الملاحظات: {message}',
     feedbackLoading: 'جارٍ تحميل قنوات الملاحظات...',
     feedbackVia: 'عبر {name}',
+    icon: {
+      parseFailed: 'فشل تحليل أيقونة SVG: {src}',
+    },
     announcementLoading: 'جارٍ تحميل الإعلان...',
     announcementEmpty: 'بيانات الإعلان فارغة',
     sponsorRemindTemplateMissing: 'قالب تذكير الدعم يفتقد العناصر الضرورية (#visitCount أو #sponsorRemindCloseBtn)',

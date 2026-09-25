@@ -119,6 +119,31 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   object-fit: contain;
 }
 
+/* 内联 SVG 图标外层：透明背景，前景色由 mdui-text-color-theme-accent（currentColor）决定。
+   尺寸由 JS 内联 width/height 控制，这里用 inline-flex 保证与同尺寸 <img> 的占位一致。 */
+.xf-icon-svg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+/* SVG 铺满包裹层并继承 currentColor（强调色）；非 scoped 选择器覆盖多数内联 fill 场景。 */
+.xf-icon-svg > svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+  color: currentColor;
+}
+
+/* 详情页图标包裹层：保持与旧 <img> 相同的居中表现。 */
+.xf-detail-icon-wrap {
+  object-fit: contain;
+}
+
 .xf-hide {
   display: none;
 }

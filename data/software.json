@@ -118,6 +118,7 @@
   {
     "id": 17,
     "name": "RikkaHub",
+    "icon": "/data/software/17/icon.svg",
     "tagIds": [7, 6],
     "detailUrl": "/data/software/17/detail.json"
   }

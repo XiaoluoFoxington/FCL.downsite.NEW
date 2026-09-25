@@ -1,4 +1,5 @@
 import { renderStatus, setFilterIndicator } from './commonView.js';
+import { createIconElement } from './iconView.js';
 import { readPreference } from '../domain/preferences.js';
 import { isBookmarked, toggleBookmark } from '../domain/bookmarks.js';
 import { t, translateTag } from '../common/i18n.js';
@@ -173,13 +174,12 @@ function renderTableBody(tbody, iconSize) {
 
     // 图标单元格
     const iconCell = document.createElement('td');
-    const img = document.createElement('img');
-    img.src = item.icon || '/media/img/picMissing.webp';
-    img.alt = item.name;
-    img.width = iconSize;
-    img.height = iconSize;
-    img.loading = 'lazy';
-    img.className = 'xf-list-table-icon';
+    const img = createIconElement({
+      icon: item.icon,
+      name: item.name,
+      size: iconSize,
+      imgClassName: 'xf-list-table-icon',
+    });
     iconCell.appendChild(img);
     iconCell.classList.add('xf-list-table-col-icon');
     row.appendChild(iconCell);

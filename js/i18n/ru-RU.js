@@ -62,6 +62,9 @@ const ruRU = {
     feedbackLoadFailed: 'Не удалось загрузить каналы обратной связи: {message}',
     feedbackLoading: 'Загрузка каналов обратной связи…',
     feedbackVia: 'через {name}',
+    icon: {
+      parseFailed: 'Не удалось разобрать значок SVG: {src}',
+    },
     announcementLoading: 'Загрузка объявлений…',
     announcementEmpty: 'Данные объявлений пусты',
     sponsorRemindTemplateMissing: 'В шаблоне напоминания о спонсорстве отсутствуют обязательные элементы (#visitCount или #sponsorRemindCloseBtn)',

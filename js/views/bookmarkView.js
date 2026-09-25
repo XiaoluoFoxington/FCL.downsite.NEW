@@ -6,6 +6,7 @@
 
 import { getBookmarks, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
 import { readPreference } from '../domain/preferences.js';
+import { createIconElement } from './iconView.js';
 
 /** 书签默认打开方式偏好键。 */
 const BOOKMARK_OPEN_METHOD_KEY = 'fdn-bookmark-open-method';
@@ -30,13 +31,12 @@ export function createBookmarkButton(item) {
   const pagePath = OPEN_METHOD_PAGE_MAP[openMethod] || OPEN_METHOD_PAGE_MAP.download;
   btn.href = `${pagePath}?id=${item.id}`;
 
-  const img = document.createElement('img');
-  img.className = 'xf-bookmark-icon';
-  img.src = item.icon || '/media/img/picMissing.webp';
-  img.alt = item.name;
-  img.width = 24;
-  img.height = 24;
-  img.loading = 'lazy';
+  const img = createIconElement({
+    icon: item.icon,
+    name: item.name,
+    size: 24,
+    imgClassName: 'xf-bookmark-icon',
+  });
 
   btn.append(img, document.createTextNode(` ${item.name}`));
   return btn;

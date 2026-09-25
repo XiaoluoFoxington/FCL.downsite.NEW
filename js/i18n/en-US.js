@@ -62,6 +62,9 @@ const enUS = {
     feedbackLoadFailed: 'Failed to load feedback channels: {message}',
     feedbackLoading: 'Loading feedback channels...',
     feedbackVia: 'via {name}',
+    icon: {
+      parseFailed: 'Failed to parse SVG icon: {src}',
+    },
     announcementLoading: 'Loading announcements...',
     announcementEmpty: 'Announcement data is empty',
     sponsorRemindTemplateMissing: 'The sponsor reminder template is missing required elements (#visitCount or #sponsorRemindCloseBtn)',

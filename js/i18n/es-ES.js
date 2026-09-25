@@ -63,6 +63,9 @@ const esES = {
     feedbackLoadFailed: 'Error al cargar los canales de comentarios: {message}',
     feedbackLoading: 'Cargando canales de comentarios…',
     feedbackVia: 'a través de {name}',
+    icon: {
+      parseFailed: 'No se pudo analizar el icono SVG: {src}',
+    },
     announcementLoading: 'Cargando anuncios…',
     announcementEmpty: 'Los datos de anuncios están vacíos',
     sponsorRemindTemplateMissing: 'La plantilla de recordatorio de patrocinio carece de elementos necesarios (#visitCount o #sponsorRemindCloseBtn)',

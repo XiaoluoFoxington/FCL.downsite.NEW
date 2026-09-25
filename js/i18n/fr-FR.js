@@ -62,6 +62,9 @@ const frFR = {
     feedbackLoadFailed: 'Échec du chargement des canaux de retour : {message}',
     feedbackLoading: 'Chargement des canaux de retour…',
     feedbackVia: 'via {name}',
+    icon: {
+      parseFailed: 'Échec de l\'analyse de l\'icône SVG : {src}',
+    },
     announcementLoading: 'Chargement des annonces…',
     announcementEmpty: "Les données d'annonces sont vides",
     sponsorRemindTemplateMissing: "Le modèle de rappel de sponsoring manque d'éléments requis (#visitCount ou #sponsorRemindCloseBtn)",

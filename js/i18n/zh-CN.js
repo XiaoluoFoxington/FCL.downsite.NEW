@@ -63,6 +63,9 @@ const zhCN = {
     feedbackLoadFailed: '反馈渠道加载失败: {message}',
     feedbackLoading: '正在加载反馈渠道……',
     feedbackVia: '通过 {name}',
+    icon: {
+      parseFailed: 'SVG 图标解析失败：{src}',
+    },
     announcementLoading: '正在加载公告……',
     announcementEmpty: '公告数据为空',
     sponsorRemindTemplateMissing: '赞助提醒模板缺少必要的元素（#visitCount 或 #sponsorRemindCloseBtn）',

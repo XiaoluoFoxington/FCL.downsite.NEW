@@ -62,6 +62,9 @@ const jaJP = {
     feedbackLoadFailed: 'フィードバックチャンネルの読み込みに失敗しました: {message}',
     feedbackLoading: 'フィードバックチャンネルを読み込み中……',
     feedbackVia: '{name} 経由',
+    icon: {
+      parseFailed: 'SVG アイコンの解析に失敗しました：{src}',
+    },
     announcementLoading: 'お知らせを読み込み中……',
     announcementEmpty: 'お知らせデータが空です',
     sponsorRemindTemplateMissing: 'スポンサーリマインダーテンプレートに必要な要素（#visitCount または #sponsorRemindCloseBtn）がありません',

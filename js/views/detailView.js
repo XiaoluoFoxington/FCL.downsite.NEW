@@ -2,6 +2,7 @@ import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { renderStatus, renderMessages, renderTableStatus, setErrorTitle, setSoftwareHeader } from './commonView.js';
 import { isSafeNavigationUrl, joinUrl } from '../security/content.js';
 import { createExternalLink, createGrid, createMaterialIcon } from './uiComponents.js';
+import { createIconElement } from './iconView.js';
 import { isBookmarked, toggleBookmark, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
 import { readPreference } from '../domain/preferences.js';
 import { t, tOr, translateTag } from '../common/i18n.js';
@@ -169,14 +170,13 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
  */
 function createIcon(basic) {
   const iconSize = Number(readPreference('fdn-detail-icon-size', '64'));
-  const image = document.createElement('img');
-  image.src = basic.icon || '/media/img/picMissing.webp';
-  image.alt = basic.name;
-  image.className = 'xf-detail-icon';
-  image.width = iconSize;
-  image.height = iconSize;
-  image.loading = 'lazy';
-  return image;
+  return createIconElement({
+    icon: basic.icon,
+    name: basic.name,
+    size: iconSize,
+    imgClassName: 'xf-detail-icon',
+    className: 'xf-detail-icon-wrap',
+  });
 }
 
 /**
