@@ -28,6 +28,10 @@
       "key": "/17/index.json"
     },
     {
+      "mirrorId": 1,
+      "key": "/api/public/v1/projects/rikkahub/assets"
+    },
+    {
       "mirrorId": 4,
       "key": "/api/releases?owner=rikkahub&repo=rikkahub&versions=20"
     }
