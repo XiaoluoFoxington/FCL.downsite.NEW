@@ -97,6 +97,7 @@ const zhCN = {
       NEXTVersion: 'NEXT版',
       mduiVersion: 'mdui版',
       feedbackSuggest: '建议反馈',
+      feedbackNote: '这里的反馈是针对网站本身的，不是针对任何一个资源的。某个资源的问题请在资源详情页反馈。',
       siteInfo: '网站信息',
       siteRuntime: '这坨屎山已经非常松弛地运行了{runtime}。',
       openSource: '此网站是完全开源的，GH仓库见下方链接。',

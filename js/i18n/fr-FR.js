@@ -96,6 +96,7 @@ const frFR = {
       NEXTVersion: 'Version NEXT',
       mduiVersion: 'Version mdui',
       feedbackSuggest: 'Retours et suggestions',
+      feedbackNote: 'Les retours ici concernent le site lui-même, et non une ressource en particulier. Pour un problème lié à une ressource précise, utilisez l\'option de retour sur la page de détail de cette ressource.',
       siteInfo: 'Infos du site',
       siteRuntime: 'Ce joyeux bordel de code tourne de façon bien relax depuis {runtime}.',
       openSource: 'Ce site est entièrement open source. Le dépôt GitHub se trouve via le lien ci-dessous.',

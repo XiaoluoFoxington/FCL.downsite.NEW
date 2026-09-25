@@ -96,6 +96,7 @@ const enUS = {
       NEXTVersion: 'NEXT Version',
       mduiVersion: 'mdui Version',
       feedbackSuggest: 'Feedback',
+      feedbackNote: 'Feedback here is about the website itself, not about any individual resource. For issues with a specific resource, please use the feedback option on that resource\'s detail page.',
       siteInfo: 'Site Info',
       siteRuntime: 'This mountain of spaghetti code has been running very leisurely for {runtime}.',
       openSource: 'This website is completely open source. See the GitHub repository link below.',

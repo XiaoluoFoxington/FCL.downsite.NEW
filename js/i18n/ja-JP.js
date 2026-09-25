@@ -96,6 +96,7 @@ const jaJP = {
       NEXTVersion: 'NEXT版',
       mduiVersion: 'mdui版',
       feedbackSuggest: 'フィードバック・ご意見',
+      feedbackNote: 'ここでのフィードバックはサイト自体に対するものであり、個々のリソースに関するものではありません。特定のリソースの問題は、そのリソースの詳細ページからフィードバックしてください。',
       siteInfo: 'サイト情報',
       siteRuntime: 'このクソコードの山は、{runtime} の間、ゆるゆると動作しています。',
       openSource: 'このサイトは完全にオープンソースです。GitHubリポジトリへのリンクは下部にあります。',

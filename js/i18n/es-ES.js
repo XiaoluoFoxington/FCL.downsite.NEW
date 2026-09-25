@@ -97,6 +97,7 @@ const esES = {
       NEXTVersion: 'Versión NEXT',
       mduiVersion: 'Versión mdui',
       feedbackSuggest: 'Sugerencias y comentarios',
+      feedbackNote: 'Los comentarios aquí son sobre el sitio en sí, no sobre ningún recurso en particular. Para problemas con un recurso concreto, usa la opción de comentarios en la página de detalles de ese recurso.',
       siteInfo: 'Información del sitio',
       siteRuntime: 'Esta montaña de código espagueti ha estado funcionando muy relajadamente durante {runtime}.',
       openSource: 'Este sitio es completamente de código abierto; el repositorio de GitHub está en el enlace de abajo.',
