@@ -1,4 +1,7 @@
 import { logWarn } from '../common/logger.js';
+// 注意：i18n.js 依赖本模块的 readPreference/writePreference，本模块又依赖 i18n.js 的 t()，
+// 构成双向依赖；两侧都只在函数内部调用、顶层不互相访问，因此可安全运行。
+import { t } from '../common/i18n.js';
 
 /**
  * 浏览器偏好存储的小型封装。
@@ -15,7 +18,7 @@ export function readPreference(key, defaultValue = null) {
   try {
     return localStorage.getItem(key) ?? defaultValue;
   } catch (error) {
-    logWarn(error, { key: 'logger.context.readPreference', params: { key } });
+    logWarn(error, t('logger.context.readPreference', { key }));
     return defaultValue;
   }
 }
@@ -29,6 +32,6 @@ export function writePreference(key, value) {
   try {
     localStorage.setItem(key, value);
   } catch (error) {
-    logWarn(error, { key: 'logger.context.writePreference', params: { key } });
+    logWarn(error, t('logger.context.writePreference', { key }));
   }
 }

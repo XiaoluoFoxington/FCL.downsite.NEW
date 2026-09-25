@@ -8,6 +8,7 @@ import {
   renderAboutError,
 } from '../views/aboutView.js';
 import { logError } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 关于页面 controller。
@@ -31,7 +32,7 @@ export function createAboutController(elements) {
       await renderContributors(elements.contributors, contributors, mirrors);
       await renderUsedProjects(elements.usedProjects, usedProjects);
     } catch (error) {
-      logError(error, '关于页');
+      logError(error, t('logger.context.aboutPage'));
       renderAboutError(elements.downloadLines, error, load, 2);
       renderAboutError(elements.contributors, error, load);
       renderAboutError(elements.usedProjects, error, load, 6);

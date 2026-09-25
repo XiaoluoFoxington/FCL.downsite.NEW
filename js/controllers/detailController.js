@@ -1,6 +1,7 @@
 import { completeOrphanTags, getMirrors, getSoftware, getTags } from '../repositories/siteRepository.js';
 import { renderDetail, renderDetailError, renderDetailLoading } from '../views/detailView.js';
 import { logError } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 详情 controller 只协调数据与 view：软件详情、标签与线路目录可并行加载，
@@ -23,7 +24,7 @@ export function createDetailController(elements, softwareId) {
       const allTags = completeOrphanTags(tags, basic.tagIds.map((id) => ({ itemId: basic.id, id })));
       renderDetail(elements, softwareId, basic, detail, allTags, mirrors);
     } catch (error) {
-      logError(error, '详情页');
+      logError(error, t('logger.context.detailPage'));
       renderDetailError(elements, error, load);
     }
   }

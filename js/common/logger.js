@@ -1,6 +1,6 @@
 import { showToast } from "./toast.js";
 import { escapeHtml } from "../security/content.js";
-import { escapeKeySegment, tOr } from "./i18n.js";
+import { t } from "./i18n.js";
 
 // =========================== 配置 ===========================
 /** 默认配置（当用户设置未配置时使用） */
@@ -70,33 +70,15 @@ const ICON_MAP = {
 };
 
 /**
- * 翻译 context 前缀，支持两种形式：
- * - string：按语言包 `logger.context.<文本>` 精确匹配，未收录时原样返回；
- * - { key, params }：按翻译键与参数渲染（用于含动态变量的 context，如“读取设置 {key}”）。
- * @param {string | { key: string, params?: object }} [context]
- * @returns {string}
- */
-function translateContext(context) {
-  if (!context) return '';
-  if (typeof context === 'object' && context !== null) {
-    const { key, params } = context;
-    if (typeof key !== 'string' || !key) return '';
-    return tOr(key, key, params);
-  }
-  return tOr(`logger.context.${escapeKeySegment(String(context))}`, String(context));
-}
-
-/**
  * 内部通用日志发送
  * @param {'info' | 'warn' | 'error'} level
  * @param {any} err 可转换为 Error 的任何值
- * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
+ * @param {string} [context] 已翻译好的上下文前缀（由调用方用 t('logger.context.detailPage') 生成）；省略时不输出前缀
  * @param {{ noToast?: boolean }} [options] 额外选项；noToast 为 true 时跳过本次 Toast 提示（控制台输出不受影响）
  */
 function _log(level, err, context, options) {
   const error = extractError(err);
-  const contextText = translateContext(context);
-  const prefix = contextText ? `${contextText}: ` : '';
+  const prefix = context ? `${context}: ` : '';
   const message = error.message;
   const toastConfig = getToastConfig();
 
@@ -125,7 +107,7 @@ function _log(level, err, context, options) {
 // =========================== 导出 API ===========================
 /** 记录信息日志
  * @param {any} err 可转换为 Error 的任何值
- * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
+ * @param {string} [context] 已翻译好的上下文前缀（如 t('logger.context.detailPage')）
  * @param {{ noToast?: boolean }} [options] 额外选项；noToast 为 true 时跳过本次 Toast 提示
  */
 export function logInfo(err, context, options) {
@@ -134,7 +116,7 @@ export function logInfo(err, context, options) {
 
 /** 记录警告日志
  * @param {any} err 可转换为 Error 的任何值
- * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
+ * @param {string} [context] 已翻译好的上下文前缀（如 t('logger.context.detailPage')）
  * @param {{ noToast?: boolean }} [options] 额外选项；noToast 为 true 时跳过本次 Toast 提示
  */
 export function logWarn(err, context, options) {
@@ -142,7 +124,7 @@ export function logWarn(err, context, options) {
 }
 /** 记录错误日志
  * @param {any} err 可转换为 Error 的任何值
- * @param {string | { key: string, params?: object }} [context] 上下文描述；含动态变量时传 {key, params}
+ * @param {string} [context] 已翻译好的上下文前缀（如 t('logger.context.detailPage')）
  * @param {{ noToast?: boolean }} [options] 额外选项；noToast 为 true 时跳过本次 Toast 提示
  */
 export function logError(err, context, options) {
@@ -161,12 +143,12 @@ export function registerGlobalHandlers() {
 
   window.addEventListener('error', (e) => {
     if (DEFAULT_CONFIG.preventDefault) e.preventDefault();
-    logError(e, 'JS运行时致命错误');
+    logError(e, t('logger.context.fatalJsRuntimeError'));
   });
 
   window.addEventListener('unhandledrejection', (e) => {
     if (DEFAULT_CONFIG.preventDefault) e.preventDefault();
-    logError(e, '未捕获的Promise错误');
+    logError(e, t('logger.context.uncaughtPromiseRejection'));
   });
 }
 

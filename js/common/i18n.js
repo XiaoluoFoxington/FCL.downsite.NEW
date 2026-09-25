@@ -157,7 +157,7 @@ export function t(key, params = {}, skip = null) {
     const value = lookupTranslation(key);
     if (value !== undefined) return interpolate(value, params, skip);
   } catch (error) {
-    logWarn(error, { key: 'logger.context.i18nTranslateError', params: { key } });
+    logWarn(error, t('logger.context.i18nTranslateError', { key }));
   }
   return key;
 }
@@ -190,7 +190,7 @@ function applyDirection() {
   try {
     document.documentElement.dir = isRTLLang(currentLang) ? 'rtl' : 'ltr';
   } catch (error) {
-    logWarn(error, '应用书写方向');
+    logWarn(error, t('logger.context.applyWritingDirection'));
   }
 }
 
@@ -235,7 +235,7 @@ function loadLanguageOrder() {
         return order;
       }
     } catch (error) {
-      logWarn(error, '解析语言顺序偏好');
+      logWarn(error, t('logger.context.parseLanguageOrder'));
     }
   }
   const legacy = readPreference(LANGUAGE_KEY);
@@ -265,13 +265,13 @@ export function setLanguageOrder(order, { reload = true } = {}) {
     document.documentElement.lang = currentLang;
     applyDirection();
   } catch (error) {
-    logWarn(error, '保存语言顺序');
+    logWarn(error, t('logger.context.saveLanguageOrder'));
   }
   if (reload) {
     try {
       window.location.reload();
     } catch (error) {
-      logWarn(error, '刷新页面');
+      logWarn(error, t('logger.context.reloadPage'));
     }
   }
 }
@@ -307,7 +307,7 @@ export function applyTranslations(root = document) {
     }
     elements.push(...root.querySelectorAll('[data-i18n]'));
   } catch (error) {
-    logWarn(error, 'i18n 扫描 DOM');
+    logWarn(error, t('logger.context.i18nScanDom'));
     return;
   }
 
@@ -395,7 +395,7 @@ export function applyTranslations(root = document) {
         }
       });
     } catch (error) {
-      logWarn(error, { key: 'logger.context.i18nApplyError', params: { key: el.getAttribute('data-i18n') } });
+      logWarn(error, t('logger.context.i18nApplyError', { key: el.getAttribute('data-i18n') }));
     }
   });
 }
@@ -442,14 +442,14 @@ export function initI18n() {
       document.documentElement.lang = currentLang;
       applyDirection();
     } catch (error) {
-      logWarn(error, '初始化 i18n');
+      logWarn(error, t('logger.context.initI18n'));
     }
 
     const apply = () => {
       try {
         applyTranslations();
       } catch (error) {
-        logWarn(error, '应用初始翻译');
+        logWarn(error, t('logger.context.applyInitialTranslations'));
       }
       resolve();
     };
@@ -486,7 +486,7 @@ export function tOr(key, fallback, params = null) {
     const value = lookupTranslation(key);
     if (value !== undefined) return interpolate(value, params);
   } catch (error) {
-    logWarn(error, { key: 'logger.context.i18nTranslateError', params: { key } });
+    logWarn(error, t('logger.context.i18nTranslateError', { key }));
   }
   return fallback;
 }

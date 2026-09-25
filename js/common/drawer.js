@@ -144,7 +144,7 @@ async function loadDrawerContent(drawer) {
       }
     }
   } catch (error) {
-    logError(error, '抽屉导航栏');
+    logError(error, t('logger.context.drawerNavigation'));
     renderStatus(drawer, 'error', { message: error.message, onRetry: () => loadDrawerContent(drawer) });
   }
 }

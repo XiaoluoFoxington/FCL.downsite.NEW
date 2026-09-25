@@ -122,7 +122,7 @@ function createThead() {
   const headers = [
     { text: t('list.header.icon'), sortable: false, key: null },
     { text: t('list.header.name'), sortable: true, key: 'name' },
-    { text: 'ID', sortable: true, key: 'id' },
+    { text: t('list.header.id'), sortable: true, key: 'id' },
     { text: t('list.header.tags'), sortable: false, key: null },
     { text: t('list.header.bookmark'), sortable: false, key: null },
   ];

@@ -3,6 +3,7 @@ import { completeOrphanTags, getSoftwareCatalog, getTags } from '../repositories
 import { debounce, setFilterIndicator } from '../views/commonView.js';
 import { enableFilterHelpInserts, renderFilterHelpTags, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
 import { logError } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /** 条件之间的关系符号。 */
 const RELATION_CHARS = '&|!';
@@ -153,7 +154,7 @@ export function createListController(elements) {
       renderFilterHelpTags(elements.filterHelpTags, allTags);
       applyFilters();
     } catch (error) {
-      logError(error, '资源列表');
+      logError(error, t('logger.context.resourceList'));
       renderListError(elements, error, load);
     }
   }

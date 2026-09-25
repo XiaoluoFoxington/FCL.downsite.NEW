@@ -125,8 +125,8 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   const rows = [
     [t('detail.basicInfoTable.name'), basic.name],
     [iconTd, createIcon(basic)],
-    ['ID', String(id)],
-    ['TAG', basic.tagIds.map((tagId) => translateTag(tagMap.get(tagId) || String(tagId))).join(', ')],
+    [t('detail.basicInfoTable.id'), String(id)],
+    [t('detail.basicInfoTable.tags'), basic.tagIds.map((tagId) => translateTag(tagMap.get(tagId) || String(tagId))).join(', ')],
     detail.OSRequest?.length ? [t('detail.basicInfoTable.osRequest'), formatOSRequest(detail.OSRequest)] : null,
   ].filter(Boolean);
   (detail.info || []).forEach((item) => rows.push([item.name, createInfoValue(item)]));

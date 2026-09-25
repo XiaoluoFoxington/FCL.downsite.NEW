@@ -14,3 +14,4 @@
 
 ## 经验教训
 - DeepSeekHarness 的沙箱环境无法用 schannel 建立 TLS（报 `SEC_E_NO_CREDENTIALS`），git 推送需单次覆盖 `git -c http.sslbackend=openssl push`；用户本机终端不受影响，勿因此改动全局 git 配置。
+- 用 `python -m http.server` 起本地服务验证前端改动时，浏览器会缓存 ES 模块，改动可能看似没生效（可 `fetch(url, {cache:'no-store'})` 判别）。换端口（新 origin，缓存为空）或强制刷新后才能得到真实结果；换端口会丢失该 origin 的 localStorage 语言偏好，需重新设置。

@@ -30,7 +30,7 @@ export function createRhController(container, softwareId) {
 
       await renderReleases(container, basic, releases);
     } catch (error) {
-      logError(error, '版本历史');
+      logError(error, t('logger.context.versionHistory'));
       // 将 GitHub API 的状态码错误转为可读消息
       const message = translateError(error);
       renderRhError(container, new Error(message), load);

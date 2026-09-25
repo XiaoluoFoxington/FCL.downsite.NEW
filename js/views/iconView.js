@@ -67,7 +67,7 @@ function parseSvg(text) {
     // 跨文档节点需导入到当前文档，否则无法直接插入。
     return document.importNode(svg, true);
   } catch (error) {
-    logWarn(error, '解析 SVG 图标', { noToast: true });
+    logWarn(error, t('logger.context.parseSvgIcon'), { noToast: true });
     return null;
   }
 }
@@ -122,7 +122,7 @@ export function createIconElement({ icon, name = '', size = 24, className = '', 
     .then((text) => {
       const svg = parseSvg(text);
       if (!svg) {
-        logWarn(t('common.icon.parseFailed', { src }), 'SVG 图标', { noToast: true });
+        logWarn(t('common.icon.parseFailed', { src }), t('logger.context.svgIcon'), { noToast: true });
         fallback();
         return;
       }
@@ -137,7 +137,7 @@ export function createIconElement({ icon, name = '', size = 24, className = '', 
       wrapper.replaceChildren(svg);
     })
     .catch((error) => {
-      logWarn(error, `加载 SVG 图标 ${src}`, { noToast: true });
+      logWarn(error, t('logger.context.loadingSvgIcon', { src }), { noToast: true });
       fallback();
     });
 

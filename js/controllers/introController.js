@@ -10,6 +10,7 @@ import {
   renderIntroPanels,
 } from '../views/introView.js';
 import { logError } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 拼接介绍文档的完整 URL。
@@ -49,7 +50,7 @@ export function createIntroController(container, softwareId) {
       renderDocument(body, fragment);
       states.set(body, 'ready');
     } catch (error) {
-      logError(error, '介绍文档');
+      logError(error, t('logger.context.introDocument'));
       states.set(body, 'error');
       renderDocumentError(body, error, () => loadDocument(item, body));
     }
@@ -62,7 +63,7 @@ export function createIntroController(container, softwareId) {
       const { basic, detail } = await getSoftware(softwareId);
       renderIntroPanels(container, basic, detail.intro || [], loadDocument);
     } catch (error) {
-      logError(error, '介绍页');
+      logError(error, t('logger.context.introPage'));
       renderIntroError(container, error, load);
     }
   }

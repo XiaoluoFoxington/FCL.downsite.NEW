@@ -9,6 +9,7 @@
 
 import { logWarn } from '../common/logger.js';
 import { createMaterialIcon, createSpan } from './uiComponents.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 计算拖拽释放后的插入位置（相对于移除被拖项之后的数组）。
@@ -195,7 +196,7 @@ export function createSortableTable(container, { items = [], columns = [], rende
     try {
       if (typeof onReorder === 'function') onReorder([...next]);
     } catch (error) {
-      logWarn(error, '可拖拽表格排序回调');
+      logWarn(error, t('logger.context.sortableTableReorderCallback'));
     } finally {
       // 无论回调是否异常都重绘，保证组件内部状态与 DOM 一致。
       render();

@@ -66,7 +66,7 @@ export function createBehaviorController(elements) {
         savePreference,
       );
     } catch (error) {
-      logError(error, '行为设置');
+      logError(error, t('logger.context.behaviorSettings'));
       renderBehaviorError(elements.container, error, load);
     }
   }

@@ -95,7 +95,7 @@ export async function checkNewAnnouncement() {
     const storedHash = readPreference(announcementStorageKey());
     return { html, hash, isNew: hash !== storedHash };
   } catch (error) {
-    logError(error, '公告');
+    logError(error, t('logger.context.announcement'));
     return null;
   }
 }
@@ -117,7 +117,7 @@ export async function loadAnnouncement(container) {
       throw new Error(t('common.announcementEmpty'));
     }
   } catch (error) {
-    logError(error, '公告');
+    logError(error, t('logger.context.announcement'));
     renderStatus(container, 'error', { message: error.message, onRetry: () => loadAnnouncement(container) });
   }
 }

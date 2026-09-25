@@ -30,7 +30,7 @@ export function getBookmarks() {
     // localStorage 被篡改/写坏时降级为空列表，避免后续方法抛 TypeError。
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    logWarn(error, '读取收藏');
+    logWarn(error, t('logger.context.readBookmarks'));
     return [];
   }
 }
@@ -43,7 +43,7 @@ function saveBookmarks(bookmarks) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
   } catch (error) {
-    logWarn(error, '保存收藏');
+    logWarn(error, t('logger.context.saveBookmarks'));
   }
 }
 

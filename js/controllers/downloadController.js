@@ -54,8 +54,8 @@ export function createDownloadController(elements, softwareId) {
           // apiVer 为空时走 plain adapter，允许旧镜像逐步迁移。
           apiVersion: mirror.apiVer,
           notJoinRandom: mirror.notJoinRandom, // 是否参与随机选择由 mirror.json 统一管理。
-          // 线路描述（data/mirror.json 的 description），由 selector 渲染在选择框下方。
-          description: mirror.description,
+          // 线路描述（data/mirror.json 的 description），由 selector 渲染在选择框下方；按线路 id 翻译。
+          description: tOr(`mirrorDescription.${mirror.id}`, mirror.description),
         };
       });
       if (!mirrorItems.length) throw new Error(t('common.noMirrorInfo'));
@@ -77,7 +77,7 @@ export function createDownloadController(elements, softwareId) {
       });
       selectorController.start();
     } catch (error) {
-      logError(error, '下载页初始化');
+      logError(error, t('logger.context.downloadPageInit'));
       setErrorTitle();
       if (elements.messageWrapper) elements.messageWrapper.hidden = true;
       renderStatus(elements.container, 'error', { message: error.message, onRetry: load });

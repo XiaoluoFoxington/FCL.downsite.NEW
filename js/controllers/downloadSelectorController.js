@@ -157,7 +157,7 @@ export function createDownloadSelectorController(options) {
       ]);
     } catch (error) {
       if (error.kind !== 'abort' && isCurrent(sequence)) {
-        logError(error, '下载选项');
+        logError(error, t('logger.context.downloadOptions'));
         view.renderError(level + 1, error, retry);
       }
     } finally {

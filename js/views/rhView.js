@@ -109,7 +109,7 @@ async function renderReleaseBody(container, body) {
     // 容器可能已被移除（用户关闭/折叠面板或离开页面），避免更新游离 DOM。
     if (container.isConnected) container.replaceChildren(fragment);
   } catch (error) {
-    logError(error, 'Release 正文渲染');
+    logError(error, t('logger.context.releaseBodyRender'));
     if (!container.isConnected) return;
     renderStatus(container, 'error', {
       message: t('rh.bodyRenderError', { message: error.message }),

@@ -244,7 +244,7 @@ export async function loadFeedback(container) {
       renderStatus(container, 'empty', { message: t('common.noFeedbackChannels') });
     }
   } catch (error) {
-    logError(error, '反馈渠道');
+    logError(error, t('logger.context.feedbackChannels'));
     renderStatus(container, 'error', { message: error.message, onRetry: () => loadFeedback(container) });
   }
 }

@@ -21,6 +21,7 @@
  */
 
 import { logWarn } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /** 压缩包扩展名（不含点，小写）。 */
 export const ARCHIVE_EXTENSIONS = ['zip', '7z'];
@@ -63,30 +64,32 @@ export function createFilterConfig({ filter, osExtensions = [], osName = '' } = 
   const systemExtensions = osExtensions.map((ext) => ext.toLowerCase());
   // 类别顺序即面板中勾选框的展示顺序，也即优先级顺序；enabled 为 false 的类别在面板中不渲染。
   // defaultChecked 为 true 的类别在首屏默认勾选。
-  // TODO: 以下类别标签（含 "无" 及扩展名拼接部分）为硬编码中文，未接入 i18n；
-  // 全站其余 UI 均为 7 语言，后续需为这些标签补充翻译键。
+  const none = t('common.filterCategory.none');
   const categories = [
     {
       key: 'dataSource',
-      label: `数据源中筛选条件（${patterns.join(', ') || '无'}）`,
+      label: t('common.filterCategory.dataSource', { items: patterns.join(', ') || none }),
       enabled: patterns.length > 0,
       defaultChecked: true,
     },
     {
       key: 'system',
-      label: `当前系统（${osName}）筛选条件（${systemExtensions.map((ext) => `.${ext}`).join(', ') || '无'}）`,
+      label: t('common.filterCategory.system', {
+        osName,
+        items: systemExtensions.map((ext) => `.${ext}`).join(', ') || none,
+      }),
       enabled: systemExtensions.length > 0,
       defaultChecked: true,
     },
     {
       key: 'archive',
-      label: `压缩包（${ARCHIVE_EXTENSIONS.map((ext) => `.${ext}`).join(', ')}）`,
+      label: t('common.filterCategory.archive', { items: ARCHIVE_EXTENSIONS.map((ext) => `.${ext}`).join(', ') }),
       enabled: true,
       defaultChecked: false,
     },
     {
       key: 'source',
-      label: `源码包（${SOURCE_EXTENSIONS.map((ext) => `.${ext}`).join(', ')}）`,
+      label: t('common.filterCategory.source', { items: SOURCE_EXTENSIONS.map((ext) => `.${ext}`).join(', ') }),
       enabled: true,
       defaultChecked: false,
     },
@@ -122,7 +125,7 @@ export function createFilterConfig({ filter, osExtensions = [], osName = '' } = 
       try {
         return new RegExp(pattern).test(url);
       } catch (error) {
-        logWarn(error, { key: 'logger.context.invalidFilterRegex', params: { pattern } });
+        logWarn(error, t('logger.context.invalidFilterRegex', { pattern }));
         return false;
       }
     })) keys.add('dataSource');

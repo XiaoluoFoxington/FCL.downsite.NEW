@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     const container = createContainer(version);
     document.body.appendChild(container);
   } catch (error) {
-    logWarn(error, '版本水印');
+    logWarn(error, t('logger.context.versionWatermark'));
   }
 });
 

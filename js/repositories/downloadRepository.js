@@ -1,6 +1,7 @@
 import { getJSON, getText } from '../http/client.js';
 import { adaptDownloadData } from '../adapters/download/index.js';
 import { logWarn } from '../common/logger.js';
+import { t } from '../common/i18n.js';
 
 /**
  * 下载数据仓库。
@@ -35,7 +36,7 @@ async function getLatestVersion(apiVersion, softwareName, payload, signal) {
   } catch (error) {
     // 用户切换线路时必须继续向上抛出取消；普通 GitHub 故障则降级为镜像响应中的版本。
     if (error.kind === 'abort') throw error;
-    logWarn(error, '获取最新版本失败，使用镜像返回的版本');
+    logWarn(error, t('logger.context.latestVersionFallback'));
     return payload?.latest || null;
   }
 }
