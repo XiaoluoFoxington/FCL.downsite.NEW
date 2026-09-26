@@ -85,7 +85,7 @@ const events = [
     id: 4,
     name: '钢管落地音效',
     run: () => {
-      const audio = new Audio('./media/sound/钢管落地.mp3');
+      const audio = new Audio('/media/sound/钢管落地.mp3');
       audio.volume = 1.0;
       audio.play().catch(e => {
         logError("千万别点：钢管落地：自动播放被阻止（请允许此网站自动播放）：", e);
