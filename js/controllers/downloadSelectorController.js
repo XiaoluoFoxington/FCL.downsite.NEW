@@ -88,7 +88,7 @@ export function createDownloadSelectorController(options) {
     // 内联 children 常用于本站配置；仍可声明 apiVersion 以复用某条线路的纯适配器。
     let children = item.children || item.items || [];
     if (item.apiVersion) {
-      children = adaptDownloadData(children, item.apiVersion, { source: item.sourceName || item.name });
+      children = adaptDownloadData(children, item.apiVersion, { source: item.sourceName || item.name, mirrorId: item.mirrorId });
     }
     return children;
   }
@@ -114,6 +114,8 @@ export function createDownloadSelectorController(options) {
         apiVersion: item.apiVersion,
         softwareName,
         sourceName: item.sourceName || item.name,
+        // 线路 id 必须随请求一路带到底：它决定下载后是否触发赞助视图，不能靠线路名反推。
+        mirrorId: item.mirrorId,
         signal,
       });
     } else if (item.children || item.items) {

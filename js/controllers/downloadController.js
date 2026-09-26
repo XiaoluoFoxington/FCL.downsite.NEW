@@ -2,6 +2,7 @@ import { detectSystemInfo, checkOSRequirement, getSystemDownloadExtensions } fro
 import { selectAutoDefault } from '../domain/autoSelect.js';
 import { getMirrors, getSoftware } from '../repositories/siteRepository.js';
 import { createDownloadSelectorController } from './downloadSelectorController.js';
+import { createSponsorBlockGate, isSponsorBlockEligible } from '../common/sponsorBlock.js';
 import { renderStatus, renderMessages, setErrorTitle, setSoftwareHeader } from '../views/commonView.js';
 import { joinUrl } from '../security/content.js';
 import { logError } from '../common/logger.js';
@@ -11,10 +12,30 @@ import { t, tOr } from '../common/i18n.js';
  * 下载页 controller。
  * elements.container：选择器和下载表格的唯一挂载点；
  * elements.stopButton：只取消当前外部请求链，不会离开当前页面；
+ * elements.sponsorBlockContainer / elements.downloadPanel：下载后赞助视图的挂载点与要暂时隐藏的面板；
  * softwareId：由 URL 校验后的整数 ID。
  */
 export function createDownloadController(elements, softwareId) {
   let selectorController = null;
+  // 缺少任一元素时整体降级为“不拦截”，下载行为不受影响。
+  const sponsorBlock = elements.sponsorBlockContainer && elements.downloadPanel
+    ? createSponsorBlockGate({
+      sponsorContainer: elements.sponsorBlockContainer,
+      downloadPanel: elements.downloadPanel,
+    })
+    : null;
+
+  /**
+   * 下载按钮点击回调。
+   * 故意不调用 preventDefault：下载链接是 target="_blank"，让新标签照常开始下载，
+   * 当前页再切换到赞助视图，两件事互不阻塞。
+   * @param {object} item 统一下载叶子节点
+   * @param {Event} [event] 点击事件，currentTarget 为下载链接，用于视图返回时归还焦点
+   */
+  function handleDownload(item, event) {
+    if (!sponsorBlock || !isSponsorBlockEligible(item)) return;
+    sponsorBlock.show(event?.currentTarget || null);
+  }
 
   async function load() {
     // 点击重试前先终止旧选择器并解除其按钮监听，避免旧请求回写 DOM、监听器随重试累积。
@@ -54,6 +75,8 @@ export function createDownloadController(elements, softwareId) {
           // apiVer 为空时走 plain adapter，允许旧镜像逐步迁移。
           apiVersion: mirror.apiVer,
           notJoinRandom: mirror.notJoinRandom, // 是否参与随机选择由 mirror.json 统一管理。
+          // mirrorId 会经 adapter 注册表标记到下载叶子上，供下载后的赞助视图识别线路。
+          mirrorId: mirror.id,
           // 线路描述（data/mirror.json 的 description），由 selector 渲染在选择框下方；按线路 id 翻译。
           description: tOr(`mirrorDescription.${mirror.id}`, mirror.description),
         };
@@ -74,6 +97,8 @@ export function createDownloadController(elements, softwareId) {
         osName: system?.fullResult?.os?.name || '',
         softwareName: basic.name,
         dataSource: [{ name: basic.name, nameIsSoftware: true, children: autoMirrorItems, filter: detail.filter, description: detail.description }],
+        // 下载按钮点击后由本 controller 决定是否切换到赞助视图。
+        onDownload: handleDownload,
       });
       selectorController.start();
     } catch (error) {

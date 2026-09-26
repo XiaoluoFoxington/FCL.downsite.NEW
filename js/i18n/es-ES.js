@@ -65,6 +65,7 @@ const esES = {
     announcementLoading: 'Cargando anuncios…',
     announcementEmpty: 'Los datos de anuncios están vacíos',
     sponsorRemindTemplateMissing: 'La plantilla de recordatorio de patrocinio carece de elementos necesarios (#visitCount o #sponsorRemindCloseBtn)',
+    sponsorBlockTemplateMissing: 'La plantilla de la vista de patrocinio tras la descarga carece de elementos necesarios (#sponsorBlockBackBtn o #sponsorBlockCloseForeverBtn)',
     dependencyMissing: 'Se cargó la dependencia pero no se encontró {name}',
     dependencyLoadFailed: 'No se pudo cargar la dependencia: {src}',
     osNotSpecified: 'No se especificó un ID de software válido',
@@ -189,6 +190,7 @@ const esES = {
       introPage: 'Página de introducción',
       downloadOptions: 'Opciones de descarga',
       downloadPageInit: 'Inicialización de la página de descarga',
+      sponsorBlock: 'Vista de patrocinio tras la descarga',
       releaseBodyRender: 'Renderizado del cuerpo del release',
       readBookmarks: 'Leyendo marcadores',
       saveBookmarks: 'Guardando marcadores',
@@ -633,6 +635,16 @@ const esES = {
     optional: 'Esto no es obligatorio; puedes elegir no patrocinar. Este aviso solo aparece porque tu recuento de visitas a la página de descargas ha alcanzado un múltiplo de 5. Si no haces clic en "Cerrar para siempre", este aviso volverá a aparecer cuando tu recuento de visitas a la página de descargas alcance el siguiente múltiplo de 5.',
     sponsorUs: 'Patrocinarnos',
     closeForever: 'Cerrar para siempre',
+  },
+
+  // Vista de patrocinio tras la descarga (data/sponsorBlock.html)
+  sponsorBlock: {
+    title: '¡Gracias por la descarga!',
+    desc: 'La descarga ha comenzado en una nueva pestaña. Estás usando el espejo proporcionado por el administrador del sitio, que asume los costes del servidor y del ancho de banda. Si este sitio te ha resultado útil, ¡considera patrocinarnos!',
+    optional: 'El patrocinio es totalmente voluntario: puedes descargar y usar el sitio con normalidad sin patrocinar. Puedes volver en cualquier momento para elegir otro espejo.',
+    sponsorUs: 'Patrocinarnos',
+    backToDownload: 'Volver a la descarga',
+    closeForever: 'No volver a mostrar',
   },
 
   // Página de plantilla

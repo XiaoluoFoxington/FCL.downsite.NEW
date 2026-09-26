@@ -64,6 +64,7 @@ const enUS = {
     announcementLoading: 'Loading announcements...',
     announcementEmpty: 'Announcement data is empty',
     sponsorRemindTemplateMissing: 'The sponsor reminder template is missing required elements (#visitCount or #sponsorRemindCloseBtn)',
+    sponsorBlockTemplateMissing: 'The post-download sponsor view template is missing required elements (#sponsorBlockBackBtn or #sponsorBlockCloseForeverBtn)',
     dependencyMissing: 'Dependency loaded but {name} was not found',
     dependencyLoadFailed: 'Failed to load dependency: {src}',
     osNotSpecified: 'No valid software ID specified',
@@ -188,6 +189,7 @@ const enUS = {
       introPage: 'Introduction page',
       downloadOptions: 'Download options',
       downloadPageInit: 'Download page initialization',
+      sponsorBlock: 'Post-download sponsor view',
       releaseBodyRender: 'Release body rendering',
       readBookmarks: 'Reading bookmarks',
       saveBookmarks: 'Saving bookmarks',
@@ -632,6 +634,16 @@ const enUS = {
     optional: 'This is not mandatory; you can choose not to sponsor. This notice only appears because your download page visit count has reached a multiple of 5. If you do not click "Close Forever", this notice will appear again when your download page visit count reaches the next multiple of 5.',
     sponsorUs: 'Sponsor Us',
     closeForever: 'Close Forever',
+  },
+
+  // Post-download sponsor view (data/sponsorBlock.html)
+  sponsorBlock: {
+    title: 'Thanks for downloading!',
+    desc: 'Your download has started in a new tab. You are using the mirror provided by the site owner, who covers the server and bandwidth costs. If this site has been helpful to you, please consider sponsoring us!',
+    optional: 'Sponsorship is entirely voluntary — you can download and use the site normally without it. You can go back at any time to pick another mirror.',
+    sponsorUs: 'Sponsor us',
+    backToDownload: 'Back to download',
+    closeForever: "Don't show again",
   },
 
   // Template page

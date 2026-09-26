@@ -24,10 +24,28 @@ const ADAPTERS = new Map([
 ]);
 
 /**
+ * 递归把线路 id 标记到节点上。
+ * 统一在注册表边界注入，新增 adapter 无需各自处理；叶子节点因此可以凭
+ * mirrorId 判断来源线路，而不必依赖可能改名或翻译的线路显示名。
+ * @param {Array<object>} nodes 统一下载节点数组
+ * @param {number|null} mirrorId data/mirror.json 中的线路 id
+ * @returns {Array<object>} 带 mirrorId 的节点数组（原对象不被修改）
+ */
+function stampMirrorId(nodes, mirrorId) {
+  if (mirrorId == null) return nodes;
+  return nodes.map((node) => {
+    const stamped = { ...node, mirrorId };
+    if (Array.isArray(stamped.children)) stamped.children = stampMirrorId(stamped.children, mirrorId);
+    if (Array.isArray(stamped.items)) stamped.items = stampMirrorId(stamped.items, mirrorId);
+    return stamped;
+  });
+}
+
+/**
  * 路由到指定 apiVer 的 adapter，转换上游响应为统一下载节点。
  * @param {unknown} payload 上游 API 已解析的 JSON
  * @param {string|undefined} apiVersion data/mirror.json 中的 apiVer
- * @param {{source?: string, baseUrl?: string, latestVersion?: string|null}} context adapter 共享上下文
+ * @param {{source?: string, baseUrl?: string, latestVersion?: string|null, mirrorId?: number|null}} context adapter 共享上下文
  * @returns {Array<object>} 统一下载节点数组
  */
 export function adaptDownloadData(payload, apiVersion, context = {}) {
@@ -36,6 +54,8 @@ export function adaptDownloadData(payload, apiVersion, context = {}) {
     source: context.source || apiVersion || t('common.unknownMirror'),
     baseUrl: context.baseUrl || window.location.origin,
     latestVersion: context.latestVersion || payload?.latest || null,
+    mirrorId: context.mirrorId ?? null,
   };
-  return (ADAPTERS.get(apiVersion) || adaptPlain)(payload, normalizedContext);
+  const nodes = (ADAPTERS.get(apiVersion) || adaptPlain)(payload, normalizedContext);
+  return stampMirrorId(nodes, normalizedContext.mirrorId);
 }

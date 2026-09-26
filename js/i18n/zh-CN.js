@@ -64,6 +64,7 @@ const zhCN = {
     announcementLoading: '正在加载公告……',
     announcementEmpty: '公告数据为空',
     sponsorRemindTemplateMissing: '赞助提醒模板缺少必要的元素（#visitCount 或 #sponsorRemindCloseBtn）',
+    sponsorBlockTemplateMissing: '下载后赞助视图模板缺少必要的元素（#sponsorBlockBackBtn 或 #sponsorBlockCloseForeverBtn）',
     dependencyMissing: '依赖加载后未找到 {name}',
     dependencyLoadFailed: '无法加载依赖：{src}',
     osNotSpecified: '未指定有效的软件 ID',
@@ -188,6 +189,7 @@ const zhCN = {
       introPage: '介绍页',
       downloadOptions: '下载选项',
       downloadPageInit: '下载页初始化',
+      sponsorBlock: '下载后赞助视图',
       releaseBodyRender: 'Release 正文渲染',
       readBookmarks: '读取收藏',
       saveBookmarks: '保存收藏',
@@ -632,6 +634,16 @@ const zhCN = {
     optional: '这不是强制要求，您完全可以选择不赞助。显示此提示仅仅是因为您访问下载页的次数达到了5的倍数。如果您不点击“永久关闭”，此提示将会在您访问下载页的次数再次达到5的倍数时显示。',
     sponsorUs: '赞助我们',
     closeForever: '永久关闭',
+  },
+
+  // 下载后赞助视图（data/sponsorBlock.html）
+  sponsorBlock: {
+    title: '感谢下载！',
+    desc: '下载已在新标签页开始。您使用的是由站长提供的线路，本站的服务器与带宽开销都由站长承担。若您觉得此站对您有帮助，欢迎赞助我们继续运营！',
+    optional: '赞助完全自愿，不赞助也能正常下载与使用本站。您可以随时返回，继续选择其它下载线路。',
+    sponsorUs: '赞助我们',
+    backToDownload: '返回下载',
+    closeForever: '不再提示',
   },
 
   // 模板页

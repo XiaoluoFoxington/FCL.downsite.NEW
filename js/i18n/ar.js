@@ -64,6 +64,7 @@ const ar = {
     announcementLoading: 'جارٍ تحميل الإعلان...',
     announcementEmpty: 'بيانات الإعلان فارغة',
     sponsorRemindTemplateMissing: 'قالب تذكير الدعم يفتقد العناصر الضرورية (#visitCount أو #sponsorRemindCloseBtn)',
+    sponsorBlockTemplateMissing: 'قالب عرض الدعم بعد التحميل يفتقد العناصر الضرورية (#sponsorBlockBackBtn أو #sponsorBlockCloseForeverBtn)',
     dependencyMissing: 'لم يتم العثور على {name} بعد تحميل الاعتماديات',
     dependencyLoadFailed: 'تعذر تحميل الاعتمادية: {src}',
     osNotSpecified: 'لم يتم تحديد معرّف برنامج صالح',
@@ -187,6 +188,7 @@ const ar = {
       introPage: 'صفحة التعريف',
       downloadOptions: 'خيارات التحميل',
       downloadPageInit: 'تهيئة صفحة التحميل',
+      sponsorBlock: 'عرض الدعم بعد التحميل',
       releaseBodyRender: 'عرض نص الإصدار',
       readBookmarks: 'قراءة المفضلة',
       saveBookmarks: 'حفظ المفضلة',
@@ -631,6 +633,16 @@ const ar = {
     optional: 'هذا ليس إلزاميًا، يمكنكم ببساطة عدم الدعم. سبب ظهور هذه الرسالة هو أن عدد زياراتكم لصفحة التنزيلات وصل إلى أحد مضاعفات العدد 5. إذا لم تضغطوا على "إغلاق نهائي"، ستظهر هذه الرسالة مرة أخرى عندما يصل عدد زياراتكم لصفحة التنزيلات إلى أحد مضاعفات العدد 5.',
     sponsorUs: 'ادعمنا',
     closeForever: 'إغلاق نهائي',
+  },
+
+  // عرض الدعم بعد التحميل (data/sponsorBlock.html)
+  sponsorBlock: {
+    title: 'شكرًا لك على التحميل!',
+    desc: 'بدأ التحميل في علامة تبويب جديدة. أنت تستخدم المرآة التي يوفرها مدير الموقع، وهو من يتحمّل تكاليف الخادم والنطاق الترددي. إذا كان هذا الموقع مفيدًا لك، نرجو التفكير في دعمنا!',
+    optional: 'الدعم طوعي بالكامل، ويمكنك التحميل واستخدام الموقع بشكل طبيعي دون دعم. يمكنك العودة في أي وقت لاختيار مرآة أخرى.',
+    sponsorUs: 'ادعمنا',
+    backToDownload: 'العودة إلى التحميل',
+    closeForever: 'عدم الإظهار مرة أخرى',
   },
 
   // صفحة القالب

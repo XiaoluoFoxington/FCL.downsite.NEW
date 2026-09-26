@@ -64,6 +64,7 @@ const jaJP = {
     announcementLoading: 'お知らせを読み込み中……',
     announcementEmpty: 'お知らせデータが空です',
     sponsorRemindTemplateMissing: 'スポンサーリマインダーテンプレートに必要な要素（#visitCount または #sponsorRemindCloseBtn）がありません',
+    sponsorBlockTemplateMissing: 'ダウンロード後のスポンサービューのテンプレートに必要な要素（#sponsorBlockBackBtn または #sponsorBlockCloseForeverBtn）がありません',
     dependencyMissing: '依存関係を読み込みましたが {name} が見つかりません',
     dependencyLoadFailed: '依存関係を読み込めません：{src}',
     osNotSpecified: '有効なソフトウェアIDが指定されていません',
@@ -188,6 +189,7 @@ const jaJP = {
       introPage: '紹介ページ',
       downloadOptions: 'ダウンロードオプション',
       downloadPageInit: 'ダウンロードページの初期化',
+      sponsorBlock: 'ダウンロード後のスポンサービュー',
       releaseBodyRender: 'Release本文のレンダリング',
       readBookmarks: 'お気に入りの読み取り',
       saveBookmarks: 'お気に入りの保存',
@@ -632,6 +634,16 @@ const jaJP = {
     optional: 'これは強制ではなく、スポンサーしないという選択も完全に可能です。この通知が表示されるのは、ダウンロードページへのアクセス回数が5の倍数に達しただけです。「永久に閉じる」をクリックしなければ、この通知は次にダウンロードページへのアクセス回数が5の倍数に達した時に再び表示されます。',
     sponsorUs: 'スポンサーをする',
     closeForever: '永久に閉じる',
+  },
+
+  // ダウンロード後のスポンサービュー（data/sponsorBlock.html）
+  sponsorBlock: {
+    title: 'ダウンロードありがとうございます！',
+    desc: 'ダウンロードは新しいタブで開始されました。ご利用中のミラーはサイト管理者が提供しており、サーバーと帯域の費用も管理者が負担しています。このサイトがお役に立てば、ぜひスポンサーをご検討ください！',
+    optional: 'スポンサーはまったくの任意です。スポンサーしなくても通常どおりダウンロード・利用できます。いつでも戻って他のミラーを選択できます。',
+    sponsorUs: 'スポンサーをする',
+    backToDownload: 'ダウンロードに戻る',
+    closeForever: '今後表示しない',
   },
 
   // テンプレートページ

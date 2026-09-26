@@ -267,6 +267,10 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   background: linear-gradient(135deg, #40ff8040 0%, #40ffff40 100%);
 }
 
+.xf-sponsorBlock {
+  background: linear-gradient(135deg, #40ff8040 0%, #40ffff40 100%);
+}
+
 .xf-nowrap {
   white-space: nowrap;
 }

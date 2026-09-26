@@ -64,6 +64,7 @@ const frFR = {
     announcementLoading: 'Chargement des annonces…',
     announcementEmpty: "Les données d'annonces sont vides",
     sponsorRemindTemplateMissing: "Le modèle de rappel de sponsoring manque d'éléments requis (#visitCount ou #sponsorRemindCloseBtn)",
+    sponsorBlockTemplateMissing: "Le modèle de vue de parrainage après téléchargement manque d'éléments requis (#sponsorBlockBackBtn ou #sponsorBlockCloseForeverBtn)",
     dependencyMissing: 'Dépendance chargée mais {name} introuvable',
     dependencyLoadFailed: 'Échec du chargement de la dépendance : {src}',
     osNotSpecified: 'Aucun ID de logiciel valide spécifié',
@@ -188,6 +189,7 @@ const frFR = {
       introPage: 'Page de documentation',
       downloadOptions: 'Options de téléchargement',
       downloadPageInit: 'Initialisation de la page de téléchargement',
+      sponsorBlock: 'Vue de parrainage après téléchargement',
       releaseBodyRender: 'Rendu du corps de la release',
       readBookmarks: 'Lecture des favoris',
       saveBookmarks: 'Sauvegarde des favoris',
@@ -632,6 +634,16 @@ const frFR = {
     optional: "Ce n'est pas obligatoire, vous pouvez tout à fait choisir de ne pas soutenir. Cet avis s'affiche simplement parce que votre nombre de visites de la page de téléchargement a atteint un multiple de 5. Si vous ne cliquez pas sur « Fermer définitivement », cet avis réapparaîtra lorsque votre nombre de visites de la page de téléchargement atteindra le prochain multiple de 5.",
     sponsorUs: 'Nous soutenir',
     closeForever: 'Fermer définitivement',
+  },
+
+  // Vue de parrainage après téléchargement (data/sponsorBlock.html)
+  sponsorBlock: {
+    title: 'Merci pour votre téléchargement !',
+    desc: "Votre téléchargement a démarré dans un nouvel onglet. Vous utilisez le miroir fourni par l'administrateur du site, qui assume les coûts du serveur et de la bande passante. Si ce site vous a été utile, pensez à nous soutenir !",
+    optional: 'Le parrainage est entièrement volontaire : vous pouvez télécharger et utiliser le site normalement sans cela. Vous pouvez revenir à tout moment pour choisir un autre miroir.',
+    sponsorUs: 'Nous soutenir',
+    backToDownload: 'Retour au téléchargement',
+    closeForever: 'Ne plus afficher',
   },
 
   // Page modèle
