@@ -15,7 +15,7 @@ export const ENV = {
   DOWNLOAD_TIMEOUT_MS: Number(process.env.AUTO_SYNC_DOWNLOAD_TIMEOUT_MS || 2 * 60 * 1000),
 };
 
-// 重试策略（用户确认的口径："重试 N 次" = 最多尝试 N 次，与验证码 10 次尝试的实现一致）
+// 重试策略
 export const RETRY = {
   CAPTCHA_ATTEMPTS: 10, // 验证码类失败（登录、取直链）：每次换新验证码，最多 10 次
   DOWNLOAD_ATTEMPTS: 3, // 离线下载失败：整段「提交+轮询」最多 3 次
