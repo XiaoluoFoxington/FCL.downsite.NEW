@@ -3,39 +3,40 @@
 // 输出：若存在待同步版本，向 $GITHUB_OUTPUT 写入 needs_sync=true；否则 needs_sync=false
 // 本脚本不读 H1111_USER / H1111_PASSWORD，不触碰网盘、不写文件、不跑 git
 
+import { appendFileSync } from 'node:fs';
+
 import {
-  ctx, SOFTWARES,
+  SOFTWARES,
   compareVersionsDescending, versionFromTag,
-  entrySortKey, isPinnedEntry, parseDataSourceIndex,
+  parseDataSourceIndex,
   fetchReleases,
 } from './lib.mjs';
+import { log } from './log.mjs';
 
 // GITHUB_STEP_SUMMARY 汇总行（markdown 表格）
 const probeRow = (sw, dsLatest, versions, note = '—') =>
   `| ${sw.softwareId} | ${sw.githubRepo} | ${dsLatest || '（无）'} | ${versions.length} | ${versions.join('<br>') || '—'} | ${note} |`;
 
 async function main() {
-  ctx.log(`==== 线路1 预探测开始（${SOFTWARES.length} 个软件） ====`);
+  log.section(`线路1 预探测（${SOFTWARES.length} 个软件）`);
+  log.summary('## 线路1 预探测');
+  log.summary('');
+  log.summary('| 软件 | 仓库 | 数据源最新 | 待同步数 | 待同步版本 | 备注 |');
+  log.summary('|---|---|---|---|---|---|');
+
   let hasCandidates = false;
   let overallFailed = false;
 
-  // 汇总页表头（行在各软件探测时追加）
-  ctx.sum('## 线路1 预探测汇总');
-  ctx.sum('| 软件 | 仓库 | 数据源最新 | 待同步数 | 待同步版本 | 备注 |');
-  ctx.sum('|---|---|---|---|---|---|');
-
   for (const sw of SOFTWARES) {
-    ctx.group(`探测软件 id=${sw.softwareId}（${sw.githubRepo}）`);
-    ctx.start('probe-' + sw.softwareId);
+    log.group(`id=${sw.softwareId}（${sw.githubRepo}）`);
     try {
-      const { latest: dsLatest, entries: origEntries } = parseDataSourceIndex(sw.softwareId);
-      ctx.log(`数据源最新版本：${dsLatest || '（无）'}`);
-      if (dsLatest) ctx.log(`数据源版本数：${origEntries.filter((e) => !isPinnedEntry(e) && entrySortKey(e) != null).length}`);
-
-      ctx.log(`拉取 GitHub Releases：${sw.githubRepo} …`);
+      const { latest: dsLatest } = parseDataSourceIndex(sw.softwareId);
       const releases = await fetchReleases(sw.githubRepo, !!sw.includePrerelease);
-      ctx.log(`Release 总数（非 draft${sw.includePrerelease ? '' : '、非 prerelease'}）：${releases.length}`);
-      if (!releases.length) { ctx.log('（无 Release，跳过）'); ctx.sum(probeRow(sw, null, [], '无 Release')); continue; }
+      if (!releases.length) {
+        log.info(`数据源最新 ${dsLatest || '（无）'}｜无 Release`);
+        log.summary(probeRow(sw, dsLatest, [], '无 Release'));
+        continue;
+      }
 
       const versioned = releases
         .map((r) => ({ version: versionFromTag(r.tag_name) }))
@@ -45,72 +46,54 @@ async function main() {
       let candidates;
       if (!dsLatest) {
         candidates = versioned.slice(0, 1);
-        ctx.log(`数据源无版本 → 只取最新 Release：${candidates[0]?.version || ''}`);
       } else {
         candidates = versioned.filter((x) => compareVersionsDescending(dsLatest, x.version) > 0);
-        ctx.log(`落后 ${candidates.length} 个版本：${candidates.map((c) => c.version).join(', ') || '（无）'}`);
       }
       candidates.sort((a, b) => compareVersionsDescending(b.version, a.version));
 
-      ctx.sum(probeRow(sw, dsLatest, candidates.map((c) => c.version)));
-      if (!candidates.length) { ctx.log('（已是最新）'); continue; }
-      ctx.log(`→ 需同步 ${candidates.length} 个版本`);
+      if (!candidates.length) {
+        log.info(`数据源最新 ${dsLatest || '（无）'}｜已是最新`);
+        log.summary(probeRow(sw, dsLatest, []));
+        continue;
+      }
       hasCandidates = true;
+      const versions = candidates.map((c) => c.version);
+      log.ok(`需同步 ${candidates.length} 个：${versions.join(', ')}`);
+      log.summary(probeRow(sw, dsLatest, versions));
     } catch (e) {
       overallFailed = true;
-      ctx.error(`软件 ${sw.softwareId} 探测失败：${e.message}`);
-      ctx.sum(probeRow(sw, null, [], '❌ ' + (e.message || '').replace(/\|/g, '\\|')));
+      log.warn(`探测失败：${e.message}`);
+      log.summary(probeRow(sw, null, [], '❌ ' + (e.message || '').replace(/\|/g, '\\|')));
     } finally {
-      ctx.log(`耗时 ${ctx.end('probe-' + sw.softwareId)}ms`);
-      ctx.endGroup();
+      log.end();
     }
   }
 
-  // 汇总页结尾
-  ctx.sum('---');
-  ctx.sum(`- 软件总数：${SOFTWARES.length}｜判定结果：${hasCandidates ? '**有候选 → 调度同步 job**' : '全部最新 → 跳过同步 job'}${overallFailed ? '（存在探测错误 ⚠）' : ''}`);
+  log.summary('---');
+  log.summary(`- 判定：${hasCandidates ? '有候选 → 调度同步 job' : '全部最新 → 跳过同步 job'}${overallFailed ? '（存在探测错误）' : ''}`);
 
   // 写入 GHA job 输出
-  const ghOutput = process.env.GITHUB_OUTPUT;
   const needsSync = hasCandidates ? 'true' : 'false';
+  const ghOutput = process.env.GITHUB_OUTPUT;
   if (ghOutput) {
-    const fs = await import('node:fs');
-    fs.appendFileSync(ghOutput, `needs_sync=${needsSync}\n`);
-    ctx.log(`\n已写入 GITHUB_OUTPUT：needs_sync=${needsSync}`);
+    try { appendFileSync(ghOutput, `needs_sync=${needsSync}\n`); } catch { /* ignore */ }
   }
+  log.info(`判定：needs_sync=${needsSync}${overallFailed ? '（存在探测错误）' : ''}`);
+  log.flush();
 
-  // GHA 告警：有探测错误时在 Actions UI 显示黄色警告，但仍以 exit 0 完成 job，
-  // 确保 sync job 的 if 条件（needs.probe.outputs.needs_sync == 'true'）能正常评估
-  if (overallFailed && process.env.GITHUB_ACTIONS === 'true') {
-    console.log('::warning::预探测存在错误（详见上方日志），但仍将根据 needs_sync 决定是否调度 sync job');
-  }
-  ctx.log(`\n==== 预探测结束：needs_sync=${needsSync}${overallFailed ? '（存在探测错误）' : ''} ====`);
-  await ctx.flushSummary();
-  console.log('\n--- 完整日志 ---');
-  console.log(ctx.runLog.join('\n'));
   // 永远 exit 0：GHA 将 exit ≠ 0 视为 job 失败，失败的 probe 会导致 sync job 被跳过，
-  // 即便 needs_sync=true 也无济于事；因此错误通过 ::warning:: 告警，退出码保持 0
+  // 即便 needs_sync=true 也无济于事
   process.exit(0);
 }
 
-main().catch(async (e) => {
-  console.error('预探测异常：' + (e.stack || e.message));
+main().catch((e) => {
   // 异常时默认有候选（宁可多跑一次同步 job，也不要漏掉）
   const ghOutput = process.env.GITHUB_OUTPUT;
   if (ghOutput) {
-    const fs = await import('node:fs');
-    try { fs.appendFileSync(ghOutput, 'needs_sync=true\n'); } catch { /* ignore */ }
+    try { appendFileSync(ghOutput, 'needs_sync=true\n'); } catch { /* ignore */ }
   }
   // 异常也不 exit 1：避免因 probe 崩溃导致 sync job 被跳过
-  // 通过 ::error:: 在 GHA UI 显示红色错误标记
-  if (process.env.GITHUB_ACTIONS === 'true') {
-    console.log('::error::预探测发生严重异常：' + e.message + '（已默认写入 needs_sync=true）');
-  }
-  ctx.sum('## 线路1 预探测汇总');
-  ctx.sum('> 预探测脚本发生严重异常，无法输出逐软件结果');
-  ctx.sum(`> ❌ ${String(e.message || '').replace(/\n/g, ' ')}`);
-  await ctx.flushSummary();
-  console.log('\n--- 完整日志 ---');
-  console.log(ctx.runLog.join('\n'));
+  log.warn(`预探测异常：${e.message}（已默认写入 needs_sync=true）`);
+  log.flush();
   process.exit(0);
 });

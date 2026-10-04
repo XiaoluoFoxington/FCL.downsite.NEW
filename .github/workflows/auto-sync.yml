@@ -78,7 +78,3 @@ jobs:
           H1111_USER: ${{ secrets.H1111_USER }}
           H1111_PASSWORD: ${{ secrets.H1111_PASSWORD }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: 汇总失败标记
-        if: failure() && steps.sync.conclusion == 'failure'
-        run: echo "::warning::线路1自动同步存在失败项，请查看上方日志"

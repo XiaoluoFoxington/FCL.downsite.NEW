@@ -20,8 +20,9 @@ import { join } from 'node:path';
 import { emitKeypressEvents } from 'node:readline';
 
 import * as h1 from '../scripts/auto-sync/h1api.mjs';
+import { log } from '../scripts/auto-sync/log.mjs';
 import {
-  ctx, ROOT, SOFTWARES,
+  ROOT, SOFTWARES,
   parseDataSourceIndex, versionKnown, versionFromTag, compareVersionsDescending, fetchReleasesPage,
 } from '../scripts/auto-sync/lib.mjs';
 import {
@@ -162,9 +163,6 @@ function fmtDateCST(iso) {
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
 }
 
-// 项目根相对路径（统一正斜杠）
-const rel = (p) => p.slice(ROOT.length).replace(/\\/g, '/').replace(/^\//, '');
-
 // 仓库地址解析：接受 owner/repo、https://github.com/owner/repo(/…)、git@github.com:owner/repo.git
 function parseRepo(text) {
   const s = String(text || '').trim();
@@ -294,72 +292,65 @@ const GIT_MODE_TEXT = {
 };
 
 async function runSync({ sw, entries, todo, gitMode, user, password }) {
-  console.log('\n==== 登录 huang1111 ====');
+  log.section(`同步 ${sw.githubRepo}（资源id-${sw.softwareId}）`);
   try {
-    await h1.login(user, password, (m) => ctx.log(m));
+    await h1.login(user, password);
   } catch (e) {
-    console.log('❌ 登录失败：' + e.message);
+    log.fail(`登录失败：${e.message}`);
     process.exitCode = 1;
     return;
   }
 
-  // 与 GHA 相同：拦截 ctx.log，本软件这段日志作为 commit body
-  const swLog = [];
-  const origLog = ctx.log.bind(ctx);
-  ctx.log = (msg) => { swLog.push(msg); origLog(msg); };
-
   let failed = false;
   const synced = [];
-  try {
-    for (const item of todo) {
-      console.log(`\n══ 版本 ${item.version} ══`);
-      try {
-        const result = await syncVersion(sw, item.version, item.release);
-        if (result) synced.push(result);
-        else ctx.log(`  ⚠ 版本 ${item.version} 无可用资产，跳过`);
-      } catch (e) {
-        failed = true;
-        ctx.log(`  ❌ 版本 ${item.version} 同步失败（按重试策略耗尽仍失败）：${e.message}`);
-      }
-    }
-
-    if (!synced.length) {
-      ctx.log('（本次无成功同步的版本，不更新 index.json）');
-    } else {
-      mkdirSync(join(ROOT, 'data', 'down', String(sw.softwareId)), { recursive: true });
-      const indexPath = updateIndex(sw.softwareId, entries, synced);
-      ctx.log(`    ✅ 已更新 ${rel(indexPath)}（+${synced.length} 个版本）`);
-      verifySyncedData(sw, synced);
-      await pruneSoftware(sw);
-
-      if (gitMode === 'n') {
-        console.log('\nℹ 未提交（按选择 n）。数据文件已写入，可自行 git add / commit。');
-      } else {
-        const versionList = synced.map((s) => s.version).sort(compareVersionsDescending).join('&');
-        ctx.log(`    提交版本列表：${versionList}`);
-        const committed = commitSoftware(sw.softwareId, versionList, swLog);
-        if (committed && gitMode === 'a') {
-          console.log('\n==== 推送远程 ====');
-          push();
-        } else if (committed) {
-          console.log('\nℹ 已本地提交（未推送）。需要时可手动 git push。');
+  let prepared = false; // updateIndex/校验/清理全部成功后才允许提交（与原实现一致：中途失败不提交）
+  // 捕获本次同步详细日志，作为 commit body（与 GHA 的每软件 commit 正文一致）
+  const body = await log.capture(async () => {
+    log.group(`软件 id=${sw.softwareId}（${sw.mode} 模式）`);
+    try {
+      for (const item of todo) {
+        try {
+          const result = await syncVersion(sw, item.version, item.release);
+          if (result) synced.push(result);
+        } catch (e) {
+          failed = true;
+          log.fail(`版本 ${item.version} 同步失败：${e.message}`);
         }
       }
+
+      if (synced.length) {
+        mkdirSync(join(ROOT, 'data', 'down', String(sw.softwareId)), { recursive: true });
+        updateIndex(sw.softwareId, entries, synced);
+        log.detail(`已更新 index.json（+${synced.length} 个版本）`);
+        verifySyncedData(sw, synced);
+        log.detail('提交前校验通过');
+        const pruned = await pruneSoftware(sw);
+        if (pruned.length) log.detail(`[清理] 已移除 ${pruned.length} 个条目`);
+        prepared = true;
+      }
+    } catch (e) {
+      failed = true;
+      log.fail(`同步处理失败：${e.message}`);
+    } finally {
+      log.end();
     }
-  } catch (e) {
-    failed = true;
-    ctx.log(`❌ ${e.message}`);
-  } finally {
-    ctx.log = origLog;
+  });
+
+  if (prepared && gitMode !== 'n') {
+    const versionList = synced.map((s) => s.version).sort(compareVersionsDescending).join('&');
+    try {
+      const committed = commitSoftware(sw.softwareId, versionList, body);
+      if (committed && gitMode === 'a') {
+        push();
+        log.ok('已推送');
+      }
+    } catch (e) {
+      failed = true;
+      log.fail(`git 操作失败：${e.message}`);
+    }
   }
 
-  console.log('\n==== 完成 ====');
-  if (failed) {
-    console.log('⚠ 存在失败项，详见上方日志。');
-    process.exitCode = 1;
-  } else if (synced.length) {
-    console.log(`✅ 成功同步 ${synced.length} 个版本：${synced.map((s) => s.version).join('、')}`);
-  }
+  if (failed) process.exitCode = 1;
 }
 
 // ============================ 主流程 ============================
@@ -547,6 +538,5 @@ main().catch((e) => {
     process.exitCode = 1;
     return;
   }
-  console.error('\n❌ 脚本异常：' + (e.stack || e.message));
   process.exitCode = 1;
 });

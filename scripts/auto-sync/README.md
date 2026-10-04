@@ -11,6 +11,7 @@
 - `probe.mjs`：预探测（只读，无候选时跳过 sync job）
 - `lib.mjs`：纯函数与共享状态
 - `h1api.mjs`：huang1111 API 封装（含新版验证链路与 PoW 求解）
+- `log.mjs`：统一分层日志（唯一日志出口：分级缩进、GHA 折叠/注解、运行概览汇总）
 - `config.mjs`：环境变量与常量（**改配置看这里**）
 - `softwares.json`：软件映射表（**有哪些软件看这里**）
 
@@ -116,6 +117,8 @@ POST /site/captcha/policy { id, pow_payload }   ← 字段名是 pow_payload（�
 ```
 
 - 主题以 `[GHA]` 开头，与 `updata-verInfo.yml` 的防重入判断兼容，不会互相触发
+- 正文（本次该软件的详细日志）由统一日志模块的**作用域捕获**生成（`log.capture`），只含该软件同步期间的分级日志（版本、下载、直链、清理等）
+- 每次运行的**概览**（逐软件结果表 + 总计）写入 `$GITHUB_STEP_SUMMARY`；详细日志只留在运行日志里，不重复进汇总
 
 ## 新增/维护软件
 
@@ -127,14 +130,14 @@ POST /site/captcha/policy { id, pow_payload }   ← 字段名是 pow_payload（�
 
 | 现象 | 原因/处理 |
 |---|---|
-| Actions 运行失败（红色） | 查看该次运行日志：登录失败 / 某版本下载失败 / 直链失败，均会输出中文原因；下次运行自动重试 |
-| 某版本一直失败 | 本地手动跑一次看完整日志；常见：GitHub 资产命名变化（改 `softwares.json`）、PoW 链路重试耗尽（偶发，重跑） |
+| Actions 运行失败（红色） | 查看该次运行的 `::error::` 注解（GHA 会在对应日志行标红）与上方分级日志：登录失败 / 某版本下载失败 / 直链失败，均会输出中文原因；下次运行自动重试 |
+| 某版本一直失败 | 本地手动跑一次看完整过程日志；常见：GitHub 资产命名变化（改 `softwares.json`）、PoW 链路重试耗尽（偶发，重跑） |
 | index.json 顺序乱了 | 置顶条目必须是 `"pinned": true`；手写 `{name, children}` 条目的版本号要能从 `name` 解析（如 `v1.0.2`）。其余版本条目按版本降序自动排列 |
 | 日志报 `41709 请更新页面后使用新版验证` | 请求缺 `X-Cloudreve-Captcha-Protocol: 2` 头，或站点又升了协议版本 —— 查 `h1api.mjs` 的 `CAPTCHA_PROTOCOL` |
 | 日志报 `41701 验证失败，请重试` | 提交 `POST /site/captcha/policy` 时 cookie 不全。必须带 `cloudreve-session` + `cloudreve_observer` + `cloudreve_send` 全部 cookie |
 | 日志报「站点要求交互式验证」 | 站点给该 purpose 开了滑块/点选（`required.interactive > 0`），脚本无法自动完成，需人工处理 |
 | 日志报 `41702` 限流 | 已按 `retry_after` 自动退避；若频繁出现说明触发频率限制，需拉长定时任务间隔 |
-| 日志出现「[PoW] 求解中…」 | 正常。求解为单线程逐 counter 试算，耗时数十秒，进度日志每 5s 一条，不是卡死 |
+| 日志出现 `[PoW] 求解中… N/5000（Ns）` | 正常。求解为单线程逐 counter 试算，耗时数十秒，进度日志每 5s 一条（仅在间隔到达时输出），不是卡死 |
 
 > 怀疑站点又改了验证机制时，先跑项目外测试目录的 `_probe-v2-protocol.mjs` 确认（路径与用法见 [`docs/auto-sync-design.md`](../../docs/auto-sync-design.md) 开头）。
 
