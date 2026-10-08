@@ -251,7 +251,7 @@ const esES = {
     7: 'Línea 8',
     8: 'Línea 9',
     9: 'Sitio de recursos Ningze',
-    10: 'Línea 11',
+    10: 'Espejo Chuangxiang',
     11: 'Línea 12',
   },
 

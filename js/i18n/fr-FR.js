@@ -250,7 +250,7 @@ const frFR = {
     7: 'Miroir 8',
     8: 'Miroir 9',
     9: 'Site de ressources Ningze',
-    10: 'Miroir 11',
+    10: 'Miroir Chuangxiang',
     11: 'Miroir 12',
   },
 

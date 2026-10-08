@@ -250,7 +250,7 @@ const enUS = {
     7: 'Mirror 8',
     8: 'Mirror 9',
     9: 'Lemwoo Mirror',
-    10: 'Mirror 11',
+    10: 'Chuangxiang Mirror',
     11: 'Mirror 12',
   },
 

@@ -86,7 +86,19 @@
   },
   {
     "id": 4,
-    "accentName": "LANt"
+    "accentName": "239LAN_",
+    "name": "",
+    "avatar": "https://s41.ax1x.com/2026/10/07/pntr9mj.jpg",
+    "link": [
+      {
+        "name": "Github",
+        "href": "https://github.com/239LAN"
+      },
+      {
+        "name": "Bilibili",
+        "href": "https://space.bilibili.com/3493282111818118"
+      }
+    ]
   },
   {
     "id": 5,
