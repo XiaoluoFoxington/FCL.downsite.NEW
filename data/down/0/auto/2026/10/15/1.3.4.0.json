@@ -1,0 +1,27 @@
+[
+  {
+    "arch": "all",
+    "url": "https://pan.huang1111.cn/f/1ZzqI4/FCL-release-1.3.4.0-all.apk",
+    "size": 330320216
+  },
+  {
+    "arch": "arm64-v8a",
+    "url": "https://pan.huang1111.cn/f/yKVBCV/FCL-release-1.3.4.0-arm64-v8a.apk",
+    "size": 172645769
+  },
+  {
+    "arch": "armeabi-v7a",
+    "url": "https://pan.huang1111.cn/f/xLaZHl/FCL-release-1.3.4.0-armeabi-v7a.apk",
+    "size": 165394494
+  },
+  {
+    "arch": "x86",
+    "url": "https://pan.huang1111.cn/f/Reg3Sl/FCL-release-1.3.4.0-x86.apk",
+    "size": 158987394
+  },
+  {
+    "arch": "x86_64",
+    "url": "https://pan.huang1111.cn/f/gZbKCP/FCL-release-1.3.4.0-x86_64.apk",
+    "size": 178325361
+  }
+]
