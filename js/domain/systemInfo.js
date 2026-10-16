@@ -190,6 +190,7 @@ const SYSTEM_PATTERNS = {
   'mac os': ['\\.(?:dmg|pkg)$', '(^|[-_.])(?:mac|macos|osx|darwin)(?![a-z])'],
   linux: ['\\.(?:appimage|deb|rpm|flatpak|snap)$', '(^|[-_.])linux(?![a-z])'],
   harmonyos: ['\\.(?:hap|app)$', '(^|[-_.])(?:harmonyos|openharmony)(?![a-z])'],
+  openharmony: ['\\.(?:hap|app)$', '(^|[-_.])(?:harmonyos|openharmony)(?![a-z])'],
 };
 
 /**
