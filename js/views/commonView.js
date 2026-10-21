@@ -4,6 +4,7 @@ import { getFeedbackChannels } from '../repositories/siteRepository.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { createPanel, createPanelItem, createMaterialIcon } from './uiComponents.js';
 import { t, tOr, escapeKeySegment } from '../common/i18n.js';
+import { withShowHidden } from '../domain/visibility.js';
 
 /** 防抖：延迟执行 fn，期间再次调用则重新计时。 */
 export function debounce(fn, delay = 500) {
@@ -195,7 +196,8 @@ export function setSoftwareHeader(basic, { titlePrefix = '', detailButton } = {}
   }
   if (title) title.textContent = pageTitle;
   document.title = pageTitle + ' - ' + t('common.siteName');
-  if (detailButton) detailButton.href = `/html/detail.html?id=${basic.id}`;
+  // 当前页可能正通过 showHidden=1 访问隐藏条目，返回详情页时要保留该参数。
+  if (detailButton) detailButton.href = withShowHidden(`/html/detail.html?id=${basic.id}`);
 }
 
 /** 将浏览器标题与工具栏标题切换为错误状态。 */

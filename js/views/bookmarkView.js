@@ -7,6 +7,7 @@
 import { getBookmarks, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
 import { readPreference } from '../domain/preferences.js';
 import { createIconElement } from './iconView.js';
+import { withShowHidden } from '../domain/visibility.js';
 
 /** 书签默认打开方式偏好键。 */
 const BOOKMARK_OPEN_METHOD_KEY = 'fdn-bookmark-open-method';
@@ -29,7 +30,8 @@ export function createBookmarkButton(item) {
   btn.className = 'mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple';
   const openMethod = readPreference(BOOKMARK_OPEN_METHOD_KEY, 'download');
   const pagePath = OPEN_METHOD_PAGE_MAP[openMethod] || OPEN_METHOD_PAGE_MAP.download;
-  btn.href = `${pagePath}?id=${item.id}`;
+  // 收藏项可能是隐藏条目，当前页开启 showHidden=1 时跳转链接也要保留该参数。
+  btn.href = withShowHidden(`${pagePath}?id=${item.id}`);
 
   const img = createIconElement({
     icon: item.icon,

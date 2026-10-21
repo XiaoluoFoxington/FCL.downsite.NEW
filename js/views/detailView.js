@@ -6,6 +6,7 @@ import { createIconElement } from './iconView.js';
 import { isBookmarked, toggleBookmark, onBookmarkChange, offBookmarkChange } from '../domain/bookmarks.js';
 import { readPreference } from '../domain/preferences.js';
 import { t, tOr, translateTag } from '../common/i18n.js';
+import { withShowHidden } from '../domain/visibility.js';
 
 // 反馈渠道异步请求的取消控制器：renderDetail 成功或再次进入 renderDetailError 时 abort 旧的，
 // 既保护 DOM 不被旧响应写入，也取消进行中的网络请求避免无谓流量。
@@ -154,9 +155,10 @@ export function renderDetail(elements, id, basic, detail, tags, mirrors) {
   renderMessages(elements.messageWrapper, elements.messageContainer, messages);
   renderMirrorInfo(elements.mirrorInfoBody, detail.download, mirrors);
 
-  elements.download.href = `/html/down.html?id=${id}`;
-  elements.intro.href = `/html/intro.html?id=${id}`;
-  elements.history.href = `/html/rh.html?id=${id}`;
+  // 隐藏条目进入详情页时必带 showHidden=1，跳转子页面要一并保留，否则子页面会判定为找不到软件。
+  elements.download.href = withShowHidden(`/html/down.html?id=${id}`);
+  elements.intro.href = withShowHidden(`/html/intro.html?id=${id}`);
+  elements.history.href = withShowHidden(`/html/rh.html?id=${id}`);
   // MDUI阴差阳错处理了<a>的禁用。
   elements.download.removeAttribute('disabled');
   elements.intro.removeAttribute('disabled');

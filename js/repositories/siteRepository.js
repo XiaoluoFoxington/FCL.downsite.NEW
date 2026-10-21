@@ -1,6 +1,7 @@
 import { getJSON } from '../http/client.js';
 import { t } from '../common/i18n.js';
 import { logWarn } from '../common/logger.js';
+import { filterHiddenItems, isHiddenItem, isShowHiddenEnabled } from '../domain/visibility.js';
 
 /**
  * 本站静态数据仓库。
@@ -39,10 +40,12 @@ function assertUniqueIds(items, label) {
 
 /**
  * 获取软件目录；列表页只调用此函数，不再按条目请求 basic.json。
+ * 默认剔除数据源中标记 `hidden: true` 的条目；页面携带 `showHidden=1` 时一并返回。
  * @param {object} [options] HTTP 请求选项
+ * @param {{showHidden?: boolean}} [visibility] 可见性覆盖项，缺省按当前 URL 判断
  * @returns {Promise<Array<object>>} 软件目录数组
  */
-export async function getSoftwareCatalog(options = {}) {
+export async function getSoftwareCatalog(options = {}, visibility = {}) {
   // 软件目录是列表页的唯一基础数据源，避免旧实现按软件逐一请求 basic.json。
   const items = assertUniqueIds(
     assertArray(await getJSON('/data/software.json', { ...options, cache: true }), t('common.repository.software')),
@@ -53,7 +56,8 @@ export async function getSoftwareCatalog(options = {}) {
       throw new Error(t('common.repository.softwareIncomplete', { id: item.id }));
     }
   });
-  return items;
+  const showHidden = visibility.showHidden ?? isShowHiddenEnabled();
+  return filterHiddenItems(items, showHidden);
 }
 
 /**
@@ -128,9 +132,15 @@ export async function getSettings(options = {}) {
  */
 export async function getSoftware(id, options = {}) {
   // 先从目录定位详情路径，而不是将路径规则硬编码到各个页面入口中。
-  const catalog = await getSoftwareCatalog(options);
+  // 这里必须拿到含隐藏条目的完整目录，再由下方统一判定是否允许访问，
+  // 否则「隐藏但带 showHidden=1」的条目会被提前过滤掉而误报找不到。
+  const catalog = await getSoftwareCatalog(options, { showHidden: true });
   const basic = catalog.find((item) => item.id === id);
   if (!basic) throw new Error(t('common.repository.softwareNotFound', { id }));
+  // 隐藏条目必须显式携带 showHidden=1 才能进入详情/下载/介绍/版本历史等页面。
+  if (isHiddenItem(basic) && !isShowHiddenEnabled()) {
+    throw new Error(t('common.repository.softwareNotFound', { id }));
+  }
   const detail = await getJSON(basic.detailUrl, { ...options, cache: true });
   if (!detail || typeof detail !== 'object' || Array.isArray(detail)) {
     throw new Error(t('common.repository.detailInvalid', { id }));

@@ -86,6 +86,13 @@ docs/                   开发文档
 
 此站收录的软件与标签体系分别见 [`data/software.json`](data/software.json) 与 [`data/tag.json`](data/tag.json)，涵盖启动器、渲染器、驱动器、插件、JRE、工具等类型与 Android、Windows、Linux、HarmonyOS、macOS 等平台。
 
+条目支持 `"hidden": true` 字段（见 `js/domain/visibility.js`）：
+
+- 为 `true` 时默认从资源列表隐藏，且不参与首屏统计；
+- 详情 / 下载 / 介绍 / 版本历史页需在 URL 显式携带 `?showHidden=1`（也接受 `true`）才允许访问，否则按"找不到该软件"处理；
+- 页面内由详情页跳往子页面、列表行跳转、收藏跳转的链接会自动继承 `showHidden=1`，无需手动拼接；
+- 未写该字段或写 `false` 时行为与原先完全一致。
+
 ## 自动更新（线路1）
 
 线路1（站长提供的 huang1111 网盘）由 GitHub Actions 全自动维护：

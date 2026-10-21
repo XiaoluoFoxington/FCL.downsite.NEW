@@ -3,6 +3,7 @@ import { createIconElement } from './iconView.js';
 import { readPreference } from '../domain/preferences.js';
 import { isBookmarked, toggleBookmark } from '../domain/bookmarks.js';
 import { t, translateTag } from '../common/i18n.js';
+import { withShowHidden } from '../domain/visibility.js';
 
 /** 显示目录加载状态。 */
 export function renderListLoading(elements) {
@@ -168,7 +169,8 @@ function renderTableBody(tbody, iconSize) {
   sorted.forEach((item) => {
     const row = document.createElement('tr');
     row.className = 'xf-list-table-row';
-    row.dataset.href = `${_pagePath}?id=${item.id}`;
+    // 列表页在 showHidden=1 时会显示隐藏条目，行链接必须带上该参数，否则点进去会报找不到软件。
+    row.dataset.href = withShowHidden(`${_pagePath}?id=${item.id}`);
     row.tabIndex = 0;
     row.setAttribute('role', 'link');
 
