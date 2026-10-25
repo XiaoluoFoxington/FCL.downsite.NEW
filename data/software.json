@@ -4,8 +4,7 @@
     "name": "Fold Craft Launcher",
     "icon": "/data/software/0/icon.avif",
     "tagIds": [7, 0, 1, 11],
-    "detailUrl": "/data/software/0/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/0/detail.json"
   },
   {
     "id": 1,
@@ -19,24 +18,21 @@
     "name": "Zalith Launcher",
     "icon": "/data/software/2/icon.avif",
     "tagIds": [7, 0, 1, 11],
-    "detailUrl": "/data/software/2/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/2/detail.json"
   },
   {
     "id": 3,
     "name": "Zalith Launcher 2",
     "icon": "/data/software/3/icon.avif",
     "tagIds": [7, 0, 1, 11],
-    "detailUrl": "/data/software/3/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/3/detail.json"
   },
   {
     "id": 4,
     "name": "Amethyst-Android",
     "icon": "/data/software/4/icon.avif",
     "tagIds": [7, 0, 1, 11],
-    "detailUrl": "/data/software/4/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/4/detail.json"
   },
   {
     "id": 5,
@@ -55,8 +51,7 @@
     "name": "Pojav Launcher",
     "icon": "/data/software/7/icon.avif",
     "tagIds": [7, 0, 1, 11],
-    "detailUrl": "/data/software/7/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/7/detail.json"
   },
   {
     "id": 8,
@@ -76,8 +71,7 @@
     "name": "HMCL-PE",
     "icon": "/data/software/10/icon.avif",
     "tagIds": [7, 0, 1, 11],
-    "detailUrl": "/data/software/10/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/10/detail.json"
   },
   {
     "id": 11,
@@ -91,16 +85,14 @@
     "name": "Axe Minecraft Launcher",
     "icon": "/data/software/12/icon.avif",
     "tagIds": [10, 0, 1, 11],
-    "detailUrl": "/data/software/12/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/12/detail.json"
   },
   {
     "id": 13,
     "name": "HMCL",
     "icon": "/data/software/13/icon.avif",
     "tagIds": [8, 9, 0, 1, 11],
-    "detailUrl": "/data/software/13/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/13/detail.json"
   },
   {
     "id": 14,
@@ -114,8 +106,7 @@
     "name": "Axolotl Launcher",
     "icon": "/data/software/15/icon.avif",
     "tagIds": [8, 9, 12, 0, 1, 11],
-    "detailUrl": "/data/software/15/detail.json",
-    "hidden": true
+    "detailUrl": "/data/software/15/detail.json"
   },
   {
     "id": 16,
