@@ -1,18 +1,18 @@
 [
   {
+    "name": "Axolotl Launcher v1.10.2",
+    "nextUrl": "/data/down/15/auto/2026/10/27/v1.10.2.json",
+    "tag": "v1.10.2",
+    "default": true
+  },
+  {
     "name": "Axolotl Launcher v1.10.1",
     "nextUrl": "/data/down/15/auto/2026/10/25/v1.10.1.json",
-    "tag": "v1.10.1",
-    "default": true
+    "tag": "v1.10.1"
   },
   {
     "name": "Axolotl Launcher v1.10.0",
     "nextUrl": "/data/down/15/auto/2026/10/23/v1.10.0.json",
     "tag": "v1.10.0"
-  },
-  {
-    "name": "Axolotl Launcher v1.9.9",
-    "nextUrl": "/data/down/15/auto/2026/10/20/v1.9.9.json",
-    "tag": "v1.9.9"
   }
 ]
