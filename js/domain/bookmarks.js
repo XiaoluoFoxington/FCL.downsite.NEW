@@ -113,6 +113,23 @@ export function toggleBookmark(item) {
 }
 
 /**
+ * 清空收藏。
+ * 写入空数组而不是删除存储键，避免 ensureDefaultBookmarks 在下次访问时再次补回默认收藏。
+ */
+export function clearBookmarks() {
+  saveBookmarks([]);
+  notifyChange();
+}
+
+/**
+ * 还原默认收藏（覆盖当前收藏）。
+ */
+export function restoreDefaultBookmarks() {
+  saveBookmarks(DEFAULT_BOOKMARKS.map((item) => ({ ...item })));
+  notifyChange();
+}
+
+/**
  * 触发收藏变更事件。
  */
 function notifyChange() {

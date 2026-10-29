@@ -218,6 +218,19 @@ function renderTableBody(tbody, iconSize) {
   tbody.replaceChildren(fragment);
 }
 
+/**
+ * 按最新收藏状态刷新收藏列文本。
+ * 收藏在表格外被变更（清空/还原默认收藏）时调用，避免整表重建导致焦点丢失。
+ */
+export function refreshBookmarkColumn(container) {
+  if (!container) return;
+  container.querySelectorAll('[data-bookmark-id]').forEach((cell) => {
+    const link = cell.querySelector('.xf-bookmark-link');
+    if (!link) return;
+    link.textContent = isBookmarked(Number(cell.dataset.bookmarkId)) ? t('common.yes') : t('common.no');
+  });
+}
+
 /** 表格点击事件委托：排序（表头）/ 导航（数据行）/ 收藏（切换）。 */
 function handleTableClick(event) {
   const bookmarkLink = event.target.closest('.xf-bookmark-link');

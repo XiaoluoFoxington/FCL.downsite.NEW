@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     filterRemoveOne: document.getElementById('filter-remove-one-btn'),
     filterIndicatorOn: document.getElementById('filter-active-indicator-on'),
     filterIndicatorOff: document.getElementById('filter-active-indicator-off'),
+    refreshButton: document.getElementById('list-action-refresh'),
+    clearBookmarksButton: document.getElementById('list-action-clear-bookmarks'),
+    restoreBookmarksButton: document.getElementById('list-action-restore-bookmarks'),
   });
   controller.load();
 });

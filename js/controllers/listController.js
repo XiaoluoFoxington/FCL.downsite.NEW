@@ -1,7 +1,10 @@
 import { readPreference } from '../domain/preferences.js';
+import { clearBookmarks, onBookmarkChange, restoreDefaultBookmarks } from '../domain/bookmarks.js';
 import { completeOrphanTags, getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
 import { debounce, setFilterIndicator } from '../views/commonView.js';
-import { enableFilterHelpInserts, renderFilterHelpTags, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
+import { enableFilterHelpInserts, refreshBookmarkColumn, renderFilterHelpTags, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
+import { showSnackbar } from '../views/uiComponents.js';
+import { clearResponseCache } from '../http/client.js';
 import { logError } from '../common/logger.js';
 import { t } from '../common/i18n.js';
 
@@ -94,7 +97,8 @@ export function removeLastCondition(input) {
 /**
  * 资源列表 controller。
  * elements.search：筛选表达式输入框；elements.filterField：输入框外层（用于错误态）；
- * elements.filterHelp：筛选帮助面板（可点击文本插入输入框）；elements.list：软件卡片挂载点。
+ * elements.filterHelp：筛选帮助面板（可点击文本插入输入框）；elements.list：软件卡片挂载点；
+ * elements.refreshButton / clearBookmarksButton / restoreBookmarksButton：操作面板按钮。
  * 它们均来自 list.html 的固定 ID/类名。
  */
 export function createListController(elements) {
@@ -140,6 +144,7 @@ export function createListController(elements) {
     elements.filterField?.classList.toggle('mdui-textfield-invalid', invalid);
   }
 
+  /** 加载目录与标签；成功返回 true，失败返回 false（错误界面由 renderListError 呈现）。 */
   async function load() {
     renderListLoading(elements);
     try {
@@ -153,10 +158,32 @@ export function createListController(elements) {
       // 把全部可用标签列进筛选帮助面板，点击即可插入 tag: <标签名>。
       renderFilterHelpTags(elements.filterHelpTags, allTags);
       applyFilters();
+      return true;
     } catch (error) {
       logError(error, t('logger.context.resourceList'));
       renderListError(elements, error, load);
+      return false;
     }
+  }
+
+  /** 刷新：先失效本页的请求缓存，再重新拉取目录与标签。 */
+  async function refreshCatalog() {
+    clearResponseCache();
+    if (await load()) showSnackbar(t('list.actionRefreshDone'));
+  }
+
+  /** 清空收藏；确认后由 onBookmarkChange 统一刷新表格收藏列。 */
+  function handleClearBookmarks() {
+    if (!window.confirm(t('list.actionClearBookmarksConfirm'))) return;
+    clearBookmarks();
+    showSnackbar(t('list.actionClearBookmarksDone'));
+  }
+
+  /** 还原默认收藏；确认后由 onBookmarkChange 统一刷新表格收藏列。 */
+  function handleRestoreDefaultBookmarks() {
+    if (!window.confirm(t('list.actionRestoreDefaultBookmarksConfirm'))) return;
+    restoreDefaultBookmarks();
+    showSnackbar(t('list.actionRestoreDefaultBookmarksDone'));
   }
 
   // 筛选表达式输入使用防抖，边输入边解析，非法时不应用筛选并提示。
@@ -194,6 +221,12 @@ export function createListController(elements) {
   elements.filterRemoveOne?.addEventListener('click', removeLastConditionFromInput);
   // 帮助面板中的可点击文本（示例/关系/键/转义）点击后插入到筛选输入框。
   enableFilterHelpInserts(elements.filterHelp, elements.search);
+  // 操作面板按钮：刷新目录、清空收藏、还原默认收藏。
+  elements.refreshButton?.addEventListener('click', refreshCatalog);
+  elements.clearBookmarksButton?.addEventListener('click', handleClearBookmarks);
+  elements.restoreBookmarksButton?.addEventListener('click', handleRestoreDefaultBookmarks);
+  // 收藏在表格外被变更时，同步表格收藏列，避免显示与实际状态不一致。
+  onBookmarkChange(() => refreshBookmarkColumn(elements.list));
   // 初始输入为空，两个按钮应处于禁用态。
   syncActionButtons();
   return { load };
