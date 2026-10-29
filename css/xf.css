@@ -291,7 +291,7 @@ body {
   padding-bottom: var(--xf-fox-corner-height);
 }
 
-/* 桌面端常驻抽屉占据右侧 240px，吉祥物同步避开抽屉区域，否则会被抽屉整个盖住。 */
+/* 桌面端常驻抽屉占据右侧 320px，吉祥物同步避开抽屉区域，否则会被抽屉整个盖住。 */
 @media (min-width: 1024px) {
   body.mdui-drawer-body-right #xf-foxCorner {
     right: 320px;
