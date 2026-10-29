@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', async function () {
  * 获取当前版本号
  * @returns {Promise<string>} 当前版本号字符串
  */
-async function getCurrentVersion() {
+export async function getCurrentVersion() {
   const response = await getJSON('/data/verInfo.json');
   return response.gitHash;
 }

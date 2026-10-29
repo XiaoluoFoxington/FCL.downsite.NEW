@@ -5,6 +5,8 @@ import { isSafeNavigationUrl } from '../security/content.js';
 import { createPanel, createPanelItem, createMaterialIcon } from './uiComponents.js';
 import { t, tOr, escapeKeySegment } from '../common/i18n.js';
 import { withShowHidden } from '../domain/visibility.js';
+import { getCurrentVersion } from '../common/verWatermark.js';
+import { createParagraph, createTypoContainer } from './uiComponents.js';
 
 /** 防抖：延迟执行 fn，期间再次调用则重新计时。 */
 export function debounce(fn, delay = 500) {
@@ -225,6 +227,15 @@ export function getSoftwareId() {
 export async function loadFeedback(container) {
   renderStatus(container, 'loading', { message: t('common.feedbackLoading') });
   try {
+    const gitHash = await getCurrentVersion();
+    // const typoContainer = createTypoContainer();
+    // const p = createParagraph(`${t('common.commitHash')}: `);
+    // const code = document.createElement('code');
+    // code.textContent = gitHash;
+    // p.appendChild(code);
+    // typoContainer.appendChild(p);
+    const drawerCommitHash = document.getElementById('drawerCommitHash');
+    drawerCommitHash.textContent = gitHash;
     const feedbacks = await getFeedbackChannels();
     const links = feedbacks
       .filter((feedback) => isSafeNavigationUrl(feedback.href, { allowRelative: false }))
@@ -241,6 +252,7 @@ export async function loadFeedback(container) {
         return link;
       });
     if (links.length) {
+      // container.replaceChildren(typoContainer, ...links);
       container.replaceChildren(...links);
     } else {
       renderStatus(container, 'empty', { message: t('common.noFeedbackChannels') });

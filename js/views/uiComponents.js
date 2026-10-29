@@ -104,6 +104,21 @@ export function createTypoContainer() {
   div.className = 'mdui-typo';
   return div;
 }
+
+/**
+ * 创建段落元素。
+ * @param {string} text 段落文本
+ * @param {object} [options]
+ * @param {string} [options.className] 额外类名
+ * @returns {HTMLParagraphElement}
+ */
+export function createParagraph(text, { className } = {}) {
+  const p = document.createElement('p');
+  p.textContent = text;
+  if (className) p.className = className;
+  return p;
+}
+
 /**
  * 创建 MDUI 流体表格（含 thead 与 tbody）。
  * @returns {{ wrapper: HTMLDivElement, table: HTMLTableElement, thead: HTMLTableSectionElement, tbody: HTMLTableSectionElement }}
