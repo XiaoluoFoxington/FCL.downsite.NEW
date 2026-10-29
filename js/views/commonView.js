@@ -235,7 +235,7 @@ export async function loadFeedback(container) {
     // p.appendChild(code);
     // typoContainer.appendChild(p);
     const drawerCommitHash = document.getElementById('drawerCommitHash');
-    drawerCommitHash.textContent = gitHash;
+    if (drawerCommitHash) drawerCommitHash.textContent = gitHash;
     const feedbacks = await getFeedbackChannels();
     const links = feedbacks
       .filter((feedback) => isSafeNavigationUrl(feedback.href, { allowRelative: false }))
