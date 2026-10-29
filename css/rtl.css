@@ -165,11 +165,18 @@ html[dir="rtl"][data-xf-theme="dark"] .mdui-table td {
   text-align: left;
 }
 
-/* 页尾吉祥物插画：靠左对齐，并水平翻转让狐狸朝向内容一侧 */
+/* 吉祥物插画：固定在左下角，并水平翻转让狐狸朝向内容一侧 */
 [dir="rtl"] #xf-foxCorner {
-  margin-left: 0;
-  margin-right: auto;
+  right: auto;
+  left: 0;
   transform: scaleX(-1);
+}
+
+/* 桌面端常驻抽屉在左侧时，吉祥物同步避开抽屉区域 */
+@media (min-width: 1024px) {
+  [dir="rtl"] body.mdui-drawer-body-left #xf-foxCorner {
+    left: 320px;
+  }
 }
 
 /* 筛选激活指示器：右边距镜像为左边距 */

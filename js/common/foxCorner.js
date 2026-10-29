@@ -1,29 +1,31 @@
 /**
- * 页尾吉祥物插画
- * 用于在每个页面的正文最底部追加一张"趴在墙上"的狐狸插画（靠右对齐）。
- * 纯装饰元素：不参与交互、不进入无障碍树，也不脱离文档流、不遮挡任何内容。
+ * 页面吉祥物插画
+ * 在每个页面右下角固定悬浮一张"趴在墙上"的狐狸插画（RTL 语言下镜像到左下角）。
+ * 纯装饰元素：不参与交互、不进入无障碍树，也不遮挡点击（pointer-events 由 CSS 关闭）。
+ * 滚动位置不在页面底部时不显示，滚到最底部时才显示；
  * 图片为带透明通道的 AVIF，因此白天/夜间主题与 RTL 方向下都无需换图。
  */
 
-/** 图片路径。宽度由 css/xf.css 中的 --xf-fox-corner-width 决定。 */
+/** 图片路径。尺寸由 css/xf.css 中的 --xf-fox-corner-width 决定。 */
 const IMAGE_SRC = '/media/img/fox-corner.avif';
 
 /** 元素 id。同时被 css/xf.css 与 css/rtl.css 选择，改名需同步。 */
 const CONTAINER_ID = 'xf-foxCorner';
 
+/** 到底部时切换的类名，控制 opacity: 0（样式见 css/xf.css）。 */
+const AT_BOTTOM_CLASS = 'xf-foxCorner-atBottom';
+
+/** 判定"已到底部"的容差（像素），吸收不同浏览器的取整差异。 */
+const BOTTOM_TOLERANCE = 1;
+
 /**
- * 查找正文容器：body 下除顶栏、抽屉与 Toast 容器外的最后一个 div。
- * 本站各页正文都包在一层无 class 的匿名 div 里，插画追加到它末尾即为正文最底部。
- * @returns {HTMLElement} 正文容器；找不到时退化为 body
+ * 当前滚动位置是否已在页面底部。
+ * 页面不足一屏时视为一直在底部。
+ * @returns {boolean}
  */
-function findContentContainer() {
-  const candidates = Array.from(document.body.children).filter((el) =>
-    el.tagName === 'DIV'
-    && !el.classList.contains('mdui-appbar')
-    && !el.classList.contains('mdui-drawer')
-    && !el.classList.contains('toast-container')
-  );
-  return candidates.length > 0 ? candidates[candidates.length - 1] : document.body;
+function isAtBottom() {
+  const scrollTop = window.scrollY || document.documentElement.scrollTop;
+  return window.innerHeight + scrollTop >= document.documentElement.scrollHeight - BOTTOM_TOLERANCE;
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -41,5 +43,18 @@ document.addEventListener('DOMContentLoaded', function () {
     img.remove();
   });
 
-  findContentContainer().appendChild(img);
+  // 固定定位元素直接挂在 body 下，避免祖先元素形成包含块导致定位偏移。
+  document.body.appendChild(img);
+
+  // 滚动/窗口尺寸变化时同步透明度。
+  // 不用 rAF 节流：后台标签页或窗口不可见时 rAF 可能暂停，会让状态停留在旧值。
+  const syncBottomState = () => {
+    img.classList.toggle(AT_BOTTOM_CLASS, isAtBottom());
+  };
+
+  window.addEventListener('scroll', syncBottomState, { passive: true });
+  window.addEventListener('resize', syncBottomState);
+  // 图片/字体等资源加载完成后页面高度可能变化，补算一次避免初始状态过期。
+  window.addEventListener('load', syncBottomState, { once: true });
+  syncBottomState();
 });

@@ -15,6 +15,10 @@
     "Roboto Mono", "Ubuntu Mono", "DejaVu Sans Mono", "Liberation Mono",
     /* 5. 终极兜底（浏览器强制调用系统默认等宽字体） */
     monospace;
+
+  /* 吉祥物插画尺寸：原图 960×540，宽度固定后高度按比例换算为 152px。 */
+  --xf-fox-corner-width: 270px;
+  --xf-fox-corner-height: 152px;
 }
 
 * {
@@ -251,18 +255,40 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   outline-offset: -2px;
 }
 
-/* 页尾吉祥物插画（趴在墙上的狐狸）。带透明通道，白/夜间主题通用。
-   不固定定位：作为正文容器的最后一个子元素参与文档流，靠右对齐，因而不遮挡任何内容，
-   也不会与常驻抽屉（z-index 5000）或版本水印打架。元素由 js/common/foxCorner.js 创建。 */
+/* 吉祥物插画（趴在墙上的狐狸）。带透明通道，白/夜间主题通用。
+   固定在右下角，由 JS 控制显示与隐藏。
+   层级低于常驻抽屉（z-index 5000）与版本水印，不遮挡任何交互。元素与状态类由 js/common/foxCorner.js 管理。 */
 #xf-foxCorner {
+  position: fixed;
+  right: 0;
+  bottom: calc(var(--xf-fox-corner-height) * -1);
+  z-index: 4000;
   display: block;
-  margin-left: auto;
-  margin-right: 0;
-  width: 270px;
+  width: var(--xf-fox-corner-width);
   height: auto;
+  opacity: 0.1;
+  transition: all 0.25s ease-in-out;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+/* 滚动到页面底部、吉祥物已无被遮挡时完全显示。 */
+#xf-foxCorner.xf-foxCorner-atBottom {
+  opacity: 1;
+  bottom: 0;
+}
+
+/* 吉祥物固定后不再占据文档流，为页面底部预留等于插画高度的边距，避免正文末尾被悬浮插画压住。 */
+body {
+  padding-bottom: var(--xf-fox-corner-height);
+}
+
+/* 桌面端常驻抽屉占据右侧 240px，吉祥物同步避开抽屉区域，否则会被抽屉整个盖住。 */
+@media (min-width: 1024px) {
+  body.mdui-drawer-body-right #xf-foxCorner {
+    right: 320px;
+  }
 }
 
 #xf-verWatermarkContainer {
