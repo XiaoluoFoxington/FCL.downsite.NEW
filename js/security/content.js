@@ -11,13 +11,16 @@ import { t } from '../common/i18n.js';
 
 // 这两个依赖只在介绍正文或明确声明为 HTML 的远程描述首次展示时加载，
 // 完整性哈希防止 CDN 内容被替换后仍在本站上下文执行。
+// localSrc 为仓库内固定版本副本（与远程文件字节一致），CDN 加载失败时回退使用。
 const MARKED = {
   src: 'https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.umd.min.js',
+  localSrc: '/vendor/marked/15.0.12/marked.umd.min.js',
   integrity: 'sha384-zCewoQXXb5Xf+2nvCjab0EbMl7FWVpJMsKyrc8M8DqxjFra4DY4XHwheVdHXa34k',
   globalName: 'marked',
 };
 const DOM_PURIFY = {
   src: 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js',
+  localSrc: '/vendor/dompurify/3.2.6/purify.min.js',
   integrity: 'sha384-JEyTNhjM6R1ElGoJns4U2Ln4ofPcqzSsynQkmEc/KGy6336qAZl70tDLufbkla+3',
   globalName: 'DOMPurify',
 };
@@ -26,26 +29,47 @@ const scriptPromises = new Map();
 
 /**
  * 懒加载固定版本的全局脚本。
- * 加载失败后会移除缓存，以便用户稍后重试，而不是永久保留失败状态。
+ * 远程地址加载失败时自动改用 localSrc（仓库内副本）；两次都失败后移除缓存，以便用户稍后重试。
  */
 /**
- * @param {{src: string, integrity: string, globalName: string}} dependency 外部脚本的固定地址、SRI 与全局变量名
+ * @param {{src: string, localSrc?: string, integrity: string, globalName: string}} dependency 外部脚本的固定地址、本地副本、SRI 与全局变量名
  * @returns {Promise<unknown>} 对应的 window 全局对象，例如 marked 或 DOMPurify
  */
-export function loadExternalScript({ src, integrity, globalName }) {
+export function loadExternalScript({ src, localSrc, integrity, globalName }) {
   if (window[globalName]) return Promise.resolve(window[globalName]);
   if (scriptPromises.has(src)) return scriptPromises.get(src);
 
   const promise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
+    let usingLocal = false;
+
+    // 回退到仓库内副本：同源加载无需再校验 SRI，移除相关属性避免 CORS 残留导致失败。
+    function switchToLocal() {
+      usingLocal = true;
+      script.removeAttribute('integrity');
+      script.removeAttribute('crossorigin');
+      script.src = localSrc;
+    }
+
     script.src = src;
     script.integrity = integrity;
     script.crossOrigin = 'anonymous';
     script.addEventListener('load', () => {
-      if (window[globalName]) resolve(window[globalName]);
+      if (window[globalName]) {
+        resolve(window[globalName]);
+        return;
+      }
+      // 远程返回的内容不含预期全局变量（如 CDN 错误页）时，同样尝试本地副本。
+      if (!usingLocal && localSrc) switchToLocal();
       else reject(new Error(t('common.dependencyMissing', { name: globalName })));
-    }, { once: true });
-    script.addEventListener('error', () => reject(new Error(t('common.dependencyLoadFailed', { src }))), { once: true });
+    });
+    script.addEventListener('error', () => {
+      if (usingLocal || !localSrc) {
+        reject(new Error(t('common.dependencyLoadFailed', { src: usingLocal ? localSrc : src })));
+        return;
+      }
+      switchToLocal();
+    });
     document.head.appendChild(script);
   }).catch((error) => {
     scriptPromises.delete(src);

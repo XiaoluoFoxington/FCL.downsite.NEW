@@ -35,11 +35,13 @@ function isAnalyticsLogToastDisabled() {
 }
 
 (function () {
+  // 51.la 统计 SDK：CDN 不可达时回退到仓库内副本（仍需联网上报，仅避免脚本本身加载失败）。
+  const REMOTE_SRC = '//sdk.51.la/js-sdk-pro.min.js';
+  const LOCAL_SRC = '/vendor/51la/1.58.5/js-sdk-pro.min.js';
   const script = document.createElement('script');
+  let usingLocal = false;
   script.id = 'LA_COLLECT';
-  script.src = '//sdk.51.la/js-sdk-pro.min.js';
   script.charset = 'UTF-8';
-  document.head.appendChild(script);
   script.onload = function () {
     if (typeof LA !== 'undefined' && typeof LA.init === 'function') {
       LA.init({ id: '3Qf548Mk9X7m1VlP', ck: '3Qf548Mk9X7m1VlP' });
@@ -48,6 +50,13 @@ function isAnalyticsLogToastDisabled() {
     }
   };
   script.onerror = function () {
+    if (!usingLocal) {
+      usingLocal = true;
+      script.src = LOCAL_SRC;
+      return;
+    }
     logWarn(t('logger.context.analyticsLoadFailed'), undefined, { noToast: isAnalyticsLogToastDisabled() });
   };
+  script.src = REMOTE_SRC;
+  document.head.appendChild(script);
 })();

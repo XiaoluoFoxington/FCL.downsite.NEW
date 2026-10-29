@@ -61,6 +61,7 @@ css/                    样式与主题补丁
 js/                     脚本（页面入口 + common / controllers / domain / http /
                         repositories / security / views / adapters / i18n）
 media/                  静态资源（图片、字体、音效）
+vendor/                 第三方 CDN 依赖的本地副本（CDN 加载失败时自动回退）
 scripts/auto-sync/      线路1 自动同步脚本（GitHub Actions 调用）
 docs/                   开发文档
 .github/workflows/      GitHub Actions 工作流

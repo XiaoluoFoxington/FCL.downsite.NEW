@@ -5,6 +5,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <!-- 第三方 CDN 依赖的本地回退，必须放在下方 CDN 资源之前。见 js/vendor-fallback.js。 -->
+  <script src="/js/vendor-fallback.js"></script>
+
   <!-- 提前与第三方 CDN 建连（DNS+TLS），加速首屏样式与脚本加载。
        crossorigin 必须与后续实际请求（CSS/JS 均带 crossorigin="anonymous"）保持一致，否则连接无法复用；
        sdk.51.la 的统计脚本不带 CORS，dns-prefetch 已足够。 -->
