@@ -16,9 +16,16 @@
     /* 5. 终极兜底（浏览器强制调用系统默认等宽字体） */
     monospace;
 
-  /* 吉祥物插画尺寸：原图 960×540，宽度固定后高度按比例换算为 152px。 */
-  --xf-fox-corner-width: 270px;
-  --xf-fox-corner-height: 152px;
+  /* 吉祥物插画尺寸：原图 960×540。 */
+  --xf-fox-corner-width: 240px;
+  --xf-fox-corner-height: 135px;
+}
+
+@media (min-width: 1920px) {
+  :root {
+    --xf-fox-corner-width: 480px;
+    --xf-fox-corner-height: 270px;
+  }
 }
 
 * {
