@@ -48,7 +48,8 @@ function assertUniqueIds(items, label) {
 export async function getSoftwareCatalog(options = {}, visibility = {}) {
   // 软件目录是列表页的唯一基础数据源，避免旧实现按软件逐一请求 basic.json。
   const items = assertUniqueIds(
-    assertArray(await getJSON('/data/software.json', { ...options, cache: true }), t('common.repository.software')),
+    assertArray(await getJSON('/data/software.json', { ...options, cache: false }), t('common.repository.software')),
+    // 软件列表显式禁用缓存，确保每次请求都是最新数据。
     t('common.repository.software'),
   );
   items.forEach((item) => {
