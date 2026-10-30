@@ -10,47 +10,68 @@
 import { t } from '../common/i18n.js';
 
 // 这两个依赖只在介绍正文或明确声明为 HTML 的远程描述首次展示时加载，
-// 完整性哈希防止 CDN 内容被替换后仍在本站上下文执行。
+// 完整性哈希防止 CDN 内容被替换后仍在本站上下文执行；
+// CDN 失败时回退到仓库内的同版本副本（本地副本无法通过 SRI，故不校验）。
 const MARKED = {
   src: 'https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.umd.min.js',
   integrity: 'sha384-zCewoQXXb5Xf+2nvCjab0EbMl7FWVpJMsKyrc8M8DqxjFra4DY4XHwheVdHXa34k',
+  fallbackSrc: '/vendor/marked/15.0.12/marked.umd.min.js',
   globalName: 'marked',
 };
 const DOM_PURIFY = {
   src: 'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js',
   integrity: 'sha384-JEyTNhjM6R1ElGoJns4U2Ln4ofPcqzSsynQkmEc/KGy6336qAZl70tDLufbkla+3',
+  fallbackSrc: '/vendor/dompurify/3.2.6/purify.min.js',
   globalName: 'DOMPurify',
 };
 // 同一种依赖可能被多个展开面板同时触发；复用 Promise 可避免重复插入 script 标签。
 const scriptPromises = new Map();
 
 /**
+ * 向 head 插入一个脚本并等待其加载完成。
+ * @param {string} src 脚本地址
+ * @param {string} [integrity] SRI 哈希；本地回退副本不传
+ * @returns {Promise<void>}
+ */
+function injectScript(src, integrity) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    if (integrity) {
+      script.integrity = integrity;
+      script.crossOrigin = 'anonymous';
+    }
+    script.addEventListener('load', () => resolve(), { once: true });
+    script.addEventListener('error', () => reject(new Error(t('common.dependencyLoadFailed', { src }))), { once: true });
+    document.head.appendChild(script);
+  });
+}
+
+/**
  * 懒加载固定版本的全局脚本。
- * 加载失败后会移除缓存，以便用户稍后重试，而不是永久保留失败状态。
+ * 远程失败时回退到仓库内的本地副本；两者都失败才报错，并移除缓存以便用户稍后重试。
  */
 /**
- * @param {{src: string, integrity: string, globalName: string}} dependency 外部脚本的固定地址、SRI 与全局变量名
+ * @param {{src: string, integrity?: string, fallbackSrc?: string, globalName: string}} dependency 外层脚本地址、SRI、本地回退地址与全局变量名
  * @returns {Promise<unknown>} 对应的 window 全局对象，例如 marked 或 DOMPurify
  */
-export function loadExternalScript({ src, integrity, globalName }) {
+export function loadExternalScript({ src, integrity, fallbackSrc, globalName }) {
   if (window[globalName]) return Promise.resolve(window[globalName]);
   if (scriptPromises.has(src)) return scriptPromises.get(src);
 
-  const promise = new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = src;
-    script.integrity = integrity;
-    script.crossOrigin = 'anonymous';
-    script.addEventListener('load', () => {
-      if (window[globalName]) resolve(window[globalName]);
-      else reject(new Error(t('common.dependencyMissing', { name: globalName })));
-    }, { once: true });
-    script.addEventListener('error', () => reject(new Error(t('common.dependencyLoadFailed', { src }))), { once: true });
-    document.head.appendChild(script);
-  }).catch((error) => {
-    scriptPromises.delete(src);
-    throw error;
-  });
+  const promise = injectScript(src, integrity)
+    .catch(() => {
+      if (!fallbackSrc) throw new Error(t('common.dependencyLoadFailed', { src }));
+      return injectScript(fallbackSrc);
+    })
+    .then(() => {
+      if (window[globalName]) return window[globalName];
+      throw new Error(t('common.dependencyMissing', { name: globalName }));
+    })
+    .catch((error) => {
+      scriptPromises.delete(src);
+      throw error;
+    });
 
   scriptPromises.set(src, promise);
   return promise;
