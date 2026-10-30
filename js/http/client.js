@@ -150,7 +150,7 @@ export function getText(url, options) {
 /**
  * 获取本地文本资源；优先请求当前语言的本地化版本，失败时回退到原路径。
  * 用户主动取消的请求会继续向上抛出，不会静默回退。
- * @param {string} url 本地资源路径（如 '/data/announcement.html'）
+ * @param {string} url 本地资源路径（如 '/data/software/0/intro.html'）
  * @param {{signal?: AbortSignal, timeoutMs?: number, cache?: boolean}} options 请求控制项
  * @returns {Promise<string>} 响应文本
  */
@@ -166,6 +166,26 @@ export async function getLocalizedText(url, options = {}) {
     // 避免先白等一次完整超时再重试，也避免吞掉真实错误。
     if (error?.kind !== 'http' || (error.status !== 404 && error.status !== 403)) throw error;
     return getText(url, options);
+  }
+}
+
+/**
+ * 获取本地 JSON 资源；优先请求当前语言的本地化版本，失败时回退到原路径。
+ * 与 getLocalizedText 使用相同的回退策略：仅对资源不存在（404/403）回退，
+ * 用户主动取消的请求继续向上抛出。
+ * @param {string} url 本地资源路径（如 '/data/announcements.json'）
+ * @param {{signal?: AbortSignal, timeoutMs?: number, cache?: boolean}} options 请求控制项
+ * @returns {Promise<object|Array>} 已解析的 JSON 数据
+ */
+export async function getLocalizedJSON(url, options = {}) {
+  const localizedPath = getLocalizedPath(url);
+  if (!localizedPath) return getJSON(url, options);
+  try {
+    return await getJSON(localizedPath, options);
+  } catch (error) {
+    if (error?.kind === 'abort') throw error;
+    if (error?.kind !== 'http' || (error.status !== 404 && error.status !== 403)) throw error;
+    return getJSON(url, options);
   }
 }
 

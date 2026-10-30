@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "id": "resume-downloads-2026-10-30",
+      "title": "Servicio de descargas restaurado",
+      "summary": "Las descargas de recursos del lanzador de Minecraft vuelven a estar disponibles. Los anuncios históricos han sido eliminados.",
+      "content": "<p>El sitio de descargas ha reanudado la provisión de recursos de descarga relacionados con el lanzador de Minecraft.</p><p>Los anuncios históricos han sido eliminados.</p>",
+      "date": "2026-10-30",
+      "level": "success",
+      "pinned": true
+    }
+  ]
+}

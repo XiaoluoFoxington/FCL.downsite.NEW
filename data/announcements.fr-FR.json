@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "id": "resume-downloads-2026-10-30",
+      "title": "Service de téléchargement rétabli",
+      "summary": "Les téléchargements de ressources du lanceur Minecraft sont de nouveau disponibles. Les annonces historiques ont été supprimées.",
+      "content": "<p>Le site de téléchargement a repris la fourniture de ressources téléchargeables liées au lanceur Minecraft.</p><p>Les annonces historiques ont été supprimées.</p>",
+      "date": "2026-10-30",
+      "level": "success",
+      "pinned": true
+    }
+  ]
+}

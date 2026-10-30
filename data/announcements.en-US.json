@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "id": "resume-downloads-2026-10-30",
+      "title": "Download service restored",
+      "summary": "Downloads for Minecraft launcher resources are available again. Historical announcements have been cleared.",
+      "content": "<p>The download site has resumed providing downloads of resources related to the Minecraft launcher.</p><p>Historical announcements have been cleared.</p>",
+      "date": "2026-10-30",
+      "level": "success",
+      "pinned": true
+    }
+  ]
+}

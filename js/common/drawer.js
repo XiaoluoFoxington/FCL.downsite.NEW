@@ -201,11 +201,16 @@ document.addEventListener('DOMContentLoaded', () => {
   if (isWideScreen()) {
     ensureDrawer();
   } else {
-    // 窄屏下抽屉懒加载，但需提前检查公告是否为新，以便弹出 Snackbar 提醒用户。
+    // 窄屏下抽屉懒加载，但需提前检查公告是否有未读项，以便弹出 Snackbar 提醒用户。
+    // 点击提醒可直接打开抽屉查看公告。
     checkNewAnnouncement().then((result) => {
-      if (result?.isNew) {
-        showSnackbar(t('common.nav.recentAnnouncement'));
-      }
+      if (!result?.isNew) return;
+      const toast = showSnackbar(`${t('common.nav.recentAnnouncement')} (${result.unread.length})`);
+      toast.element.classList.add('xf-toast-clickable');
+      toast.element.addEventListener('click', () => {
+        // 抽屉已打开时不再切换，避免点提醒反而把抽屉关掉。
+        if (!drawerElement || !drawerElement.classList.contains('mdui-drawer-open')) button.click();
+      }, { once: true });
     });
   }
 

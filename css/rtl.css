@@ -185,8 +185,8 @@ html[dir="rtl"][data-xf-theme="dark"] .mdui-table td {
   margin-left: 8px;
 }
 
-/* 新公告徽标：左边距镜像为右边距 */
-[dir="rtl"] .xf-new-announcement-badge {
-  margin-left: 0;
-  margin-right: 8px;
+/* 公告标题图标：右边距镜像为左边距（其余公告样式使用逻辑属性，无需额外镜像） */
+[dir="rtl"] .xf-announcement-header-icon {
+  margin-right: 0;
+  margin-left: 8px;
 }

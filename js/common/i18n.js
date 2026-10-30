@@ -493,7 +493,7 @@ export function tOr(key, fallback, params = null) {
 
 /**
  * 生成本地资源的本地化路径；当前为中文或远程地址时返回 null。
- * 例如 '/data/announcement.html' → '/data/announcement.en-US.html'。
+ * 例如 '/data/announcements.json' → '/data/announcements.en-US.json'。
  * @param {string} path 本地资源路径（以 / 开头）
  * @returns {string|null}
  */

@@ -210,8 +210,207 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   opacity: .7;
 }
 
-.xf-new-announcement-badge {
-  margin-left: 8px;
+/* 网站公告：标题、未读徽标与折叠列表 */
+.xf-announcement-header-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.xf-announcement-header-icon {
+  margin-right: 8px;
+  font-size: 18px;
+  vertical-align: middle;
+}
+
+.xf-announcement-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  margin-inline-start: 8px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background-color: #f44336;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.xf-announcement-badge[hidden],
+.xf-announcement-unread-dot[hidden],
+.xf-announcement-item-preview[hidden] {
+  display: none !important;
+}
+
+.xf-announcement-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid rgba(128, 128, 128, .2);
+}
+
+.xf-announcement-toolbar-status {
+  font-size: 12px;
+  opacity: .7;
+  overflow-wrap: anywhere;
+}
+
+.xf-announcement-toolbar .xf-announcement-mark-all {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  line-height: 32px;
+}
+
+.xf-announcement-toolbar .xf-announcement-mark-all i {
+  font-size: 18px;
+}
+
+.xf-announcement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.xf-announcement-item {
+  --xf-announcement-accent: #9e9e9e;
+  border: 1px solid rgba(128, 128, 128, .2);
+  border-inline-start: 3px solid var(--xf-announcement-accent);
+  border-radius: 4px;
+  background-color: rgba(128, 128, 128, .06);
+  overflow: hidden;
+}
+
+.xf-announcement-level-info { --xf-announcement-accent: #2196f3; }
+.xf-announcement-level-success { --xf-announcement-accent: #4caf50; }
+.xf-announcement-level-warning { --xf-announcement-accent: #ff9800; }
+.xf-announcement-level-danger { --xf-announcement-accent: #f44336; }
+
+.xf-announcement-item-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.xf-announcement-item-summary::-webkit-details-marker {
+  display: none;
+}
+
+.xf-announcement-item-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--xf-announcement-accent);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.xf-announcement-item-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.xf-announcement-item-titleline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.xf-announcement-item-title {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.xf-announcement-item-unread .xf-announcement-item-title {
+  font-weight: 600;
+}
+
+.xf-announcement-pin {
+  color: #ff9800;
+  font-size: 14px;
+}
+
+.xf-announcement-unread-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #f44336;
+}
+
+.xf-announcement-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  opacity: .65;
+}
+
+.xf-announcement-item-preview {
+  display: block;
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: .8;
+  overflow-wrap: anywhere;
+}
+
+.xf-announcement-item[open] .xf-announcement-item-preview {
+  display: none;
+}
+
+.xf-announcement-item-arrow {
+  flex: none;
+  margin-top: 2px;
+  font-size: 20px;
+  opacity: .6;
+  transition: transform .2s ease;
+}
+
+.xf-announcement-item[open] .xf-announcement-item-arrow {
+  transform: rotate(180deg);
+}
+
+.xf-announcement-item-content {
+  padding: 0 12px 12px;
+  padding-inline-start: 42px;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.xf-announcement-item-content > :first-child {
+  margin-top: 0;
+}
+
+.xf-announcement-item-content > :last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  .xf-announcement-item-content {
+    padding-inline-start: 12px;
+  }
 }
 
 .xf-list-filter-panel-item {
@@ -448,6 +647,11 @@ table .xf-vertical-sticky-th {
   box-shadow: 0 3px 6px rgba(0, 0, 0, .5);
   /* 让 Toast 在容器内从顶部出现，不产生跳变 */
   flex-shrink: 0;
+}
+
+/* 可点击的 Toast（如“有新公告”提醒）：提示用户可以点击操作 */
+.xf-toast-clickable {
+  cursor: pointer;
 }
 
 /* 深色主题下加重阴影，与站点风格一致 */
