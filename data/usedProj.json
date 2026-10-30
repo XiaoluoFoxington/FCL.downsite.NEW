@@ -24,7 +24,7 @@
     "useVersion": "15.0.12",
     "link": "https://github.com/markedjs/marked",
     "license": "MIT",
-    "licenseLink": "https://github.com/markedjs/marked/blob/master/LICENSE.md"
+    "licenseLink": "https://github.com/markedjs/marked/blob/master/LICENSE"
   },
   {
     "name": "DOMPurify",
@@ -34,5 +34,14 @@
     "link": "https://github.com/cure53/DOMPurify",
     "license": "MPL-2.0",
     "licenseLink": "https://github.com/cure53/DOMPurify/blob/main/LICENSE-MPL"
+  },
+  {
+    "name": "Material Icons",
+    "description": "Material Design 图标字体。",
+    "useDescription": "扩展 MDUI 1.0.2 内置图标数量。",
+    "useVersion": "1.13.14",
+    "link": "https://github.com/marella/material-icons",
+    "license": "Apache-2.0",
+    "licenseLink": "https://github.com/marella/material-icons/blob/main/LICENSE"
   }
 ]
