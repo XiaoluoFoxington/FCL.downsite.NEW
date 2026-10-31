@@ -125,6 +125,7 @@ docs/                   开发文档
 
 - [docs/i18n.md](docs/i18n.md) —— 国际化模块的 API、用法与维护指南
 - [docs/auto-sync-design.md](docs/auto-sync-design.md) —— 线路1 自动同步设计方案
+- [docs/route1-integration.md](docs/route1-integration.md) —— 线路一（站长提供）第三方接入指南
 - [docs/huang1111-api-notes.md](docs/huang1111-api-notes.md) —— huang1111 网盘 API 逆向笔记
 - [scripts/auto-sync/README.md](scripts/auto-sync/README.md) —— 自动同步脚本使用说明
 - [AGENTS.md](AGENTS.md) —— AI 助手在本项目的工作约定
