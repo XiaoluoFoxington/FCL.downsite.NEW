@@ -1,8 +1,18 @@
 [
   {
+    "name": "Zalith-Plain Craft Launcher 1.3.7",
+    "nextUrl": "/data/down/18/auto/2026/10/31/v1.3.7.json",
+    "tag": "v1.3.7",
+    "default": true
+  },
+  {
+    "name": "Zalith-Plain Craft Launcher 1.3.6",
+    "nextUrl": "/data/down/18/auto/2026/10/31/v1.3.6.json",
+    "tag": "v1.3.6"
+  },
+  {
     "name": "Zalith-Plain Craft Launcher 1.3.5",
     "nextUrl": "/data/down/18/auto/2026/10/31/v1.3.5.json",
-    "tag": "v1.3.5",
-    "default": true
+    "tag": "v1.3.5"
   }
 ]
