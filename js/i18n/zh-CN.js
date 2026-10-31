@@ -93,6 +93,8 @@ const zhCN = {
       resourceList: '资源列表',
       sponsorSite: '赞助站长',
       aboutSite: '关于网站',
+      satisfactionSurvey: '网站满意度调查',
+      satisfactionSurveyNote: '您可花费几分钟时间在下方完成满意度调查，以帮助我们改进网站。',
       siteSettings: '网站设置',
       behaviorSettings: '行为设置',
       themeSettings: '主题设置',
