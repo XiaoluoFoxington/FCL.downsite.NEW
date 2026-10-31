@@ -58,5 +58,14 @@
     "archNames": ["arm64-v8a"],
     "fallbackArch": null,
     "includePrerelease": false
+  },
+  {
+    "softwareId": 18,
+    "githubRepo": "zuanxu53-hub/Zalith-PlainCraftLauncher",
+    "assetFilter": "\\.apk$",
+    "mode": "arch",
+    "archNames": ["all", "arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
+    "fallbackArch": "all",
+    "includePrerelease": false
   }
 ]

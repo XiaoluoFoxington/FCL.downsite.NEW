@@ -121,5 +121,12 @@
     "icon": "/data/software/17/icon.svg",
     "tagIds": [7, 6],
     "detailUrl": "/data/software/17/detail.json"
+  },
+  {
+    "id": 18,
+    "name": "Zalith-Plain Craft Launcher",
+    "icon": "/data/software/18/icon.avif",
+    "tagIds": [7, 0, 1, 11],
+    "detailUrl": "/data/software/18/detail.json"
   }
 ]
