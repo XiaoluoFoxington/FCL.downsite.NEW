@@ -1,0 +1,27 @@
+[
+  {
+    "arch": "all",
+    "url": "https://pan.huang1111.cn/f/agwzI4/Zalith-PlainCraftLauncher-1.3.8-universal.apk",
+    "size": 354743100
+  },
+  {
+    "arch": "arm64-v8a",
+    "url": "https://pan.huang1111.cn/f/oKgwFA/Zalith-PlainCraftLauncher-1.3.8-arm64-v8a.apk",
+    "size": 181663674
+  },
+  {
+    "arch": "armeabi-v7a",
+    "url": "https://pan.huang1111.cn/f/6WyLF1/Zalith-PlainCraftLauncher-1.3.8-armeabi-v7a.apk",
+    "size": 173583211
+  },
+  {
+    "arch": "x86",
+    "url": "https://pan.huang1111.cn/f/DbBDID/Zalith-PlainCraftLauncher-1.3.8-x86.apk",
+    "size": 162121290
+  },
+  {
+    "arch": "x86_64",
+    "url": "https://pan.huang1111.cn/f/XMjMsw/Zalith-PlainCraftLauncher-1.3.8-x86_64.apk",
+    "size": 187491363
+  }
+]
