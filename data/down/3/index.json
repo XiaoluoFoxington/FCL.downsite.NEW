@@ -1,9 +1,14 @@
 [
   {
+    "name": "2.8",
+    "nextUrl": "/data/down/3/auto/2026/11/2/2.8.json",
+    "tag": "2.8",
+    "default": true
+  },
+  {
     "name": "2.7.2",
     "nextUrl": "/data/down/3/auto/2026/10/20/2.7.2.json",
-    "tag": "2.7.2",
-    "default": true
+    "tag": "2.7.2"
   },
   {
     "name": "2.7.1",
