@@ -1,6 +1,6 @@
 # 线路1 自动同步（auto-sync）
 
-把「GitHub Releases → huang1111 网盘离线下载 → 直链 → 站端 `data/down` JSON → 提交」全链路自动化，跑在 GitHub Actions 上。站端前端无需改动（下载节点按 `nextUrl` 惰性加载，对目录结构透明）。
+把「GitHub Releases → huang1111 网盘离线下载 → 直链 → 站端 `data/down` JSON → 提交」全链路自动化，默认跑在 GitHub Actions 上（也可在本机 Windows 上以托盘常驻运行，见下文「本地版」）。站端前端无需改动（下载节点按 `nextUrl` 惰性加载，对目录结构透明）。
 
 > 详细设计见 [`docs/auto-sync-design.md`](../../docs/auto-sync-design.md)，API 实测依据见 [`docs/huang1111-api-notes.md`](../../docs/huang1111-api-notes.md)。
 > 本目录内 `.mjs` 为 Node 原生 ESM（无需 npm install）。各文件的职责以其文件头注释为准。
@@ -18,6 +18,7 @@
 - `config.mjs`：环境变量与常量（**改配置看这里**）
 - `softwares.json`：软件映射表（**有哪些软件看这里**）
 - `tools/refresh-session.mjs`：**手动工具**（非 GHA 运行）——从浏览器提取会话 cookie，供更新 secret
+- `local/`：**Windows 托盘版外壳**（`tray.ps1` / `start.vbs` / `session-status.mjs`），复用 `sync.mjs` 全流程，不重复实现
 
 > ⚠️ 2026-10 日志全量重构：旧的可变全局 `ctx`（`ctx.log` / `ctx.group` / `ctx.sum` …）**已整体删除**。
 > 需要打日志的函数改为**接收作用域或回调**，再也没有「猴补丁替换全局 log」这种写法。
@@ -160,6 +161,43 @@ node scripts/auto-sync/probe.mjs
 
 > ⚠️ 不要把 token 写进仓库里的任何文件（`.env`、脚本、`config.mjs` 都不要）。
 > `config.mjs` 只从环境变量读，仓库里永远不落凭据。
+
+## 本地版（Windows 托盘，常驻自动同步）
+
+不想依赖 GitHub Actions 时，可以在自己的 Windows 电脑上跑同一条流水线。
+
+- **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
+- **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
+- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 开机启动 / 打开日志 / 打开配置 / 会话剩余天数 / 退出
+- **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
+
+### 配置（首次运行自动生成）
+
+`local/config.json`（已在 `.gitignore` 里，**不会入库**）：
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `intervalMinutes` | `60` | 自动同步间隔（分钟），也可在托盘菜单里改 |
+| `runOnStart` | `true` | 托盘启动后是否立即同步一次 |
+| `nodePath` | `""` | 留空自动在 PATH 找；找不到时填 `node.exe` 完整路径 |
+| `session` | `""` | huang1111 会话 cookie；留空则沿用系统环境变量 `H1111_SESSION` |
+| `githubToken` | `""` | GitHub 只读 token；留空则沿用 `GITHUB_TOKEN` / `GH_TOKEN`（匿名限额 60 次/小时） |
+| `syncTimeoutMinutes` | `120` | 单次同步硬超时，超时强杀子进程 |
+
+> 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。
+> 托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
+
+### 行为与注意
+
+- **每次运行都会 commit + push 到当前仓库的 `origin`**，用的是本机 git 凭据（SSH key / credential helper）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
+- 本地版**不会自动 pull**：它直接在当前工作区上提交。若远端已有新提交，push 会失败；请先手动 `git pull --ff-only`，或保证同一时间只有一个同步端在跑
+- **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
+- 每次同步写一个日志：`local/logs/sync-<时间>.log`；托盘自身事件写 `local/logs/tray.log`。双击托盘图标可直接打开**最近一次**同步日志
+- 同步进程完全隐藏运行，**不会弹任何窗口**；只有点「自定义间隔」等菜单项时才会出现小对话框
+- 开机自启：托盘菜单勾选「开机启动」，或执行
+  `powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -Install`
+  （取消用 `-Uninstall`）。原理是在当前用户的 Startup 文件夹里放一个指向 `start.vbs` 的快捷方式
+- 单实例：重复双击 `start.vbs` 不会起第二个托盘
 
 ## 数据结构（站内 `data/down/{id}/`）
 
