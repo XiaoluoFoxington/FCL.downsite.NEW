@@ -67,6 +67,9 @@ $script:running = $false
 $script:proc = $null
 $script:runStartedAt = $null
 $script:runLog = ''
+$script:runErrLog = ''
+$script:unpushedCount = 0
+$script:unpushedBranch = ''
 $script:lastRunAt = $null
 $script:lastResult = ''
 $script:nextRunAt = $null
@@ -228,6 +231,34 @@ function Update-SessionInfo {
   }
 }
 
+# 本地执行特有的坑：push 失败（超时 / 远端已有新提交）后提交留在本地，
+# 下一轮 probe 看到本地 JSON 已是最新 → 直接退出 0，永远不会自动补推。
+# 这里只检测并提示，不自动 push：避免把用户自己的本地提交一起推上去。
+function Get-UnpushedInfo {
+  $info = @{ Count = 0; Branch = '' }
+  try {
+    $branch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
+    if (-not $branch -or $branch -eq 'HEAD') { return $info }
+    $info.Branch = $branch
+    $raw = (& git -C $RepoRoot rev-list --count "origin/$branch..HEAD" 2>$null | Out-String).Trim()
+    if ($raw -match '^\d+$') { $info.Count = [int]$raw }
+  } catch { }
+  return $info
+}
+
+function Update-UnpushedState {
+  $info = Get-UnpushedInfo
+  $prev = $script:unpushedCount
+  $script:unpushedCount = [int]$info.Count
+  $script:unpushedBranch = [string]$info.Branch
+  if ($script:unpushedCount -gt 0 -and $script:unpushedCount -ne $prev) {
+    $msg = '本地有 ' + $script:unpushedCount + ' 个提交没推到 origin/' + $script:unpushedBranch +
+      '（多半是 push 超时或被远端新提交拒绝）。在仓库目录执行：git pull --rebase && git push'
+    Show-Balloon '有本地提交未推送' $msg 'Warning'
+    Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（origin/' + $script:unpushedBranch + '）')
+  }
+}
+
 # ============================ 同步进程 ============================
 
 function Start-SyncRun {
@@ -256,6 +287,7 @@ function Start-SyncRun {
   $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
   $script:runLog = Join-Path $LogDir "sync-$stamp.log"
   $errLog = Join-Path $LogDir "sync-$stamp.err.log"
+  $script:runErrLog = $errLog
 
   try {
     # -NoNewWindow 与重定向是唯一合法组合（-WindowStyle Hidden 与重定向冲突会报错）；
@@ -281,13 +313,20 @@ function Start-SyncRun {
   }
 }
 
-function Get-RunSummary([string]$LogPath) {
+function Get-RunSummary([string]$LogPath, [string]$ErrPath = '') {
   if (-not $LogPath -or -not (Test-Path -LiteralPath $LogPath)) { return '' }
   try {
     $lines = Get-Content -LiteralPath $LogPath -Encoding UTF8 -ErrorAction SilentlyContinue
     $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|登录 huang1111 失败|push 失败|同步失败' } |
       Select-Object -Last 2
-    return (($hit | ForEach-Object { ([string]$_).Trim() }) -join ' / ')
+    $text = (($hit | ForEach-Object { ([string]$_).Trim() }) -join ' / ')
+    if (-not $text -and $ErrPath -and (Test-Path -LiteralPath $ErrPath)) {
+      # 未捕获异常（栈）只会写进 stderr：stdout 可能停在半路，气泡里至少要给出最后一行错误
+      $errLine = Get-Content -LiteralPath $ErrPath -Encoding UTF8 -ErrorAction SilentlyContinue |
+        Where-Object { ([string]$_).Trim() } | Select-Object -Last 1
+      if ($errLine) { $text = 'stderr：' + ([string]$errLine).Trim() }
+    }
+    return $text
   } catch { return '' }
 }
 
@@ -311,7 +350,7 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
     $script:lastResult = "❌ 失败（退出码 $ExitCode）"
   }
 
-  $summary = Get-RunSummary $script:runLog
+  $summary = Get-RunSummary $script:runLog $script:runErrLog
   $minutes = [double]$script:cfg.intervalMinutes
   $script:nextRunAt = (Get-Date).AddMinutes($minutes)
 
@@ -324,6 +363,7 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   }
   Write-TrayLog "同步结束：$($script:lastResult)｜$summary"
   Update-SessionInfo
+  Update-UnpushedState
 }
 
 function Invoke-Tick {
@@ -364,6 +404,7 @@ function Update-Tooltip {
   } else {
     $text = '线路1 自动同步'
   }
+  if ($script:unpushedCount -gt 0) { $text += " · 待推 $($script:unpushedCount)" }
   if ($text.Length -gt 63) { $text = $text.Substring(0, 63) }
   if ($text -ne $script:lastTip) {
     try { $script:notify.Text = $text } catch { }
@@ -451,6 +492,9 @@ function Build-Menu {
     [void]$menu.Items.Add((New-MenuItem '上次：尚未运行' $null $false))
   }
   [void]$menu.Items.Add((New-MenuItem $script:sessionText $null $false))
+  if ($script:unpushedCount -gt 0) {
+    [void]$menu.Items.Add((New-MenuItem ("⚠️ $($script:unpushedCount) 个本地提交未推送到 origin/$($script:unpushedBranch)") $null $false))
+  }
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
   # ---- 操作区 ----
@@ -612,6 +656,7 @@ $script:notify.Add_MouseDoubleClick({
 
 Write-TrayLog "托盘已启动｜仓库 $RepoRoot｜间隔 $($script:cfg.intervalMinutes) 分钟｜node $script:nodeExe"
 Update-SessionInfo
+Update-UnpushedState
 Update-Tooltip
 
 if (-not $script:nodeExe) {

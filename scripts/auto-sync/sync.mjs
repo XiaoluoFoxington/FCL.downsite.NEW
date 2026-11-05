@@ -359,7 +359,11 @@ function push(scope) {
   if (ENV.GITHUB_TOKEN && ENV.GITHUB_REPOSITORY) {
     git(['remote', 'set-url', 'origin', `https://x-access-token:${ENV.GITHUB_TOKEN}@github.com/${ENV.GITHUB_REPOSITORY}.git`]);
   }
-  execFileSync('git', ['-C', ROOT, 'push', 'origin', `HEAD:${branch}`], { stdio: 'inherit' });
+  // push 可能因网络抖动、缺凭据交互而长时间挂起；给个上限，失败信息才能明确落到日志里
+  execFileSync('git', ['-C', ROOT, 'push', 'origin', `HEAD:${branch}`], {
+    stdio: 'inherit',
+    timeout: 5 * 60 * 1000,
+  });
   scope.line(`✅ 已推送 origin/${branch}`);
 }
 
