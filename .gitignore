@@ -7,3 +7,7 @@
 __pycache__/
 
 # TODO: .tmp/ 已被 git 跟踪（历史遗留的构建产物），确认无用后可 git rm -r --cached 解除跟踪。
+
+# 本地托盘版（scripts/auto-sync/local）：配置可能含会话 cookie / token，日志为运行产物，均不入库
+scripts/auto-sync/local/config.json
+scripts/auto-sync/local/logs/
