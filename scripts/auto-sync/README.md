@@ -190,7 +190,7 @@ node scripts/auto-sync/probe.mjs
 ### 行为与注意
 
 - **每次运行都会 commit + push 到当前仓库的 `origin`**，用的是本机 git 凭据（SSH key / credential helper）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
-- 本地版**不会自动 pull**：它直接在当前工作区上提交。若远端已有新提交，push 会失败；请先手动 `git pull --ff-only`，或保证同一时间只有一个同步端在跑
+- 本地版**不会自动 pull**：它直接在当前工作区上提交。若远端已有新提交，push 会被拒绝；push 卡住则 5 分钟后超时失败。两种情况提交都会留在本地，而下一轮因为本地 JSON 已是最新**不会自动补推** —— 托盘会持续显示「待推 N」并弹一次气泡提醒。恢复：在仓库目录执行 `git pull --rebase && git push`，之后托盘状态自动消失
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
 - 每次同步写一个日志：`local/logs/sync-<时间>.log`；托盘自身事件写 `local/logs/tray.log`。双击托盘图标可直接打开**最近一次**同步日志
 - 同步进程完全隐藏运行，**不会弹任何窗口**；只有点「自定义间隔」等菜单项时才会出现小对话框
