@@ -35,6 +35,7 @@ $ScriptDir = $PSScriptRoot
 if (-not $ScriptDir) { $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
 $RepoRoot = (Resolve-Path (Join-Path $ScriptDir '..\..\..')).Path
 $SyncScript = Join-Path $RepoRoot 'scripts\auto-sync\sync.mjs'
+$RunnerScript = Join-Path $ScriptDir 'run-sync.mjs'
 $SessionScript = Join-Path $ScriptDir 'session-status.mjs'
 $ConfigPath = Join-Path $ScriptDir 'config.json'
 $LogDir = Join-Path $ScriptDir 'logs'
@@ -52,6 +53,11 @@ $script:Defaults = [ordered]@{
   session            = ''      # huang1111 会话 cookie；留空则读环境变量 H1111_SESSION
   githubToken        = ''      # GitHub 只读 token（建议配，避免 60 次/小时的匿名限额）
   syncTimeoutMinutes = 120     # 单次同步硬超时，超时终止子进程
+  pullBeforeSync     = $true   # 每轮同步前先 git pull
+  pullStrategy       = 'rebase' # rebase | ff-only
+  pullTimeoutMinutes = 10      # pull 超过这个时长算失败，取消本轮同步
+  retryPush          = $true   # 上次 push 失败留下的提交，下一次同步成功后补推
+  notifyMode         = 'always' # always | failure | never；每次同步是否弹通知
 }
 
 $script:cfg = $null
@@ -119,10 +125,32 @@ function Read-Config {
   try {
     $cfg.intervalMinutes = [math]::Max(1, [double]$cfg.intervalMinutes)
     $cfg.syncTimeoutMinutes = [math]::Max(1, [double]$cfg.syncTimeoutMinutes)
+    $cfg.pullTimeoutMinutes = [math]::Max(1, [double]$cfg.pullTimeoutMinutes)
   } catch {
     $cfg.intervalMinutes = $script:Defaults.intervalMinutes
     $cfg.syncTimeoutMinutes = $script:Defaults.syncTimeoutMinutes
+    $cfg.pullTimeoutMinutes = $script:Defaults.pullTimeoutMinutes
   }
+
+  # 手写 "false"/"0" 这种字符串时也按布尔处理
+  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush')) {
+    $v = $cfg[$k]
+    if ($v -is [string]) {
+      $s = ([string]$v).Trim().ToLower()
+      $cfg[$k] = -not ($s -eq 'false' -or $s -eq '0' -or $s -eq 'no' -or $s -eq 'off' -or $s -eq '')
+    } else {
+      $cfg[$k] = [bool]$v
+    }
+  }
+
+  $strategy = ([string]$cfg.pullStrategy).Trim().ToLower()
+  if ($strategy -ne 'ff-only') { $strategy = 'rebase' }
+  $cfg.pullStrategy = $strategy
+
+  $mode = ([string]$cfg.notifyMode).Trim().ToLower()
+  if ($mode -ne 'failure' -and $mode -ne 'never') { $mode = 'always' }
+  $cfg.notifyMode = $mode
+
   return $cfg
 }
 
@@ -202,6 +230,15 @@ function Show-Balloon([string]$Title, [string]$Text, [string]$Kind = 'Info') {
   try { $script:notify.ShowBalloonTip(8000, $Title, $text, $icon) } catch { }
 }
 
+# notifyMode 只约束「同步结果通知」；会话临期这类安全提醒始终弹
+function Test-Notify([bool]$IsFailure) {
+  switch ([string]$script:cfg.notifyMode) {
+    'never' { return $false }
+    'failure' { return $IsFailure }
+    default { return $true }
+  }
+}
+
 # ============================ 会话寿命（离线推算，不联网） ============================
 
 function Update-SessionInfo {
@@ -239,8 +276,11 @@ function Get-UnpushedInfo {
   try {
     $branch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
     if (-not $branch -or $branch -eq 'HEAD') { return $info }
-    $info.Branch = $branch
-    $raw = (& git -C $RepoRoot rev-list --count "origin/$branch..HEAD" 2>$null | Out-String).Trim()
+    $upstream = (& git -C $RepoRoot rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null | Out-String).Trim()
+    $ref = $upstream
+    if (-not $ref) { $ref = "origin/$branch" }
+    $info.Branch = $ref
+    $raw = (& git -C $RepoRoot rev-list --count "$ref..HEAD" 2>$null | Out-String).Trim()
     if ($raw -match '^\d+$') { $info.Count = [int]$raw }
   } catch { }
   return $info
@@ -252,10 +292,10 @@ function Update-UnpushedState {
   $script:unpushedCount = [int]$info.Count
   $script:unpushedBranch = [string]$info.Branch
   if ($script:unpushedCount -gt 0 -and $script:unpushedCount -ne $prev) {
-    $msg = '本地有 ' + $script:unpushedCount + ' 个提交没推到 origin/' + $script:unpushedBranch +
+    $msg = '本地有 ' + $script:unpushedCount + ' 个提交没推到 ' + $script:unpushedBranch +
       '（多半是 push 超时或被远端新提交拒绝）。在仓库目录执行：git pull --rebase && git push'
-    Show-Balloon '有本地提交未推送' $msg 'Warning'
-    Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（origin/' + $script:unpushedBranch + '）')
+    if (Test-Notify $true) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
+    Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '）')
   }
 }
 
@@ -269,15 +309,20 @@ function Start-SyncRun {
   if ([string]$script:cfg.session) { $env:H1111_SESSION = [string]$script:cfg.session }
   if ([string]$script:cfg.githubToken) { $env:GITHUB_TOKEN = [string]$script:cfg.githubToken }
   $script:nodeExe = Resolve-NodeExe
+  # 拉取 / 补推 / 通知的行为都来自 config.json，每次同步前重新注入给包装器
+  if ($script:cfg.pullBeforeSync) { $env:LOCAL_SYNC_PULL = '1' } else { $env:LOCAL_SYNC_PULL = '0' }
+  $env:LOCAL_SYNC_PULL_STRATEGY = [string]$script:cfg.pullStrategy
+  $env:LOCAL_SYNC_PULL_TIMEOUT_MS = [string]([int]([double]$script:cfg.pullTimeoutMinutes * 60000))
+  if ($script:cfg.retryPush) { $env:LOCAL_SYNC_RETRY_PUSH = '1' } else { $env:LOCAL_SYNC_RETRY_PUSH = '0' }
 
   if (-not $script:nodeExe) {
     Show-Balloon '无法启动同步' '未找到 Node.js。请安装 Node.js 18+，或在 config.json 的 nodePath 里写 node.exe 的完整路径。' 'Error'
     Write-TrayLog '启动同步失败：找不到 node'
     return
   }
-  if (-not (Test-Path -LiteralPath $SyncScript)) {
-    Show-Balloon '无法启动同步' "找不到同步脚本：$SyncScript" 'Error'
-    Write-TrayLog "启动同步失败：找不到 $SyncScript"
+  if (-not (Test-Path -LiteralPath $RunnerScript) -or -not (Test-Path -LiteralPath $SyncScript)) {
+    Show-Balloon '无法启动同步' "找不到同步脚本：$RunnerScript" 'Error'
+    Write-TrayLog "启动同步失败：找不到 $RunnerScript 或 $SyncScript"
     return
   }
 
@@ -294,7 +339,7 @@ function Start-SyncRun {
     # 托盘自身由 wscript 以隐藏窗口拉起，子进程复用这个不可见的控制台，因此全程无窗口
     $script:proc = Start-Process `
       -FilePath $script:nodeExe `
-      -ArgumentList "`"$SyncScript`"" `
+      -ArgumentList "`"$RunnerScript`"" `
       -WorkingDirectory $RepoRoot `
       -NoNewWindow `
       -RedirectStandardOutput $script:runLog `
@@ -317,7 +362,7 @@ function Get-RunSummary([string]$LogPath, [string]$ErrPath = '') {
   if (-not $LogPath -or -not (Test-Path -LiteralPath $LogPath)) { return '' }
   try {
     $lines = Get-Content -LiteralPath $LogPath -Encoding UTF8 -ErrorAction SilentlyContinue
-    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|登录 huang1111 失败|push 失败|同步失败' } |
+    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|登录 huang1111 失败|push 失败|同步失败|拉取失败|已取消|补推' } |
       Select-Object -Last 2
     $text = (($hit | ForEach-Object { ([string]$_).Trim() }) -join ' / ')
     if (-not $text -and $ErrPath -and (Test-Path -LiteralPath $ErrPath)) {
@@ -342,8 +387,11 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   $script:running = $false
   $script:lastRunAt = Get-Date
 
+  $isFailure = ($TimedOut -or $ExitCode -ne 0)
   if ($TimedOut) {
     $script:lastResult = '❌ 超时已终止'
+  } elseif ($ExitCode -eq 2) {
+    $script:lastResult = '❌ 已取消（拉取失败）'
   } elseif ($ExitCode -eq 0) {
     $script:lastResult = '✅ 成功'
   } else {
@@ -354,13 +402,26 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   $minutes = [double]$script:cfg.intervalMinutes
   $script:nextRunAt = (Get-Date).AddMinutes($minutes)
 
-  if ($ExitCode -eq 0 -and -not $TimedOut) {
-    Update-TrayIcon 'idle'
-    Show-Balloon '线路1 自动同步完成' $(if ($summary) { $summary } else { '本次同步成功（退出码 0）' }) 'Info'
-  } else {
-    Update-TrayIcon 'error'
-    Show-Balloon '线路1 自动同步失败' $(if ($summary) { $summary } else { '详见日志：' + $script:runLog }) 'Error'
+  $elapsedText = ''
+  if ($script:runStartedAt) {
+    $sec = [int]((Get-Date) - $script:runStartedAt).TotalSeconds
+    if ($sec -ge 60) { $elapsedText = "｜用时 $([int]($sec / 60)) 分 $($sec % 60) 秒" }
+    else { $elapsedText = "｜用时 $sec 秒" }
   }
+
+  if ($isFailure) { Update-TrayIcon 'error' } else { Update-TrayIcon 'idle' }
+
+  if (Test-Notify $isFailure) {
+    $text = $summary
+    if (-not $text) {
+      if ($isFailure) { $text = '详见日志：' + $script:runLog }
+      else { $text = '本次同步成功（无新增内容）' }
+    }
+    $text += $elapsedText
+    if ($isFailure) { Show-Balloon '线路1 自动同步失败' $text 'Error' }
+    else { Show-Balloon '线路1 自动同步完成' $text 'Info' }
+  }
+
   Write-TrayLog "同步结束：$($script:lastResult)｜$summary"
   Update-SessionInfo
   Update-UnpushedState
@@ -493,7 +554,7 @@ function Build-Menu {
   }
   [void]$menu.Items.Add((New-MenuItem $script:sessionText $null $false))
   if ($script:unpushedCount -gt 0) {
-    [void]$menu.Items.Add((New-MenuItem ("⚠️ $($script:unpushedCount) 个本地提交未推送到 origin/$($script:unpushedBranch)") $null $false))
+    [void]$menu.Items.Add((New-MenuItem ("⚠️ $($script:unpushedCount) 个本地提交未推送到 $($script:unpushedBranch)") $null $false))
   }
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
@@ -546,6 +607,71 @@ function Build-Menu {
   })
   [void]$intervalItem.DropDownItems.Add($custom)
   [void]$menu.Items.Add($intervalItem)
+
+  # ---- 选项（拉取 / 补推 / 通知）----
+  $optItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $optItem.Text = '选项'
+
+  $pullItem = New-MenuItem '同步前自动拉取' ({
+    $script:cfg.pullBeforeSync = -not $script:cfg.pullBeforeSync
+    Save-Config $script:cfg
+    Write-TrayLog ('同步前自动拉取：' + $(if ($script:cfg.pullBeforeSync) { '开' } else { '关' }))
+  })
+  $pullItem.Checked = [bool]$script:cfg.pullBeforeSync
+  [void]$optItem.DropDownItems.Add($pullItem)
+
+  $retryItem = New-MenuItem '失败提交下次补推' ({
+    $script:cfg.retryPush = -not $script:cfg.retryPush
+    Save-Config $script:cfg
+    Write-TrayLog ('失败提交下次补推：' + $(if ($script:cfg.retryPush) { '开' } else { '关' }))
+  })
+  $retryItem.Checked = [bool]$script:cfg.retryPush
+  [void]$optItem.DropDownItems.Add($retryItem)
+
+  $strategyItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $strategyItem.Text = '拉取方式'
+  $rbItem = New-MenuItem 'rebase（推荐）' ({
+    $script:cfg.pullStrategy = 'rebase'
+    Save-Config $script:cfg
+    Write-TrayLog '拉取方式：rebase'
+  })
+  $rbItem.Checked = ([string]$script:cfg.pullStrategy -eq 'rebase')
+  [void]$strategyItem.DropDownItems.Add($rbItem)
+  $ffItem = New-MenuItem '仅快进（ff-only）' ({
+    $script:cfg.pullStrategy = 'ff-only'
+    Save-Config $script:cfg
+    Write-TrayLog '拉取方式：ff-only'
+  })
+  $ffItem.Checked = ([string]$script:cfg.pullStrategy -eq 'ff-only')
+  [void]$strategyItem.DropDownItems.Add($ffItem)
+  [void]$optItem.DropDownItems.Add($strategyItem)
+
+  $notifyItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $notifyItem.Text = '同步通知'
+  $nAlways = New-MenuItem '每次同步' ({
+    $script:cfg.notifyMode = 'always'
+    Save-Config $script:cfg
+    Write-TrayLog '同步通知：每次'
+  })
+  $nAlways.Checked = ([string]$script:cfg.notifyMode -eq 'always')
+  [void]$notifyItem.DropDownItems.Add($nAlways)
+  $nFailure = New-MenuItem '仅失败' ({
+    $script:cfg.notifyMode = 'failure'
+    Save-Config $script:cfg
+    Write-TrayLog '同步通知：仅失败'
+  })
+  $nFailure.Checked = ([string]$script:cfg.notifyMode -eq 'failure')
+  [void]$notifyItem.DropDownItems.Add($nFailure)
+  $nNever = New-MenuItem '从不' ({
+    $script:cfg.notifyMode = 'never'
+    Save-Config $script:cfg
+    Write-TrayLog '同步通知：从不'
+  })
+  $nNever.Checked = ([string]$script:cfg.notifyMode -eq 'never')
+  [void]$notifyItem.DropDownItems.Add($nNever)
+  [void]$optItem.DropDownItems.Add($notifyItem)
+
+  [void]$menu.Items.Add($optItem)
 
   # ---- 开机启动 ----
   $autoItem = New-MenuItem '开机启动' ({
