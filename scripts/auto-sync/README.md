@@ -18,7 +18,7 @@
 - `config.mjs`：环境变量与常量（**改配置看这里**）
 - `softwares.json`：软件映射表（**有哪些软件看这里**）
 - `tools/refresh-session.mjs`：**手动工具**（非 GHA 运行）——从浏览器提取会话 cookie，供更新 secret
-- `local/`：**Windows 托盘版外壳**（`tray.ps1` / `start.vbs` / `session-status.mjs`），复用 `sync.mjs` 全流程，不重复实现
+- `local/`：**Windows 托盘版外壳**（`tray.ps1` / `start.vbs` / `session-status.mjs` / `run-sync.mjs`），复用 `sync.mjs` 全流程，不重复实现
 
 > ⚠️ 2026-10 日志全量重构：旧的可变全局 `ctx`（`ctx.log` / `ctx.group` / `ctx.sum` …）**已整体删除**。
 > 需要打日志的函数改为**接收作用域或回调**，再也没有「猴补丁替换全局 log」这种写法。
@@ -183,6 +183,11 @@ node scripts/auto-sync/probe.mjs
 | `session` | `""` | huang1111 会话 cookie；留空则沿用系统环境变量 `H1111_SESSION` |
 | `githubToken` | `""` | GitHub 只读 token；留空则沿用 `GITHUB_TOKEN` / `GH_TOKEN`（匿名限额 60 次/小时） |
 | `syncTimeoutMinutes` | `120` | 单次同步硬超时，超时强杀子进程 |
+| `pullBeforeSync` | `true` | 每轮同步前先 `git pull`；拉取失败则**取消本轮**（不下载、不提交） |
+| `pullStrategy` | `"rebase"` | `rebase`（推荐，能自动把上次未推的提交叠到远端之上）或 `ff-only` |
+| `pullTimeoutMinutes` | `10` | pull 超过这个时长视为失败，取消本轮同步 |
+| `retryPush` | `true` | 上次 push 失败留下的本地提交，在下一次**同步成功**后自动补推 |
+| `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 |
 
 > 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。
 > 托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
@@ -190,7 +195,10 @@ node scripts/auto-sync/probe.mjs
 ### 行为与注意
 
 - **每次运行都会 commit + push 到当前仓库的 `origin`**，用的是本机 git 凭据（SSH key / credential helper）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
-- 本地版**不会自动 pull**：它直接在当前工作区上提交。若远端已有新提交，push 会被拒绝；push 卡住则 5 分钟后超时失败。两种情况提交都会留在本地，而下一轮因为本地 JSON 已是最新**不会自动补推** —— 托盘会持续显示「待推 N」并弹一次气泡提醒。恢复：在仓库目录执行 `git pull --rebase && git push`，之后托盘状态自动消失
+- **每轮固定顺序：`git pull` → `sync.mjs` → 补推**（`run-sync.mjs` 负责编排）。拉取失败（远端冲突、工作区有未提交改动、超时）会**取消本轮**，不下载也不提交；若是 rebase 冲突，会自动 `rebase --abort` 把仓库还原到拉取前
+- push 失败（超时或远端已有新提交）时，提交留在本地；**下一次同步成功后会自动补推**（`retryPush`）。若补推仍失败，托盘持续显示「待推 N」并提示；也可手动 `git pull --rebase && git push`
+- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不
+- 拉取开关、拉取方式（rebase / ff-only）、失败补推都可在托盘「选项」菜单里即时切换，也可直接改 `config.json`（下一轮生效）
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
 - 每次同步写一个日志：`local/logs/sync-<时间>.log`；托盘自身事件写 `local/logs/tray.log`。双击托盘图标可直接打开**最近一次**同步日志
 - 同步进程完全隐藏运行，**不会弹任何窗口**；只有点「自定义间隔」等菜单项时才会出现小对话框
