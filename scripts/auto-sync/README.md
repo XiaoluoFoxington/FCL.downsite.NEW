@@ -168,7 +168,7 @@ node scripts/auto-sync/probe.mjs
 
 - **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
 - **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
-- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、调试模式、拉取方式、通知、GitHub 令牌）/ 开机启动 / 打开日志 / 打开配置 / 会话剩余天数 / 退出
+- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、调试模式、托盘图标、拉取方式、通知、GitHub 令牌）/ 开机启动 / 打开日志 / 打开配置 / 会话剩余天数 / 退出
 - **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
 
 ### 配置（首次运行自动生成）
@@ -189,6 +189,7 @@ node scripts/auto-sync/probe.mjs
 | `pullTimeoutMinutes` | `10` | pull 超过这个时长视为失败，取消本轮同步 |
 | `retryPush` | `true` | 上次 push 失败留下的本地提交，在下一次**同步成功**后自动补推 |
 | `debug` | `false` | 调试模式：跳过所有 git 网络操作（不 `pull` / 不 `push`），sync.mjs 仍正常联网同步、只在本地提交 |
+| `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico），状态显示为右下角小圆点；留空用内置图标 |
 | `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 |
 
 > 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。

@@ -60,6 +60,7 @@ $script:Defaults = [ordered]@{
   pullTimeoutMinutes = 10      # pull 超过这个时长算失败，取消本轮同步
   retryPush          = $true   # 上次 push 失败留下的提交，下一次同步成功后补推
   debug              = $false  # 调试模式：跳过所有 git 网络操作（不 pull / 不 push），仅本地提交
+  iconPath           = ''      # 自定义托盘图标（png/jpg/bmp/gif/ico）；留空 = 内置图标
   notifyMode         = 'always' # always | failure | never；每次同步是否弹通知
 }
 
@@ -71,6 +72,8 @@ $script:iconIdle = $null
 $script:iconBusy = $null
 $script:iconError = $null
 $script:iconBitmaps = @()
+$script:baseIconBitmap = $null
+$script:trayState = 'idle'
 
 $script:running = $false
 $script:proc = $null
@@ -198,35 +201,115 @@ function Resolve-NodeExe {
   return $null
 }
 
-# ============================ 托盘图标（运行时绘制，无需素材文件） ============================
+# ============================ 托盘图标（自定义图片 + 右下角状态圆点） ============================
 
+function Resolve-IconFile([string]$Configured) {
+  $p = ([string]$Configured).Trim()
+  if (-not $p) { return '' }
+  if (-not [System.IO.Path]::IsPathRooted($p)) { $p = Join-Path $RepoRoot $p }
+  return $p
+}
+
+function Get-CustomIconImage([string]$Path) {
+  if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $null }
+  try {
+    if ([System.IO.Path]::GetExtension($Path).ToLowerInvariant() -eq '.ico') {
+      $ico = New-Object System.Drawing.Icon($Path, 32, 32)
+      $img = $ico.ToBitmap()
+      $ico.Dispose()
+      return $img
+    }
+    return [System.Drawing.Image]::FromFile($Path)
+  } catch {
+    Write-TrayLog "读取自定义图标失败：$($_.Exception.Message)"
+    return $null
+  }
+}
+
+# 底图：自定义图片等比缩放居中；没有图片时用内置的蓝圆 + 下载箭头
+function New-BaseIconBitmap {
+  $size = 32
+  $bmp = [System.Drawing.Bitmap]::new($size, $size)
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $g.Clear([System.Drawing.Color]::Transparent)
+
+  $img = Get-CustomIconImage (Resolve-IconFile $script:cfg.iconPath)
+  if ($img) {
+    try {
+      $scale = [math]::Min($size / $img.Width, $size / $img.Height)
+      $w = [int][math]::Round($img.Width * $scale)
+      $h = [int][math]::Round($img.Height * $scale)
+      $g.DrawImage($img, [int](($size - $w) / 2), [int](($size - $h) / 2), $w, $h)
+    } catch {
+      Write-TrayLog "绘制自定义图标失败：$($_.Exception.Message)"
+    } finally {
+      $img.Dispose()
+    }
+  } else {
+    $brush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(38, 132, 255))
+    $g.FillEllipse($brush, 1, 1, $size - 2, $size - 2)
+    $brush.Dispose()
+
+    $pen = [System.Drawing.Pen]::new([System.Drawing.Color]::White, 3)
+    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $g.DrawLine($pen, 16, 7, 16, 20)   # 竖线
+    $g.DrawLine($pen, 10, 14, 16, 20)  # 左斜
+    $g.DrawLine($pen, 22, 14, 16, 20)  # 右斜
+    $g.DrawLine($pen, 9, 25, 23, 25)   # 底部横线
+    $pen.Dispose()
+  }
+
+  $g.Dispose()
+  return $bmp
+}
+
+# 在底图右下角叠状态圆点（白边保证深色背景下也看得清）
 function New-TrayIcon([System.Drawing.Color]$Color) {
   $size = 32
   $bmp = [System.Drawing.Bitmap]::new($size, $size)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
   $g.Clear([System.Drawing.Color]::Transparent)
 
-  $brush = [System.Drawing.SolidBrush]::new($Color)
-  $g.FillEllipse($brush, 1, 1, $size - 2, $size - 2)
-  $brush.Dispose()
+  if ($script:baseIconBitmap) { $g.DrawImage($script:baseIconBitmap, 0, 0, $size, $size) }
 
-  $pen = [System.Drawing.Pen]::new([System.Drawing.Color]::White, 3)
-  $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-  $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-  $g.DrawLine($pen, 16, 7, 16, 20)   # 竖线
-  $g.DrawLine($pen, 10, 14, 16, 20)  # 左斜
-  $g.DrawLine($pen, 22, 14, 16, 20)  # 右斜
-  $g.DrawLine($pen, 9, 25, 23, 25)   # 底部横线
-  $pen.Dispose()
+  $d = 12
+  $x = $size - $d - 1
+  $y = $size - $d - 1
+  $ring = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
+  $g.FillEllipse($ring, $x - 1, $y - 1, $d + 2, $d + 2)
+  $ring.Dispose()
+  $dot = [System.Drawing.SolidBrush]::new($Color)
+  $g.FillEllipse($dot, $x, $y, $d, $d)
+  $dot.Dispose()
   $g.Dispose()
 
-  # 保留 Bitmap 引用，避免句柄失效；进程内只创建 3 个，句柄泄漏可忽略
+  # 保留 Bitmap 引用，避免句柄失效
   $script:iconBitmaps += $bmp
   return [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
 }
 
+function Update-TrayIcons {
+  $oldIcons = @($script:iconIdle, $script:iconBusy, $script:iconError) | Where-Object { $_ }
+  if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
+  $script:baseIconBitmap = New-BaseIconBitmap
+
+  $script:iconIdle = New-TrayIcon ([System.Drawing.Color]::FromArgb(38, 132, 255))
+  $script:iconBusy = New-TrayIcon ([System.Drawing.Color]::FromArgb(255, 152, 0))
+  $script:iconError = New-TrayIcon ([System.Drawing.Color]::FromArgb(211, 47, 47))
+
+  # 先让托盘切到新图标，再释放旧图标，避免正在显示的句柄被回收
+  Update-TrayIcon $script:trayState
+  foreach ($i in $oldIcons) { try { $i.Dispose() } catch { } }
+}
+
 function Update-TrayIcon([string]$State) {
+  $script:trayState = $State
   if (-not $script:notify) { return }
   switch ($State) {
     'busy' { $script:notify.Icon = $script:iconBusy }
@@ -727,6 +810,31 @@ function Build-Menu {
   $debugItem.Checked = [bool]$script:cfg.debug
   [void]$optItem.DropDownItems.Add($debugItem)
 
+  $iconItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $iconItem.Text = '托盘图标：' + $(if ([string]$script:cfg.iconPath) { [System.IO.Path]::GetFileName([string]$script:cfg.iconPath) } else { '内置' })
+  [void]$iconItem.DropDownItems.Add((New-MenuItem '选择图片…' ({
+    try {
+      $dlg = New-Object System.Windows.Forms.OpenFileDialog
+      $dlg.Title = '选择托盘图标'
+      $dlg.Filter = '图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico|所有文件|*.*'
+      if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        $script:cfg.iconPath = $dlg.FileName
+        Save-Config $script:cfg
+        Update-TrayIcons
+        Write-TrayLog "托盘图标已更换：$($dlg.FileName)"
+      }
+    } catch {
+      Write-TrayLog "选择托盘图标失败：$($_.Exception.Message)"
+    }
+  })))
+  [void]$iconItem.DropDownItems.Add((New-MenuItem '恢复内置图标' ({
+    $script:cfg.iconPath = ''
+    Save-Config $script:cfg
+    Update-TrayIcons
+    Write-TrayLog '托盘图标已恢复内置'
+  })))
+  [void]$optItem.DropDownItems.Add($iconItem)
+
   $strategyItem = New-Object System.Windows.Forms.ToolStripMenuItem
   $strategyItem.Text = '拉取方式'
   $rbItem = New-MenuItem 'rebase（推荐）' ({
@@ -875,9 +983,7 @@ Remove-Item Env:\GITHUB_STEP_SUMMARY -ErrorAction SilentlyContinue
 Remove-Item Env:\GITHUB_REF_NAME -ErrorAction SilentlyContinue
 
 $script:nodeExe = Resolve-NodeExe
-$script:iconIdle = New-TrayIcon ([System.Drawing.Color]::FromArgb(38, 132, 255))
-$script:iconBusy = New-TrayIcon ([System.Drawing.Color]::FromArgb(255, 152, 0))
-$script:iconError = New-TrayIcon ([System.Drawing.Color]::FromArgb(211, 47, 47))
+Update-TrayIcons
 
 $script:notify = New-Object System.Windows.Forms.NotifyIcon
 $script:notify.Icon = $script:iconIdle
