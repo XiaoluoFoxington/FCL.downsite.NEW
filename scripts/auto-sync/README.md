@@ -189,7 +189,7 @@ node scripts/auto-sync/probe.mjs
 | `pullTimeoutMinutes` | `10` | pull 超过这个时长视为失败，取消本轮同步 |
 | `retryPush` | `true` | 上次 push 失败留下的本地提交，在下一次**同步成功**后自动补推 |
 | `debug` | `false` | 调试模式：跳过所有 git 网络操作（不 `pull` / 不 `push`），sync.mjs 仍正常联网同步、只在本地提交 |
-| `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico），状态显示为右下角小圆点；留空用内置图标 |
+| `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标：同步中黄点、暂停「||」，空闲与失败不显示角标 |
 | `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 |
 
 > 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。

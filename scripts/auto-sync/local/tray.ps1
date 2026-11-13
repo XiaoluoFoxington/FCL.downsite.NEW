@@ -70,8 +70,9 @@ $script:notify = $null
 $script:menu = $null
 $script:iconIdle = $null
 $script:iconBusy = $null
-$script:iconError = $null
+$script:iconPaused = $null
 $script:iconBitmaps = @()
+$script:iconHandles = @()
 $script:baseIconBitmap = $null
 $script:trayState = 'idle'
 
@@ -88,10 +89,11 @@ $script:nextRunAt = $null
 $script:paused = $false
 $script:sessionText = '会话：未检查'
 $script:sessionDaysLeft = $null
-$script:exiting = $false
 $script:restartRequested = $false
 $script:lastTip = ''
-$script:gitTokenEnvSet = $false
+$script:injectedEnv = @{}
+$script:timer = $null
+$script:appContext = $null
 
 # ============================ 基础工具 ============================
 
@@ -177,14 +179,14 @@ function Save-Config($cfg) {
   }
 }
 
-function Set-GitTokenEnv($Token) {
-  $token = ([string]$Token).Trim()
-  if ($token) {
-    $env:LOCAL_SYNC_GIT_TOKEN = $token
-    $script:gitTokenEnvSet = $true
-  } elseif ($script:gitTokenEnvSet) {
-    Remove-Item Env:\LOCAL_SYNC_GIT_TOKEN -ErrorAction SilentlyContinue
-    $script:gitTokenEnvSet = $false
+function Set-InjectedEnv([string]$Name, [string]$Value) {
+  if ($Value) {
+    Set-Item -Path ('Env:' + $Name) -Value $Value
+    $script:injectedEnv[$Name] = $true
+  } elseif ($script:injectedEnv[$Name]) {
+    # 只清理本进程注入过的值，不动用户自己的系统环境变量
+    Remove-Item ('Env:' + $Name) -ErrorAction SilentlyContinue
+    $script:injectedEnv[$Name] = $false
   }
 }
 
@@ -241,8 +243,8 @@ function New-BaseIconBitmap {
   if ($img) {
     try {
       $scale = [math]::Min($size / $img.Width, $size / $img.Height)
-      $w = [int][math]::Round($img.Width * $scale)
-      $h = [int][math]::Round($img.Height * $scale)
+      $w = [math]::Max(1, [int][math]::Round($img.Width * $scale))
+      $h = [math]::Max(1, [int][math]::Round($img.Height * $scale))
       $g.DrawImage($img, [int](($size - $w) / 2), [int](($size - $h) / 2), $w, $h)
     } catch {
       Write-TrayLog "绘制自定义图标失败：$($_.Exception.Message)"
@@ -268,8 +270,8 @@ function New-BaseIconBitmap {
   return $bmp
 }
 
-# 在底图右下角叠状态圆点（白边保证深色背景下也看得清）
-function New-TrayIcon([System.Drawing.Color]$Color) {
+# 在底图右下角叠状态角标：none = 无角标 / dot = 圆点 / pause = 暂停图标
+function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
   $size = 32
   $bmp = [System.Drawing.Bitmap]::new($size, $size)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -279,34 +281,71 @@ function New-TrayIcon([System.Drawing.Color]$Color) {
 
   if ($script:baseIconBitmap) { $g.DrawImage($script:baseIconBitmap, 0, 0, $size, $size) }
 
-  $d = 12
-  $x = $size - $d - 1
-  $y = $size - $d - 1
-  $ring = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
-  $g.FillEllipse($ring, $x - 1, $y - 1, $d + 2, $d + 2)
-  $ring.Dispose()
-  $dot = [System.Drawing.SolidBrush]::new($Color)
-  $g.FillEllipse($dot, $x, $y, $d, $d)
-  $dot.Dispose()
+  if ($Badge -eq 'dot') {
+    $d = 12
+    $x = $size - $d - 1
+    $y = $size - $d - 1
+    # 透明挖空角标四周一圈，替代描边
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+    $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
+    $g.FillEllipse($clear, $x - 2, $y - 2, $d + 4, $d + 4)
+    $clear.Dispose()
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+    $dot = [System.Drawing.SolidBrush]::new($Color)
+    $g.FillEllipse($dot, $x, $y, $d, $d)
+    $dot.Dispose()
+  } elseif ($Badge -eq 'pause') {
+    # 「||」直接画在右下角，白色填充，不套圆形徽标
+    $barW = 4
+    $barH = 10
+    $gap = 2
+    $x = $size - ($barW * 2 + $gap) - 1
+    $y = $size - $barH - 1
+    # 透明挖空角标四周一圈，替代描边
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+    $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
+    $g.FillRectangle($clear, $x - 2, $y - 2, ($barW * 2 + $gap) + 4, $barH + 4)
+    $clear.Dispose()
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+    $bar = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
+    $g.FillRectangle($bar, $x, $y, $barW, $barH)
+    $g.FillRectangle($bar, $x + $barW + $gap, $y, $barW, $barH)
+    $bar.Dispose()
+  }
+
   $g.Dispose()
 
-  # 保留 Bitmap 引用，避免句柄失效
+  # 位图与 HICON 都由 Update-TrayIcons 在换代/退出时统一释放
   $script:iconBitmaps += $bmp
-  return [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
+  $icon = [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
+  $script:iconHandles += [IntPtr]$icon.Handle
+  return $icon
+}
+
+function Destroy-IconHandle([IntPtr]$Handle) {
+  if ($Handle -eq [IntPtr]::Zero) { return }
+  try { [void][Win32.IconApi]::DestroyIcon($Handle) } catch { }
 }
 
 function Update-TrayIcons {
-  $oldIcons = @($script:iconIdle, $script:iconBusy, $script:iconError) | Where-Object { $_ }
+  $oldIcons = @($script:iconIdle, $script:iconBusy, $script:iconPaused) | Where-Object { $_ }
+  $oldBitmaps = $script:iconBitmaps
+  $oldHandles = $script:iconHandles
+  $script:iconBitmaps = @()
+  $script:iconHandles = @()
+
   if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
   $script:baseIconBitmap = New-BaseIconBitmap
 
-  $script:iconIdle = New-TrayIcon ([System.Drawing.Color]::FromArgb(38, 132, 255))
-  $script:iconBusy = New-TrayIcon ([System.Drawing.Color]::FromArgb(255, 152, 0))
-  $script:iconError = New-TrayIcon ([System.Drawing.Color]::FromArgb(211, 47, 47))
+  $script:iconIdle = New-TrayIcon 'none'
+  $script:iconBusy = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(255, 214, 0))
+  $script:iconPaused = New-TrayIcon 'pause'
 
-  # 先让托盘切到新图标，再释放旧图标，避免正在显示的句柄被回收
+  # 先让托盘切到新图标，再释放旧图标、HICON 与位图
   Update-TrayIcon $script:trayState
   foreach ($i in $oldIcons) { try { $i.Dispose() } catch { } }
+  foreach ($h in $oldHandles) { Destroy-IconHandle $h }
+  foreach ($b in $oldBitmaps) { try { $b.Dispose() } catch { } }
 }
 
 function Update-TrayIcon([string]$State) {
@@ -314,8 +353,8 @@ function Update-TrayIcon([string]$State) {
   if (-not $script:notify) { return }
   switch ($State) {
     'busy' { $script:notify.Icon = $script:iconBusy }
-    'error' { $script:notify.Icon = $script:iconError }
-    default { $script:notify.Icon = $script:iconIdle }
+    'paused' { $script:notify.Icon = $script:iconPaused }
+    default { $script:notify.Icon = $script:iconIdle } # idle / error：无角标
   }
 }
 
@@ -323,11 +362,12 @@ function Update-TrayIcon([string]$State) {
 function Format-Display([string]$Text) {
   if (-not $Text) { return $Text }
   $Text = $Text -replace '线路\s*1\s*自动同步', '自动同步'
-  $Text = $Text -replace '线路\s*1', ''
+  $Text = $Text -replace '线路\s*1(?!\d)', ''
   $Text = $Text -replace '站长提供线路', ''
   $Text = $Text -replace '站长提供', ''
   # 中性化：不出现「资源 / 软件」与服务商名
   $Text = $Text -replace '全部软件均已是最新', '全部内容均为最新'
+  $Text = $Text -replace '全部软件已是最新', '全部内容均为最新'
   $Text = $Text -replace '成功软件', '成功'
   $Text = $Text -replace '软件', '内容'
   $Text = $Text -replace '资源\s*id\s*=', '条目 '
@@ -430,10 +470,10 @@ function Start-SyncRun {
 
   # 每轮重新读配置：改 config.json（例如换会话 cookie / token / node 路径）后无需重启托盘即可生效
   $script:cfg = Read-Config
-  if ([string]$script:cfg.session) { $env:H1111_SESSION = [string]$script:cfg.session }
-  if ([string]$script:cfg.githubToken) { $env:GITHUB_TOKEN = [string]$script:cfg.githubToken }
+  Set-InjectedEnv 'H1111_SESSION' ([string]$script:cfg.session)
+  Set-InjectedEnv 'GITHUB_TOKEN' ([string]$script:cfg.githubToken)
   # 拉取/推送用的 PAT：没有就清掉，让 run-sync 回退到本机 git 凭据
-  Set-GitTokenEnv $script:cfg.gitToken
+  Set-InjectedEnv 'LOCAL_SYNC_GIT_TOKEN' (([string]$script:cfg.gitToken).Trim())
   $script:nodeExe = Resolve-NodeExe
   # 拉取 / 补推 / 通知的行为都来自 config.json，每次同步前重新注入给包装器
   if ($script:cfg.pullBeforeSync) { $env:LOCAL_SYNC_PULL = '1' } else { $env:LOCAL_SYNC_PULL = '0' }
@@ -490,7 +530,7 @@ function Get-RunSummary([string]$LogPath, [string]$ErrPath = '') {
   if (-not $LogPath -or -not (Test-Path -LiteralPath $LogPath)) { return '' }
   try {
     $lines = Get-Content -LiteralPath $LogPath -Encoding UTF8 -ErrorAction SilentlyContinue
-    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|登录 huang1111 失败|push 失败|同步失败|拉取失败|已取消|补推' } |
+    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|全部软件已是最新|登录 huang1111 失败|push 失败|同步失败|拉取失败|已取消|补推' } |
       Select-Object -Last 2
     $text = (($hit | ForEach-Object { ([string]$_).Trim() }) -join ' / ')
     if (-not $text -and $ErrPath -and (Test-Path -LiteralPath $ErrPath)) {
@@ -537,7 +577,8 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
     else { $elapsedText = "｜用时 $sec 秒" }
   }
 
-  if ($isFailure) { Update-TrayIcon 'error' } else { Update-TrayIcon 'idle' }
+  if ($script:paused) { Update-TrayIcon 'paused' }
+  elseif ($isFailure) { Update-TrayIcon 'error' } else { Update-TrayIcon 'idle' }
 
   if (Test-Notify $isFailure) {
     $text = $summary
@@ -577,7 +618,7 @@ function Invoke-Tick {
   } catch {
     Write-TrayLog "调度异常：$($_.Exception.Message)"
   }
-  Update-Tooltip
+  try { Update-Tooltip } catch { }
 }
 
 function Update-Tooltip {
@@ -714,6 +755,11 @@ function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current) {
   return ([string]$value).Trim()
 }
 
+function Stop-Tray {
+  if ($script:timer) { try { $script:timer.Stop() } catch { } }
+  if ($script:appContext) { try { $script:appContext.ExitThread() } catch { } }
+}
+
 function Build-Menu {
   $menu = $script:menu
   $menu.Items.Clear()
@@ -753,9 +799,11 @@ function Build-Menu {
   [void]$menu.Items.Add((New-MenuItem $pauseText ({
     $script:paused = -not $script:paused
     if ($script:paused) {
+      Update-TrayIcon 'paused'
       Write-TrayLog '已暂停自动同步'
     } else {
       $script:nextRunAt = (Get-Date)
+      if ($script:running) { Update-TrayIcon 'busy' } else { Update-TrayIcon 'idle' }
       Write-TrayLog '已恢复自动同步'
     }
   })))
@@ -897,7 +945,7 @@ function Build-Menu {
     if ($null -eq $value) { return }
     $script:cfg.gitToken = $value
     Save-Config $script:cfg
-    Set-GitTokenEnv $value
+    Set-InjectedEnv 'LOCAL_SYNC_GIT_TOKEN' $value
     Write-TrayLog ('拉取/推送令牌：' + $(if ($value) { '已更新' } else { '已清除（改回本机 git 凭据）' }))
     if ($value) { Show-Balloon '令牌已保存' '下一轮同步起，拉取/推送使用该令牌鉴权。' 'Info' }
     else { Show-Balloon '令牌已清除' '将回退到本机 git 默认凭据。' 'Info' }
@@ -943,16 +991,16 @@ function Build-Menu {
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
   [void]$menu.Items.Add((New-MenuItem '重新启动' ({
     $script:restartRequested = $true
-    $script:exiting = $true
     # 正在同步时不打断，等它跑完再重启
     if ($script:running) { $script:paused = $true }
+    Stop-Tray
   })))
   [void]$menu.Items.Add((New-MenuItem '退出' ({
-    $script:exiting = $true
     if ($script:running -and $script:proc) {
       # 正在同步时不强杀，等它跑完再退出托盘
       $script:paused = $true
     }
+    Stop-Tray
   })))
 }
 
@@ -993,13 +1041,34 @@ if (-not $mutex.WaitOne(0)) { exit 0 }
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
+# Bitmap.GetHicon() 产生的 HICON 必须显式 DestroyIcon，否则换图标时会泄漏 GDI 句柄
+try {
+  Add-Type -Namespace Win32 -Name IconApi -MemberDefinition @'
+[DllImport("user32.dll", SetLastError = true)]
+public static extern bool DestroyIcon(IntPtr hIcon);
+'@
+} catch {
+  Write-TrayLog "加载 DestroyIcon 失败：$($_.Exception.Message)"
+}
+
+# 后台托盘不应该因为一次 UI 异常就弹错误框或退出；必须在创建任何窗口之前设置
+try {
+  [System.Windows.Forms.Application]::SetUnhandledExceptionMode([System.Windows.Forms.UnhandledExceptionMode]::CatchException)
+  [System.Windows.Forms.Application]::add_ThreadException({
+    param($sender, $e)
+    Write-TrayLog "界面线程异常：$($e.Exception.Message)"
+  })
+} catch {
+  Write-TrayLog "注册全局异常处理失败：$($_.Exception.Message)"
+}
+
 # 原生进程输出是 UTF-8（node/git），把控制台解码也设为 UTF-8，避免中文变乱码
 try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
 
 # 环境变量：同步脚本只从环境读凭据（配置里的值优先，其次沿用系统环境）
-if ([string]$script:cfg.session) { $env:H1111_SESSION = [string]$script:cfg.session }
-if ([string]$script:cfg.githubToken) { $env:GITHUB_TOKEN = [string]$script:cfg.githubToken }
-Set-GitTokenEnv $script:cfg.gitToken
+Set-InjectedEnv 'H1111_SESSION' ([string]$script:cfg.session)
+Set-InjectedEnv 'GITHUB_TOKEN' ([string]$script:cfg.githubToken)
+Set-InjectedEnv 'LOCAL_SYNC_GIT_TOKEN' (([string]$script:cfg.gitToken).Trim())
 # 隐藏进程里没有可交互的终端：禁用 git 终端提示，缺凭据时直接失败而不是挂起
 $env:GIT_TERMINAL_PROMPT = '0'
 # 本地运行必须摘掉 GHA 上下文：否则 sync.mjs 会把 token 写进 git remote URL
@@ -1046,12 +1115,16 @@ if ($script:cfg.runOnStart) {
   $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
 }
 
-# 无窗体消息循环：DoEvents 处理托盘/菜单消息，同时驱动定时检查
-while (-not $script:exiting) {
-  [System.Windows.Forms.Application]::DoEvents()
-  Invoke-Tick
-  Start-Sleep -Milliseconds 100
-}
+# 单次检查交给 WinForms 定时器：无消息时线程阻塞在消息循环里，不靠轮询空转
+$script:timer = New-Object System.Windows.Forms.Timer
+$script:timer.Interval = 1000
+$script:timer.Add_Tick({ try { Invoke-Tick } catch { Write-TrayLog "定时检查异常：$($_.Exception.Message)" } })
+$script:timer.Start()
+
+$script:appContext = New-Object System.Windows.Forms.ApplicationContext
+[System.Windows.Forms.Application]::Run($script:appContext)
+try { $script:timer.Dispose() } catch { }
+try { $script:appContext.Dispose() } catch { }
 
 # 退出：正在同步则等它跑完（不打断，避免留下半截提交）
 if ($script:running) {
@@ -1064,6 +1137,12 @@ if ($script:running) {
 }
 
 try { $script:notify.Visible = $false; $script:notify.Dispose() } catch { }
+try { $script:menu.Dispose() } catch { }
+# 释放图标 HICON / 位图，避免进程退出前的 GDI 句柄泄漏
+foreach ($i in @($script:iconIdle, $script:iconBusy, $script:iconPaused)) { if ($i) { try { $i.Dispose() } catch { } } }
+foreach ($h in $script:iconHandles) { Destroy-IconHandle $h }
+foreach ($b in $script:iconBitmaps) { if ($b) { try { $b.Dispose() } catch { } } }
+if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
 Write-TrayLog '托盘已退出'
 try { $mutex.ReleaseMutex() } catch { }
 

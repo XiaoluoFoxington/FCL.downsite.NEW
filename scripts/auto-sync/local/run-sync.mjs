@@ -37,9 +37,12 @@ const DEBUG = process.env.LOCAL_SYNC_DEBUG === '1';
 // 不把 token 写进 .git/config 或 remote URL；没有则完全不动，沿用本机 git 凭据。
 if (GIT_TOKEN) {
   const basic = Buffer.from(`x-access-token:${GIT_TOKEN}`, 'utf8').toString('base64');
-  process.env.GIT_CONFIG_COUNT = '1';
-  process.env.GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraheader';
-  process.env.GIT_CONFIG_VALUE_0 = `AUTHORIZATION: basic ${basic}`;
+  // 顺着已有的 GIT_CONFIG_* 追加，不覆盖别的工具注入的配置
+  const count = Number.parseInt(process.env.GIT_CONFIG_COUNT || '0', 10);
+  const idx = Number.isFinite(count) && count >= 0 ? count : 0;
+  process.env[`GIT_CONFIG_KEY_${idx}`] = 'http.https://github.com/.extraheader';
+  process.env[`GIT_CONFIG_VALUE_${idx}`] = `AUTHORIZATION: basic ${basic}`;
+  process.env.GIT_CONFIG_COUNT = String(idx + 1);
 }
 
 function toPositiveInt(raw, fallback) {
@@ -201,6 +204,12 @@ line(GIT_TOKEN
   ? '🔑 拉取/推送凭据：config.json 中的 GitHub 令牌'
   : '🔑 拉取/推送凭据：本机 git 默认凭据');
 if (DEBUG) line('🐛 调试模式：跳过 git pull / push，提交只留在本地');
+if (GIT_TOKEN) {
+  const remote = gitText(['remote', 'get-url', 'origin']);
+  if (/^(git@|ssh:)/i.test(remote)) {
+    line('⚠ origin 使用 SSH，令牌只对 HTTPS 生效，本次仍走 SSH 凭据');
+  }
+}
 
 if (!pull()) {
   line('');
