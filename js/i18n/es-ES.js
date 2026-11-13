@@ -44,6 +44,7 @@ const esES = {
       system: 'Condiciones de filtrado del sistema actual ({osName}) ({items})',
       archive: 'Comprimidos ({items})',
       source: 'Paquetes de código fuente ({items})',
+      developer: 'Artefactos para desarrolladores ({items})',
       none: 'Ninguno',
     },
     filterNoMatch: 'No hay elementos que coincidan con los criterios de filtro actuales.',

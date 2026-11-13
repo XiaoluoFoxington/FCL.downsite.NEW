@@ -43,6 +43,7 @@ const jaJP = {
       system: '現在のシステム（{osName}）の絞り込み条件（{items}）',
       archive: 'アーカイブ（{items}）',
       source: 'ソースパッケージ（{items}）',
+      developer: '開発者向け成果物（{items}）',
       none: 'なし',
     },
     filterNoMatch: '現在のフィルター条件に一致する項目はありません。',

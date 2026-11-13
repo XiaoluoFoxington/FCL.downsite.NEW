@@ -110,9 +110,9 @@ function createFilterPanel(filterConfig, state, onChange) {
  * 下载选择器的纯 DOM 视图。
  * 它不读取远程数据也不保存当前选择：controller 传入节点和回调，
  * 因而更换镜像协议不会影响表格、筛选和可访问性渲染。
- * osPatterns/osName 是系统筛选信息，与选择层级无关，直接作用于最终下载表格。
+ * osName 是系统筛选信息，与选择层级无关，直接作用于最终下载表格（系统正则由筛选模块按它取用）。
  */
-export function createSelectorView(container, stopButton, matchedArchitecture, osPatterns = [], osName = '') {
+export function createSelectorView(container, stopButton, matchedArchitecture, osName = '') {
   function clearFrom(level) {
     // 删除 level 及之后的 section；父级选择框必须保留，用户才能改选线路。
     container.querySelectorAll('[data-selector-level]').forEach((element) => {
@@ -178,7 +178,7 @@ export function createSelectorView(container, stopButton, matchedArchitecture, o
 
     // 筛选逻辑全部由 domain 模块集中处理（类别定义、文件归类、可见性判定），
     // 这里只渲染勾选框并把用户的选择应用到表格行。
-    const filterConfig = createFilterConfig({ filter, osPatterns, osName });
+    const filterConfig = createFilterConfig({ filter, osName });
     // 默认勾选状态由 domain 模块决定：数据源与当前系统（如可用），
     // 两者都不可用时回退为"显示全部"。
     const state = filterConfig.createDefaultState();

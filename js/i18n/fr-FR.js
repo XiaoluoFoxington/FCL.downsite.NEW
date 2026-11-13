@@ -43,6 +43,7 @@ const frFR = {
       system: 'Conditions de filtrage du système actuel ({osName}) ({items})',
       archive: 'Archives ({items})',
       source: 'Paquets sources ({items})',
+      developer: 'Artefacts pour développeurs ({items})',
       none: 'Aucun',
     },
     filterNoMatch: 'Aucun élément ne correspond aux critères de filtrage actuels.',

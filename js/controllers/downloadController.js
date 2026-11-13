@@ -1,4 +1,4 @@
-import { detectSystemInfo, checkOSRequirement, getSystemDownloadPatterns } from '../domain/systemInfo.js';
+import { detectSystemInfo, checkOSRequirement } from '../domain/systemInfo.js';
 import { selectAutoDefault } from '../domain/autoSelect.js';
 import { getMirrors, getSoftware } from '../repositories/siteRepository.js';
 import { createDownloadSelectorController } from './downloadSelectorController.js';
@@ -68,10 +68,8 @@ export function createDownloadController(elements, softwareId) {
         container: elements.container,
         stopButton: elements.stopButton,
         matchedArchitecture: system.matchedArchitecture,
-        // 系统自动筛选：根据当前系统生成安装包匹配表达式，供筛选面板的"当前系统"类别使用。
-        // 表达式为正则片段，除扩展名结尾外还能命中名称含系统的包（如 xxx-windows-v1.2.3.zip）。
-        osPatterns: getSystemDownloadPatterns(system?.fullResult?.os?.name),
-        // 系统显示名用于筛选面板的类别标签，如"当前系统（Windows）筛选条件（…）"。
+        // 系统显示名同时驱动筛选面板：系统类别按它从筛选模块的正则表里取对应的一条，
+        // 并用于类别标签，如"当前系统（Windows）筛选条件（…）"。
         osName: system?.fullResult?.os?.name || '',
         softwareName: basic.name,
         dataSource: [{ name: basic.name, nameIsSoftware: true, children: autoMirrorItems, filter: detail.filter, description: detail.description }],

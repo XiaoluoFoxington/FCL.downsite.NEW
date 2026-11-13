@@ -20,7 +20,9 @@ const ARCHITECTURES = [
   // "all" 必须作为独立分段（-all-、_all.、/all/、行首行尾等）才算全架构，
   // 裸 /all/i 会把 installer、fallback 等含 "all" 子串的文件误判为 all。
   // 下划线是 \w 字符，\ball\b 无法识别 _all 分段，因此用显式分隔符集合。
-  { pattern: /(^|[\s._\-/])all([\s._\-/]|$)/i, name: 'all' },
+  // universal 是部分多架构发布包（macOS 等）的等价叫法，与 all 同等对待；
+  // 允许尾随版本号（universal2）以覆盖手写文件名中 `app-universal2.dmg` 这类写法。
+  { pattern: /(^|[\s._\-/])(?:all|universal\d*)([\s._\-/]|$)/i, name: 'all' },
 ];
 
 /**
@@ -167,44 +169,4 @@ export function buildSystemMessages(system) {
   }
 
   return messages;
-}
-
-/**
- * 系统 → 下载文件匹配表达式。
- * 键为 UAParser os.name 的原始值（小写比较）；值为该平台常见的安装包/可执行文件正则片段。
- *
- * 表达式按"正则"而非"扩展名"维护，因此既要求文件名以该扩展名结尾（避免 .apk.sha256、
- * .exe.txt 之类被误判），又能直接容纳命中名称中段的写法，例如 windows 的
- * `(^|[-_.])(?:windows|win)(?![a-z])` 能捞起 xxx-windows-v1.2.3.zip 这类含系统名的包。
- * 中段片段的后边界是"不紧跟字母"的负向断言，而非必须是分隔符：win32/win64、linux64、
- * osx64 这类数字粘连命名同样命中，而 winery、swing 这类字母粘连词仍被前/后边界排除。
- * 片段由 downloadFilter.js 统一加上 i 标志后对下载地址匹配（故 [a-z] 同时挡得住大写），
- * 片段自身不写 ^...$ 锚点（由片段自带边界）。
- *
- * 压缩包/源码包不属于任何系统的原生格式，由下载表格筛选模块（downloadFilter.js）单独分类。
- * HarmonyOS 为纯血鸿蒙（HarmonyOS NEXT），不兼容 Android，仅认 .hap（应用安装包）与 .app（应用市场分发格式）。
- */
-const SYSTEM_PATTERNS = {
-  android: ['\\.(?:apk|apks|xapk|apkm)$', '(^|[-_.])android(?![a-z])'],
-  windows: ['\\.(?:exe|msi|msix|appx|appxbundle|msixbundle)$', '(^|[-_.])(?:windows|win)(?![a-z])'],
-  'mac os': ['\\.(?:dmg|pkg)$', '(^|[-_.])(?:mac|macos|osx|darwin)(?![a-z])'],
-  linux: ['\\.(?:appimage|deb|rpm|flatpak|snap)$', '(^|[-_.])linux(?![a-z])'],
-  harmonyos: ['\\.(?:hap|app)$', '(^|[-_.])(?:harmonyos|openharmony)(?![a-z])'],
-  openharmony: ['\\.(?:hap|app)$', '(^|[-_.])(?:harmonyos|openharmony)(?![a-z])'],
-};
-
-/**
- * 根据系统名称返回下载文件匹配表达式。
- * 仅包含该系统的原生安装包表达式；压缩包/源码包由下载表格筛选模块单独分类。
- * 未识别系统返回空数组（不启用系统筛选），避免未知平台误隐藏文件。
- * @param {string|undefined} osName UAParser 返回的系统名，如 "Android"、"Windows"、"Mac OS"、"Linux"
- * @returns {Array<string>} 正则片段列表，空数组表示不筛选
- */
-export function getSystemDownloadPatterns(osName) {
-  const normalized = String(osName || '').toLowerCase();
-  const base = SYSTEM_PATTERNS[normalized];
-  // 未识别系统不启用筛选；已知系统返回其原生安装包表达式。
-  if (!base) return [];
-  // 去重但保留顺序，便于筛选面板标签稳定展示。
-  return [...new Set(base)];
 }

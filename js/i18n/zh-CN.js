@@ -53,6 +53,7 @@ const zhCN = {
       system: '当前系统（{osName}）筛选条件（{items}）',
       archive: '压缩包（{items}）',
       source: '源码包（{items}）',
+      developer: '开发者产物（{items}）',
       none: '无',
     },
     filterNoMatch: '无项目符合当前筛选条件。',

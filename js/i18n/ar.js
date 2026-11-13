@@ -43,6 +43,7 @@ const ar = {
       system: 'شروط التصفية للنظام الحالي ({osName}) ({items})',
       archive: 'الأرشيفات ({items})',
       source: 'حزم المصدر ({items})',
+      developer: 'ملفات المطوّرين ({items})',
       none: 'لا شيء',
     },
     filterNoMatch: 'لا توجد عناصر مطابقة لشروط التصفية الحالية.',

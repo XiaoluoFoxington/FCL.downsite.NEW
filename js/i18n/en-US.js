@@ -43,6 +43,7 @@ const enUS = {
       system: 'Current system ({osName}) filter conditions ({items})',
       archive: 'Archives ({items})',
       source: 'Source packages ({items})',
+      developer: 'Developer artifacts ({items})',
       none: 'None',
     },
     filterNoMatch: 'No items match the current filter criteria.',
