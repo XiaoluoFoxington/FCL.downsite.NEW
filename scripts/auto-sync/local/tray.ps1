@@ -89,6 +89,7 @@ $script:paused = $false
 $script:sessionText = '会话：未检查'
 $script:sessionDaysLeft = $null
 $script:exiting = $false
+$script:restartRequested = $false
 $script:lastTip = ''
 $script:gitTokenEnvSet = $false
 
@@ -325,6 +326,15 @@ function Format-Display([string]$Text) {
   $Text = $Text -replace '线路\s*1', ''
   $Text = $Text -replace '站长提供线路', ''
   $Text = $Text -replace '站长提供', ''
+  # 中性化：不出现「资源 / 软件」与服务商名
+  $Text = $Text -replace '全部软件均已是最新', '全部内容均为最新'
+  $Text = $Text -replace '成功软件', '成功'
+  $Text = $Text -replace '软件', '内容'
+  $Text = $Text -replace '资源\s*id\s*=', '条目 '
+  $Text = $Text -replace '资源', '条目'
+  $Text = $Text -replace '登录\s*huang1111\s*失败', '登录失败'
+  $Text = $Text -replace 'huang1111', '存储服务'
+  $Text = $Text -replace '网盘', '存储'
   return $Text
 }
 
@@ -916,11 +926,27 @@ function Build-Menu {
     } catch { }
   })))
 
+  [void]$menu.Items.Add((New-MenuItem '打开最近日志' ({
+    try {
+      if ($script:runLog -and (Test-Path -LiteralPath $script:runLog)) {
+        Start-Process notepad.exe -ArgumentList ('"' + $script:runLog + '"')
+      } else {
+        Show-Balloon '暂无日志' '还没有运行过同步。' 'Info'
+      }
+    } catch { }
+  })))
+
   [void]$menu.Items.Add((New-MenuItem '打开配置文件' ({
     try { Start-Process notepad.exe -ArgumentList ('"' + $script:ConfigPath + '"') } catch { }
   })))
 
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+  [void]$menu.Items.Add((New-MenuItem '重新启动' ({
+    $script:restartRequested = $true
+    $script:exiting = $true
+    # 正在同步时不打断，等它跑完再重启
+    if ($script:running) { $script:paused = $true }
+  })))
   [void]$menu.Items.Add((New-MenuItem '退出' ({
     $script:exiting = $true
     if ($script:running -and $script:proc) {
@@ -1009,7 +1035,7 @@ Update-Tooltip
 if (-not $script:nodeExe) {
   Show-Balloon '未找到 Node.js' '请安装 Node.js 18+，或在 config.json 的 nodePath 里填写 node.exe 的完整路径。' 'Error'
 } elseif (-not [string]$script:cfg.session -and -not $env:H1111_SESSION) {
-  Show-Balloon '未配置会话 cookie' '同步需要 huang1111 会话。请在 config.json 的 session 里填写，或设置系统环境变量 H1111_SESSION。' 'Warning'
+  Show-Balloon '未配置会话 cookie' '同步需要会话 cookie。请在 config.json 的 session 里填写，或设置系统环境变量 H1111_SESSION。' 'Warning'
 } elseif ($null -ne $script:sessionDaysLeft -and $script:sessionDaysLeft -le 10) {
   Show-Balloon '会话即将失效' ($script:sessionText + ' —— 请尽快更新 config.json 里的 session（或系统环境变量 H1111_SESSION）。') 'Warning'
 }
@@ -1040,3 +1066,15 @@ if ($script:running) {
 try { $script:notify.Visible = $false; $script:notify.Dispose() } catch { }
 Write-TrayLog '托盘已退出'
 try { $mutex.ReleaseMutex() } catch { }
+
+# 重新启动：先释放单实例锁再拉起新托盘，避免新进程因锁被占用直接退出
+if ($script:restartRequested) {
+  Write-TrayLog '正在重新启动托盘…'
+  try {
+    $vbs = Join-Path $ScriptDir 'start.vbs'
+    Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') `
+      -ArgumentList ('"' + $vbs + '"') -WorkingDirectory $ScriptDir
+  } catch {
+    Write-TrayLog "重新启动失败：$($_.Exception.Message)"
+  }
+}
