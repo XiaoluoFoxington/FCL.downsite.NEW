@@ -17,68 +17,6 @@ export function renderListError(elements, error, onRetry) {
   setFilterIndicator(elements.filterIndicatorOn, elements.filterIndicatorOff, false);
 }
 
-/**
- * 为筛选帮助面板中的可点击文本（[data-insert] 按钮）绑定插入行为。
- * 点击/回车/空格后在输入框光标处插入 data-insert 文本，并派发 input 事件让筛选重新解析；
- * 输入框未聚焦时插入到末尾。
- */
-export function enableFilterHelpInserts(container, input) {
-  if (!container || !input) return;
-
-  const insert = (event) => {
-    const token = event.target.closest('[data-insert]');
-    if (!token) return;
-    insertFilterText(input, token.dataset.insert);
-  };
-  const insertOnKeydown = (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    const token = event.target.closest('[data-insert]');
-    if (!token) return;
-    event.preventDefault();
-    insertFilterText(input, token.dataset.insert);
-  };
-
-  container.addEventListener('click', insert);
-  container.addEventListener('keydown', insertOnKeydown);
-}
-
-/** 把文本插入输入框：聚焦时在光标处插入，否则追加到末尾，然后触发 input 事件。 */
-function insertFilterText(input, text) {
-  if (document.activeElement === input && typeof input.setRangeText === 'function') {
-    input.setRangeText(text, input.selectionStart ?? 0, input.selectionEnd ?? 0, 'end');
-  } else {
-    input.value += text;
-  }
-  input.focus();
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-/**
- * 在筛选帮助面板中列出所有可用标签，点击/回车可插入 `tag: <标签名>` 到筛选输入框。
- * 按钮由 enableFilterHelpInserts 的事件委托统一接管，无需单独绑定。
- * 插入值使用标签原始名（筛选匹配以 tag.json 的原始名为准），与表格中翻译后的展示名区分。
- * @param {HTMLElement} container 标签列表容器（filter-help-tags）
- * @param {Array<{id: number, name: string}>} tags 标签数组
- */
-export function renderFilterHelpTags(container, tags) {
-  if (!container || !Array.isArray(tags)) return;
-  const fragment = document.createDocumentFragment();
-  const label = document.createElement('span');
-  label.textContent = t('list.filterHelpTags');
-  fragment.appendChild(label);
-  tags.forEach((tag, index) => {
-    const insert = `tag: ${tag.name}`;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'xf-inline-code xf-list-table-th-sortable';
-    button.dataset.insert = insert;
-    button.textContent = insert;
-    fragment.appendChild(button);
-    if (index < tags.length - 1) fragment.appendChild(document.createTextNode(', '));
-  });
-  container.replaceChildren(fragment);
-}
-
 /** 打开方式值到页面路径的映射。 */
 const OPEN_METHOD_PAGE_MAP = {
   detail: '/html/detail.html',

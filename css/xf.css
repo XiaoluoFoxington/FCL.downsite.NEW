@@ -221,23 +221,8 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
   backdrop-filter: blur(16px);
 }
 
-/* 筛选表达式输入框：右侧内联图标按钮（删除单个表达式 / 清空）。
-   输入框占满剩余宽度，图标按钮紧贴右侧；禁用态沿用 MDUI 按钮样式。 */
-.xf-filter-input-wrap {
-  display: flex;
-  align-items: center;
-}
-
-.xf-filter-input-wrap .mdui-textfield-input {
-  flex: 1;
-  min-width: 0;
-}
-
-/* 不然会错位，目前还不知道影响范围有多大，所以就没放MDUI.patch里。
-   TODO */
-.xf-filter-input-wrap .xf-filter-input-action i {
-  bottom: unset;
-  padding: unset;
+.xf-filter-table {
+  max-height: 50vh;
 }
 
 .xf-filter-active-indicator {
@@ -247,13 +232,6 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
    此处提高特异性，确保 hidden 属性真正隐藏图标。 */
 .xf-filter-active-indicator[hidden] {
   display: none;
-}
-
-/* 筛选帮助面板内容：固定高度，内容（如全部可用标签）过多时内部滚动。
-   MDUI 面板体高度由脚本内联控制，因此固定高加在内容的内层容器上。 */
-.xf-filter-help-scroll {
-  height: 50vh;
-  overflow-y: auto;
 }
 
 /* MDUI select 键盘导航时的高亮项：提高特异性覆盖 mdui-select-menu-item 默认背景 */
@@ -380,6 +358,12 @@ table .xf-vertical-sticky-th {
   left: 0;
   backdrop-filter: blur(16px);
   z-index: 1;
+}
+
+.xf-vertical-margin {
+  margin-top: 16px;
+  margin-bottom: 16px;
+  /* 不能使用 margin: 16px 0;，因为会某些类会设置左右边距，而这个强制设为了0 */
 }
 
 /**

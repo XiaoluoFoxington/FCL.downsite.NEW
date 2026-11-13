@@ -1,103 +1,17 @@
 import { readPreference } from '../domain/preferences.js';
 import { clearBookmarks, onBookmarkChange, restoreDefaultBookmarks } from '../domain/bookmarks.js';
 import { completeOrphanTags, getSoftwareCatalog, getTags } from '../repositories/siteRepository.js';
-import { debounce, setFilterIndicator } from '../views/commonView.js';
-import { enableFilterHelpInserts, refreshBookmarkColumn, renderFilterHelpTags, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
+import { setFilterIndicator } from '../views/commonView.js';
+import { createFilterEditorView } from '../views/filterEditorView.js';
+import { refreshBookmarkColumn, renderListError, renderListLoading, renderSoftwareList } from '../views/listView.js';
 import { showSnackbar } from '../views/uiComponents.js';
 import { clearResponseCache } from '../http/client.js';
 import { logError } from '../common/logger.js';
 import { t } from '../common/i18n.js';
 
-/** 条件之间的关系符号。 */
-const RELATION_CHARS = '&|!';
-
-/**
- * 解析筛选表达式为条件数组。
- * 单个条件格式：关系 + 键 + ": " + 值；关系（& 与 / | 或 / ! 非）在首个条件上可省略，
- * 其余条件必须以关系开头。值内出现关系符号时必须用反斜杠转义（\& \| \!）。
- * 例：`name: fold & tag: mc\!je` → [{ rel: null, key: 'name', value: 'fold' },
- *                                   { rel: '&', key: 'tag', value: 'mc!je' }]
- * @param {string} input 用户输入的筛选表达式
- * @returns {Array<{rel: (string|null), key: string, value: string}>|null}
- *   空输入返回空数组；表达式非法返回 null（调用方应提示用户而不应用筛选）。
- */
-export function parseFilterExpression(input) {
-  const s = input.trim();
-  if (!s) return [];
-  const conditions = [];
-  let i = 0;
-  let needRelation = false;
-
-  while (i < s.length) {
-    // 跳过分隔空白
-    while (i < s.length && /\s/.test(s[i])) i++;
-    if (i >= s.length) break;
-
-    // 可选的关系前缀（首个条件省略时为 null）
-    let rel = null;
-    if (RELATION_CHARS.includes(s[i])) {
-      rel = s[i];
-      i++;
-      while (i < s.length && /\s/.test(s[i])) i++;
-      if (i >= s.length) return null; // 关系后面没有条件
-    } else if (needRelation) {
-      return null; // 条件之间必须用关系连接
-    }
-
-    // 键：直到冒号
-    const keyStart = i;
-    while (i < s.length && s[i] !== ':') i++;
-    if (i >= s.length) return null; // 缺少冒号
-    const key = s.slice(keyStart, i).trim();
-    i++; // 跳过冒号
-    if (i < s.length && s[i] === ' ') i++; // 允许 ": " 或 ":"
-
-    if (key !== 'name' && key !== 'tag') return null;
-
-    // 值：直到未转义的关系符号或字符串结束
-    let value = '';
-    while (i < s.length) {
-      const c = s[i];
-      if (c === '\\' && i + 1 < s.length && RELATION_CHARS.includes(s[i + 1])) {
-        value += s[i + 1];
-        i += 2;
-        continue;
-      }
-      if (RELATION_CHARS.includes(c)) break;
-      value += c;
-      i++;
-    }
-    value = value.trim();
-    if (!value) return null; // 值不能为空
-
-    conditions.push({ rel, key, value: value.toLowerCase() });
-    needRelation = true;
-  }
-  return conditions;
-}
-
-/**
- * 移除表达式的最后一个条件，返回新表达式（供"删除单个表达式"按钮使用）。
- * 按语法规则从后往前找最后一个未转义的关系符号（& | !）作为分隔点并截断；
- * 关系符号前面紧跟反斜杠（\& \| \!）时属于值内的转义，不能当作分隔点。
- * 只有一个条件（或没有关系符号）时返回空字符串。
- * @param {string} input 用户输入的筛选表达式
- * @returns {string} 删除最后一个条件后的表达式
- */
-export function removeLastCondition(input) {
-  const s = String(input || '');
-  for (let i = s.length - 1; i >= 0; i--) {
-    if (RELATION_CHARS.includes(s[i]) && s[i - 1] !== '\\') {
-      return s.slice(0, i).trim();
-    }
-  }
-  return '';
-}
-
 /**
  * 资源列表 controller。
- * elements.search：筛选表达式输入框；elements.filterField：输入框外层（用于错误态）；
- * elements.filterHelp：筛选帮助面板（可点击文本插入输入框）；elements.list：软件卡片挂载点；
+ * elements.filterVisualRows：可视化编辑器的条件行容器；elements.list：软件卡片挂载点；
  * elements.refreshButton / clearBookmarksButton / restoreBookmarksButton：操作面板按钮。
  * 它们均来自 list.html 的固定 ID/类名。
  */
@@ -109,6 +23,30 @@ export function createListController(elements) {
   let conditions = [];
   // 读取用户设置的默认打开方式，未设置时默认为详情页。
   let openMethod = readPreference('fdn-default-open-method') || 'detail';
+
+  // 可视化编辑器是筛选条件的唯一来源，条件变化后立即应用到列表。
+  const filterEditor = createFilterEditorView({
+    container: elements.filterVisualEditor,
+    rows: elements.filterVisualRows,
+    addButton: elements.filterVisualAdd,
+    clearButton: elements.filterVisualClear,
+    tagList: elements.filterVisualTagList,
+    onChange: applyEditorConditions,
+  });
+
+  /**
+   * 接收编辑器条件：忽略尚未填写值的行，并让首个有效条件不带关系前缀。
+   * 值与匹配逻辑一致地转小写，空数组代表无筛选。
+   */
+  function applyEditorConditions(next) {
+    const usable = next.filter((condition) => condition.value.trim());
+    conditions = usable.map((condition, index) => ({
+      rel: index === 0 ? null : (condition.rel || '&'),
+      key: condition.key === 'tag' ? 'tag' : 'name',
+      value: condition.value.trim().toLowerCase(),
+    }));
+    applyFilters();
+  }
 
   /** 单个条件是否命中某软件：name 匹配名称，tag 匹配任意标签名（均忽略大小写）。 */
   function matchesCondition(item, condition) {
@@ -139,11 +77,6 @@ export function createListController(elements) {
     renderSoftwareList(elements.list, visible, tagMap, openMethod);
   }
 
-  /** 表达式非法时点亮错误提示，合法或为空时恢复。 */
-  function setFilterError(invalid) {
-    elements.filterField?.classList.toggle('mdui-textfield-invalid', invalid);
-  }
-
   /** 加载目录与标签；成功返回 true，失败返回 false（错误界面由 renderListError 呈现）。 */
   async function load() {
     renderListLoading(elements);
@@ -155,8 +88,9 @@ export function createListController(elements) {
       const allTags = completeOrphanTags(tags, references);
       catalog = software;
       tagMap = new Map(allTags.map((tag) => [tag.id, tag.name]));
-      // 把全部可用标签列进筛选帮助面板，点击即可插入 tag: <标签名>。
-      renderFilterHelpTags(elements.filterHelpTags, allTags);
+      // 值输入框使用标签名作为候选，避免用户手记标签名。
+      filterEditor.setTags(allTags.map((tag) => tag.name));
+      filterEditor.setConditions(conditions);
       applyFilters();
       return true;
     } catch (error) {
@@ -186,48 +120,11 @@ export function createListController(elements) {
     showSnackbar(t('list.actionRestoreDefaultBookmarksDone'));
   }
 
-  // 筛选表达式输入使用防抖，边输入边解析，非法时不应用筛选并提示。
-  const debouncedApply = debounce(() => {
-    conditions = parseFilterExpression(elements.search.value);
-    setFilterError(conditions === null);
-    if (conditions === null) conditions = [];
-    applyFilters();
-  });
-
-  /** 输入为空时禁用清空/删除按钮，避免无意义点击。 */
-  function syncActionButtons() {
-    const empty = !elements.search.value.trim();
-    if (elements.filterClear) elements.filterClear.disabled = empty;
-    if (elements.filterRemoveOne) elements.filterRemoveOne.disabled = empty;
-  }
-
-  /** 清空整个筛选表达式。 */
-  function clearFilter() {
-    elements.search.value = '';
-    syncActionButtons();
-    debouncedApply();
-  }
-
-  /** 删除表达式的最后一个条件（仅剩一个条件时等效于清空）。 */
-  function removeLastConditionFromInput() {
-    elements.search.value = removeLastCondition(elements.search.value);
-    syncActionButtons();
-    debouncedApply();
-  }
-
-  elements.search.addEventListener('input', debouncedApply);
-  elements.search.addEventListener('input', syncActionButtons);
-  elements.filterClear?.addEventListener('click', clearFilter);
-  elements.filterRemoveOne?.addEventListener('click', removeLastConditionFromInput);
-  // 帮助面板中的可点击文本（示例/关系/键/转义）点击后插入到筛选输入框。
-  enableFilterHelpInserts(elements.filterHelp, elements.search);
   // 操作面板按钮：刷新目录、清空收藏、还原默认收藏。
   elements.refreshButton?.addEventListener('click', refreshCatalog);
   elements.clearBookmarksButton?.addEventListener('click', handleClearBookmarks);
   elements.restoreBookmarksButton?.addEventListener('click', handleRestoreDefaultBookmarks);
   // 收藏在表格外被变更时，同步表格收藏列，避免显示与实际状态不一致。
   onBookmarkChange(() => refreshBookmarkColumn(elements.list));
-  // 初始输入为空，两个按钮应处于禁用态。
-  syncActionButtons();
   return { load };
 }

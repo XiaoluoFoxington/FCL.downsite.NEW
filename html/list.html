@@ -52,49 +52,32 @@
           <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
         </div>
         <div class="mdui-panel-item-body">
-          <div class="mdui-textfield" id="filter-expression-field">
-            <label class="mdui-textfield-label" data-i18n="list.filterExpression">筛选表达式</label>
-            <div class="xf-filter-input-wrap">
-              <input class="mdui-textfield-input" type="text" placeholder="name: fold &amp; tag: mcje" data-i18n="list.filterPlaceholder" data-i18n-attr="placeholder" />
-              <button type="button" id="filter-remove-one-btn" class="mdui-btn mdui-btn-icon mdui-ripple xf-filter-input-action" data-i18n="list.filterRemoveOne" data-i18n-attr="aria-label"><i class="mdui-icon material-icons" aria-hidden="true">remove_circle_outline</i></button>
-              <button type="button" id="filter-clear-btn" class="mdui-btn mdui-btn-icon mdui-ripple xf-filter-input-action" data-i18n="list.filterClear" data-i18n-attr="aria-label"><i class="mdui-icon material-icons" aria-hidden="true">close</i></button>
+          <div id="filter-visual-editor">
+            <p data-i18n="list.filterVisualTitle">可视化编辑</p>
+            <div class="mdui-table-fluid xf-filter-table">
+              <table class="mdui-table">
+                <thead>
+                  <tr>
+                    <th data-i18n="list.filterVisualRelation">条件关系</th>
+                    <th data-i18n="list.filterVisualKey">条件键</th>
+                    <th data-i18n="list.filterVisualValue">条件值</th>
+                    <th data-i18n="list.filterVisualActions">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="filter-visual-rows"></tbody>
+              </table>
             </div>
-            <div class="mdui-textfield-error" data-i18n="list.filterError">格式不正确，请检查表达式</div>
-          </div>
-          <div class="mdui-panel" mdui-panel>
-            <div class="mdui-panel-item" id="filter-help-panel">
-              <div class="mdui-panel-item-header mdui-ripple">
-                <div data-i18n="list.filterHelpTitle">筛选帮助</div>
-                <i class="mdui-panel-item-arrow mdui-icon material-icons">keyboard_arrow_down</i>
+            <datalist id="filter-visual-tag-list"></datalist>
+            <div class="mdui-row xf-vertical-margin">
+              <div class="mdui-col-xs-12 mdui-col-sm-6">
+                <button type="button" id="filter-visual-add" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple">
+                  <i class="mdui-icon material-icons" aria-hidden="true">add</i><span data-i18n="list.filterVisualAdd">添加条件</span>
+                </button>
               </div>
-              <div class="mdui-panel-item-body mdui-typo" id="filter-help-panel-body">
-                <div class="xf-filter-help-scroll">
-                <p><span data-i18n="list.filterHelpFormatPrefix">单个条件格式：</span><code>关系 + 键 + ":" + 值</code></p>
-                <p data-i18n="list.filterHelpCombine">允许多个条件组合。首个条件无需关系。</p>
-                <p data-i18n="list.filterBtnsHelper"><i class="mdui-icon material-icons" aria-hidden="true" data-i18n="[rmOne]">remove_circle_outline</i>清除最后一个条件（仅剩一个条件时等效于清空），<i class="mdui-icon material-icons" aria-hidden="true" data-i18n="[rmAll]">close</i>清除所有条件。</p>
-                <p><span data-i18n="list.filterHelpExampleIntro">例如筛选名字含"fold"且标签含"mcje"：</span></p>
-                <p><button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="name: fold &amp; tag: mcje">name: fold &amp; tag: mcje</button></p>
-                <p data-i18n="list.filterHelpClickHint">可直接点击下方文字插入到编辑框。</p>
-                <p>
-                  <span data-i18n="list.filterHelpRelations">可用关系：</span>
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="&amp;" data-i18n="common.relationAnd">与</button>,
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="|" data-i18n="common.relationOr">或</button>,
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="!" data-i18n="common.relationNot">非</button>
-                </p>
-                <p>
-                  <span data-i18n="list.filterHelpKeys">可用键：</span>
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="name:">name</button>,
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="tag:">tag</button>
-                </p>
-                <p id="filter-help-tags"></p>
-                <p>
-                  <span data-i18n="list.filterHelpEscapes">可用转义：</span>
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="\&amp;">\&amp;</button>,
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="\|">\|</button>,
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="\!">\!</button>,
-                  <button type="button" class="xf-inline-code xf-list-table-th-sortable" data-insert="\\">\\</button>
-                </p>
-                </div>
+              <div class="mdui-col-xs-12 mdui-col-sm-6">
+                <button type="button" id="filter-visual-clear" class="mdui-btn mdui-btn-block mdui-btn-raised mdui-ripple" disabled>
+                  <i class="mdui-icon material-icons" aria-hidden="true">close</i><span data-i18n="list.filterClear">清空</span>
+                </button>
               </div>
             </div>
           </div>
