@@ -1,4 +1,4 @@
-﻿# tray.ps1 — 线路1 自动同步 · Windows 本地托盘版
+﻿# tray.ps1 — 自动同步 · Windows 本地托盘版
 #
 # 作用：常驻系统托盘，按自定义间隔在后台运行 `scripts/auto-sync/sync.mjs` 的**完整流程**
 #      （预探测 → 登录网盘 → 离线下载 → 取直链 → 写 data/down JSON → 分软件提交 → push）。
@@ -44,7 +44,8 @@ if (-not $StartupDir) {
   # 少数环境拿不到特殊文件夹时退回默认位置
   $StartupDir = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'Microsoft\Windows\Start Menu\Programs\Startup'
 }
-$StartupShortcut = Join-Path $StartupDir '线路1自动同步.lnk'
+$StartupShortcut = Join-Path $StartupDir '自动同步.lnk'
+$LegacyStartupShortcut = Join-Path $StartupDir '线路1自动同步.lnk'
 
 $script:Defaults = [ordered]@{
   intervalMinutes    = 60      # 同步间隔（分钟）
@@ -52,6 +53,7 @@ $script:Defaults = [ordered]@{
   nodePath           = ''      # 留空 = 自动在 PATH 里找 node
   session            = ''      # huang1111 会话 cookie；留空则读环境变量 H1111_SESSION
   githubToken        = ''      # GitHub 只读 token（建议配，避免 60 次/小时的匿名限额）
+  gitToken           = ''      # GitHub PAT（仅用于 git pull/push 鉴权）；留空 = 沿用本机 git 凭据
   syncTimeoutMinutes = 120     # 单次同步硬超时，超时终止子进程
   pullBeforeSync     = $true   # 每轮同步前先 git pull
   pullStrategy       = 'rebase' # rebase | ff-only
@@ -84,6 +86,7 @@ $script:sessionText = '会话：未检查'
 $script:sessionDaysLeft = $null
 $script:exiting = $false
 $script:lastTip = ''
+$script:gitTokenEnvSet = $false
 
 # ============================ 基础工具 ============================
 
@@ -169,6 +172,17 @@ function Save-Config($cfg) {
   }
 }
 
+function Set-GitTokenEnv($Token) {
+  $token = ([string]$Token).Trim()
+  if ($token) {
+    $env:LOCAL_SYNC_GIT_TOKEN = $token
+    $script:gitTokenEnvSet = $true
+  } elseif ($script:gitTokenEnvSet) {
+    Remove-Item Env:\LOCAL_SYNC_GIT_TOKEN -ErrorAction SilentlyContinue
+    $script:gitTokenEnvSet = $false
+  }
+}
+
 function Resolve-NodeExe {
   $configured = [string]$script:cfg.nodePath
   if ($configured) {
@@ -220,12 +234,23 @@ function Update-TrayIcon([string]$State) {
   }
 }
 
+# 本地版界面上不出现线路编号 / 提供方字样：统一在这里抹掉，日志原文不动
+function Format-Display([string]$Text) {
+  if (-not $Text) { return $Text }
+  $Text = $Text -replace '线路\s*1\s*自动同步', '自动同步'
+  $Text = $Text -replace '线路\s*1', ''
+  $Text = $Text -replace '站长提供线路', ''
+  $Text = $Text -replace '站长提供', ''
+  return $Text
+}
+
 function Show-Balloon([string]$Title, [string]$Text, [string]$Kind = 'Info') {
   if (-not $script:notify) { return }
+  $Title = Format-Display $Title
   $icon = [System.Windows.Forms.ToolTipIcon]::Info
   if ($Kind -eq 'Error') { $icon = [System.Windows.Forms.ToolTipIcon]::Error }
   elseif ($Kind -eq 'Warning') { $icon = [System.Windows.Forms.ToolTipIcon]::Warning }
-  $text = [string]$Text
+  $text = Format-Display ([string]$Text)
   if ($text.Length -gt 250) { $text = $text.Substring(0, 250) + '…' }
   try { $script:notify.ShowBalloonTip(8000, $Title, $text, $icon) } catch { }
 }
@@ -308,6 +333,8 @@ function Start-SyncRun {
   $script:cfg = Read-Config
   if ([string]$script:cfg.session) { $env:H1111_SESSION = [string]$script:cfg.session }
   if ([string]$script:cfg.githubToken) { $env:GITHUB_TOKEN = [string]$script:cfg.githubToken }
+  # 拉取/推送用的 PAT：没有就清掉，让 run-sync 回退到本机 git 凭据
+  Set-GitTokenEnv $script:cfg.gitToken
   $script:nodeExe = Resolve-NodeExe
   # 拉取 / 补推 / 通知的行为都来自 config.json，每次同步前重新注入给包装器
   if ($script:cfg.pullBeforeSync) { $env:LOCAL_SYNC_PULL = '1' } else { $env:LOCAL_SYNC_PULL = '0' }
@@ -418,8 +445,8 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
       else { $text = '本次同步成功（无新增内容）' }
     }
     $text += $elapsedText
-    if ($isFailure) { Show-Balloon '线路1 自动同步失败' $text 'Error' }
-    else { Show-Balloon '线路1 自动同步完成' $text 'Info' }
+    if ($isFailure) { Show-Balloon '自动同步失败' $text 'Error' }
+    else { Show-Balloon '自动同步完成' $text 'Info' }
   }
 
   Write-TrayLog "同步结束：$($script:lastResult)｜$summary"
@@ -457,13 +484,13 @@ function Update-Tooltip {
   $text = ''
   if ($script:running -and $script:runStartedAt) {
     $mins = [int](((Get-Date) - $script:runStartedAt).TotalMinutes)
-    $text = "线路1 自动同步 · 同步中 ${mins}m"
+    $text = "自动同步 · 同步中 ${mins}m"
   } elseif ($script:paused) {
-    $text = '线路1 自动同步 · 已暂停'
+    $text = '自动同步 · 已暂停'
   } elseif ($script:nextRunAt) {
-    $text = '线路1 自动同步 · 下次 ' + $script:nextRunAt.ToString('HH:mm')
+    $text = '自动同步 · 下次 ' + $script:nextRunAt.ToString('HH:mm')
   } else {
-    $text = '线路1 自动同步'
+    $text = '自动同步'
   }
   if ($script:unpushedCount -gt 0) { $text += " · 待推 $($script:unpushedCount)" }
   if ($text.Length -gt 63) { $text = $text.Substring(0, 63) }
@@ -492,13 +519,15 @@ function Format-Interval([double]$Minutes) {
 
 function Install-Autostart {
   try {
+    # 旧版快捷方式名带线路编号，统一换成中性名
+    if (Test-Path -LiteralPath $LegacyStartupShortcut) { Remove-Item -LiteralPath $LegacyStartupShortcut -Force }
     $ws = New-Object -ComObject WScript.Shell
     $lnk = $ws.CreateShortcut($StartupShortcut)
     $lnk.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
     $lnk.Arguments = '"' + (Join-Path $ScriptDir 'start.vbs') + '"'
     $lnk.WorkingDirectory = $ScriptDir
     $lnk.WindowStyle = 7
-    $lnk.Description = '线路1 自动同步（Windows 托盘版）'
+    $lnk.Description = '自动同步（Windows 托盘版）'
     $lnk.Save()
     Write-TrayLog '已写入开机启动快捷方式'
     return $true
@@ -512,6 +541,7 @@ function Install-Autostart {
 function Remove-Autostart {
   try {
     if (Test-Path -LiteralPath $StartupShortcut) { Remove-Item -LiteralPath $StartupShortcut -Force }
+    if (Test-Path -LiteralPath $LegacyStartupShortcut) { Remove-Item -LiteralPath $LegacyStartupShortcut -Force }
     Write-TrayLog '已移除开机启动快捷方式'
     return $true
   } catch {
@@ -520,7 +550,7 @@ function Remove-Autostart {
   }
 }
 
-function Test-Autostart { return (Test-Path -LiteralPath $StartupShortcut) }
+function Test-Autostart { return ((Test-Path -LiteralPath $StartupShortcut) -or (Test-Path -LiteralPath $LegacyStartupShortcut)) }
 
 function New-MenuItem([string]$Text, [scriptblock]$OnClick = $null, [bool]$Enabled = $true) {
   $item = New-Object System.Windows.Forms.ToolStripMenuItem
@@ -528,6 +558,58 @@ function New-MenuItem([string]$Text, [scriptblock]$OnClick = $null, [bool]$Enabl
   $item.Enabled = $Enabled
   if ($OnClick) { $item.Add_Click($OnClick) }
   return $item
+}
+
+function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current) {
+  $form = New-Object System.Windows.Forms.Form
+  $form.Text = $Title
+  $form.FormBorderStyle = 'FixedDialog'
+  $form.StartPosition = 'CenterScreen'
+  $form.MinimizeBox = $false
+  $form.MaximizeBox = $false
+  $form.ClientSize = New-Object System.Drawing.Size(420, 150)
+
+  $label = New-Object System.Windows.Forms.Label
+  $label.Text = $Prompt
+  $label.Location = New-Object System.Drawing.Point(14, 14)
+  $label.Size = New-Object System.Drawing.Size(392, 44)
+  $form.Controls.Add($label)
+
+  $tb = New-Object System.Windows.Forms.TextBox
+  $tb.Location = New-Object System.Drawing.Point(14, 62)
+  $tb.Size = New-Object System.Drawing.Size(392, 24)
+  $tb.UseSystemPasswordChar = $true
+  $tb.Text = [string]$Current
+  $form.Controls.Add($tb)
+
+  $hint = New-Object System.Windows.Forms.Label
+  $hint.Text = '留空并确定 = 清除，改回本机 git 凭据'
+  $hint.ForeColor = [System.Drawing.Color]::Gray
+  $hint.Location = New-Object System.Drawing.Point(14, 90)
+  $hint.Size = New-Object System.Drawing.Size(392, 20)
+  $form.Controls.Add($hint)
+
+  $ok = New-Object System.Windows.Forms.Button
+  $ok.Text = '确定'
+  $ok.DialogResult = [System.Windows.Forms.DialogResult]::OK
+  $ok.Location = New-Object System.Drawing.Point(240, 114)
+  $ok.Size = New-Object System.Drawing.Size(78, 26)
+  $form.Controls.Add($ok)
+
+  $cancel = New-Object System.Windows.Forms.Button
+  $cancel.Text = '取消'
+  $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+  $cancel.Location = New-Object System.Drawing.Point(328, 114)
+  $cancel.Size = New-Object System.Drawing.Size(78, 26)
+  $form.Controls.Add($cancel)
+  $form.AcceptButton = $ok
+  $form.CancelButton = $cancel
+
+  $result = $form.ShowDialog()
+  $value = $tb.Text
+  $form.Dispose()
+  if ($result -ne [System.Windows.Forms.DialogResult]::OK) { return $null }
+  return ([string]$value).Trim()
 }
 
 function Build-Menu {
@@ -591,7 +673,7 @@ function Build-Menu {
     try {
       Add-Type -AssemblyName Microsoft.VisualBasic
       $current = [string][int]$script:cfg.intervalMinutes
-      $answer = [Microsoft.VisualBasic.Interaction]::InputBox('请输入自动同步间隔（分钟，最小 1）', '线路1 自动同步', $current)
+      $answer = [Microsoft.VisualBasic.Interaction]::InputBox('请输入自动同步间隔（分钟，最小 1）', '自动同步', $current)
       if ($answer) {
         $n = 0
         if ([int]::TryParse([string]$answer, [ref]$n) -and $n -ge 1) {
@@ -670,6 +752,21 @@ function Build-Menu {
   $nNever.Checked = ([string]$script:cfg.notifyMode -eq 'never')
   [void]$notifyItem.DropDownItems.Add($nNever)
   [void]$optItem.DropDownItems.Add($notifyItem)
+
+  [void]$optItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+
+  $hasGitToken = -not [string]::IsNullOrWhiteSpace([string]$script:cfg.gitToken)
+  $tokenText = 'GitHub 令牌（拉取/推送）：' + $(if ($hasGitToken) { '已配置' } else { '未配置' })
+  [void]$optItem.DropDownItems.Add((New-MenuItem $tokenText ({
+    $value = Show-TokenDialog 'GitHub 令牌（拉取/推送）' '填入有仓库读写权限的 GitHub PAT（classic: repo；fine-grained: Contents 读写）。' ([string]$script:cfg.gitToken)
+    if ($null -eq $value) { return }
+    $script:cfg.gitToken = $value
+    Save-Config $script:cfg
+    Set-GitTokenEnv $value
+    Write-TrayLog ('拉取/推送令牌：' + $(if ($value) { '已更新' } else { '已清除（改回本机 git 凭据）' }))
+    if ($value) { Show-Balloon '令牌已保存' '下一轮同步起，拉取/推送使用该令牌鉴权。' 'Info' }
+    else { Show-Balloon '令牌已清除' '将回退到本机 git 默认凭据。' 'Info' }
+  })))
 
   [void]$menu.Items.Add($optItem)
 
@@ -751,6 +848,7 @@ try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catc
 # 环境变量：同步脚本只从环境读凭据（配置里的值优先，其次沿用系统环境）
 if ([string]$script:cfg.session) { $env:H1111_SESSION = [string]$script:cfg.session }
 if ([string]$script:cfg.githubToken) { $env:GITHUB_TOKEN = [string]$script:cfg.githubToken }
+Set-GitTokenEnv $script:cfg.gitToken
 # 隐藏进程里没有可交互的终端：禁用 git 终端提示，缺凭据时直接失败而不是挂起
 $env:GIT_TERMINAL_PROMPT = '0'
 # 本地运行必须摘掉 GHA 上下文：否则 sync.mjs 会把 token 写进 git remote URL
@@ -766,7 +864,7 @@ $script:iconError = New-TrayIcon ([System.Drawing.Color]::FromArgb(211, 47, 47))
 
 $script:notify = New-Object System.Windows.Forms.NotifyIcon
 $script:notify.Icon = $script:iconIdle
-$script:notify.Text = '线路1 自动同步'
+$script:notify.Text = '自动同步'
 $script:notify.Visible = $true
 
 $script:menu = New-Object System.Windows.Forms.ContextMenuStrip

@@ -19,7 +19,7 @@ here = fso.GetParentFolderName(WScript.ScriptFullName)
 ps1 = fso.BuildPath(here, "tray.ps1")
 
 If Not fso.FileExists(ps1) Then
-  MsgBox "tray.ps1 not found: " & ps1, 16, "Route1 Auto Sync"
+  MsgBox "tray.ps1 not found: " & ps1, 16, "Auto Sync"
   WScript.Quit 1
 End If
 

@@ -168,7 +168,7 @@ node scripts/auto-sync/probe.mjs
 
 - **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
 - **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
-- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 开机启动 / 打开日志 / 打开配置 / 会话剩余天数 / 退出
+- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、拉取方式、通知、GitHub 令牌）/ 开机启动 / 打开日志 / 打开配置 / 会话剩余天数 / 退出
 - **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
 
 ### 配置（首次运行自动生成）
@@ -182,6 +182,7 @@ node scripts/auto-sync/probe.mjs
 | `nodePath` | `""` | 留空自动在 PATH 找；找不到时填 `node.exe` 完整路径 |
 | `session` | `""` | huang1111 会话 cookie；留空则沿用系统环境变量 `H1111_SESSION` |
 | `githubToken` | `""` | GitHub 只读 token；留空则沿用 `GITHUB_TOKEN` / `GH_TOKEN`（匿名限额 60 次/小时） |
+| `gitToken` | `""` | GitHub PAT，仅用于 `git pull`/`push` 鉴权（托盘「选项 → GitHub 令牌（拉取/推送）」可设）；留空则沿用本机 git 凭据 |
 | `syncTimeoutMinutes` | `120` | 单次同步硬超时，超时强杀子进程 |
 | `pullBeforeSync` | `true` | 每轮同步前先 `git pull`；拉取失败则**取消本轮**（不下载、不提交） |
 | `pullStrategy` | `"rebase"` | `rebase`（推荐，能自动把上次未推的提交叠到远端之上）或 `ff-only` |
@@ -194,7 +195,7 @@ node scripts/auto-sync/probe.mjs
 
 ### 行为与注意
 
-- **每次运行都会 commit + push 到当前仓库的 `origin`**，用的是本机 git 凭据（SSH key / credential helper）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
+- **每次运行都会 commit + push 到当前仓库的 `origin`**，默认用本机 git 凭据（SSH key / credential helper）；若在托盘「选项 → GitHub 令牌（拉取/推送）」填了 PAT，则改用该令牌（通过 `http.extraheader` 临时注入，不写入 `.git/config`，也不拼进 remote URL）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
 - **每轮固定顺序：`git pull` → `sync.mjs` → 补推**（`run-sync.mjs` 负责编排）。拉取失败（远端冲突、工作区有未提交改动、超时）会**取消本轮**，不下载也不提交；若是 rebase 冲突，会自动 `rebase --abort` 把仓库还原到拉取前
 - push 失败（超时或远端已有新提交）时，提交留在本地；**下一次同步成功后会自动补推**（`retryPush`）。若补推仍失败，托盘持续显示「待推 N」并提示；也可手动 `git pull --rebase && git push`
 - **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不

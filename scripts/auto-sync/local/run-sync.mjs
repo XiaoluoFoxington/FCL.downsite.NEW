@@ -10,6 +10,8 @@
 //   LOCAL_SYNC_PULL_STRATEGY=rebase|ff-only
 //   LOCAL_SYNC_PULL_TIMEOUT_MS=600000   pull 超时
 //   LOCAL_SYNC_RETRY_PUSH=0|1          是否在成功同步后补推历史未推送提交
+//   LOCAL_SYNC_GIT_TOKEN=...           GitHub PAT，用于 git pull/push 鉴权；
+//                                      未设置 = 回退到本机 git 默认凭据（SSH / credential helper）
 //
 // 退出码：0 成功；1 失败；2 拉取失败已取消
 
@@ -27,6 +29,16 @@ const PULL_STRATEGY = process.env.LOCAL_SYNC_PULL_STRATEGY === 'ff-only' ? 'ff-o
 const PULL_TIMEOUT_MS = toPositiveInt(process.env.LOCAL_SYNC_PULL_TIMEOUT_MS, 10 * 60 * 1000);
 const RETRY_PUSH = process.env.LOCAL_SYNC_RETRY_PUSH !== '0';
 const PUSH_TIMEOUT_MS = 5 * 60 * 1000;
+const GIT_TOKEN = (process.env.LOCAL_SYNC_GIT_TOKEN || '').trim();
+
+// 有 PAT 就用 http.extraheader 临时鉴权：只作用于本次进程（含 sync.mjs 子进程），
+// 不把 token 写进 .git/config 或 remote URL；没有则完全不动，沿用本机 git 凭据。
+if (GIT_TOKEN) {
+  const basic = Buffer.from(`x-access-token:${GIT_TOKEN}`, 'utf8').toString('base64');
+  process.env.GIT_CONFIG_COUNT = '1';
+  process.env.GIT_CONFIG_KEY_0 = 'http.https://github.com/.extraheader';
+  process.env.GIT_CONFIG_VALUE_0 = `AUTHORIZATION: basic ${basic}`;
+}
 
 function toPositiveInt(raw, fallback) {
   const n = Number(raw);
@@ -171,6 +183,10 @@ function pushLeftovers() {
 }
 
 // ============ 主流程 ============
+
+line(GIT_TOKEN
+  ? '🔑 拉取/推送凭据：config.json 中的 GitHub 令牌'
+  : '🔑 拉取/推送凭据：本机 git 默认凭据');
 
 if (!pull()) {
   line('');
