@@ -12,7 +12,11 @@
 //   LOCAL_SYNC_RETRY_PUSH=0|1          是否在成功同步后补推历史未推送提交
 //   LOCAL_SYNC_GIT_TOKEN=...           GitHub PAT，用于 git pull/push 鉴权；
 //                                      未设置 = 回退到本机 git 默认凭据（SSH / credential helper）
-//   LOCAL_SYNC_DEBUG=0|1               调试模式：跳过所有 git 网络操作（不 pull / 不 push）
+//   LOCAL_SYNC_STEP_PULL=0|1           步骤：同步前拉取
+//   LOCAL_SYNC_STEP_SYNC=0|1           步骤：执行 sync.mjs
+//   LOCAL_SYNC_STEP_COMMIT=0|1         步骤：提交（由 sync.mjs 读取）
+//   LOCAL_SYNC_STEP_PUSH=0|1           步骤：推送（含补推）
+//                                      四项全关 = 暂停，由托盘兜底拦截
 //
 // 退出码：0 成功；1 失败；2 拉取失败已取消
 
@@ -31,7 +35,12 @@ const PULL_TIMEOUT_MS = toPositiveInt(process.env.LOCAL_SYNC_PULL_TIMEOUT_MS, 10
 const RETRY_PUSH = process.env.LOCAL_SYNC_RETRY_PUSH !== '0';
 const PUSH_TIMEOUT_MS = 5 * 60 * 1000;
 const GIT_TOKEN = (process.env.LOCAL_SYNC_GIT_TOKEN || '').trim();
-const DEBUG = process.env.LOCAL_SYNC_DEBUG === '1';
+const STEPS = {
+  pull: process.env.LOCAL_SYNC_STEP_PULL !== '0',
+  sync: process.env.LOCAL_SYNC_STEP_SYNC !== '0',
+  commit: process.env.LOCAL_SYNC_STEP_COMMIT !== '0',
+  push: process.env.LOCAL_SYNC_STEP_PUSH !== '0',
+};
 
 // 有 PAT 就用 http.extraheader 临时鉴权：只作用于本次进程（含 sync.mjs 子进程），
 // 不把 token 写进 .git/config 或 remote URL；没有则完全不动，沿用本机 git 凭据。
@@ -117,8 +126,8 @@ function pull() {
   line('');
   line('========== 本地前置：拉取远端 ==========');
 
-  if (DEBUG) {
-    line('（debug 模式：跳过 git pull）');
+  if (!STEPS.pull) {
+    line('（步骤设置：拉取已关闭，跳过）');
     return true;
   }
 
@@ -165,9 +174,9 @@ function pull() {
 }
 
 function pushLeftovers() {
-  if (DEBUG) {
+  if (!STEPS.push) {
     line('');
-    line('（debug 模式：跳过补推，提交保留在本地）');
+    line('（步骤设置：推送已关闭，跳过补推）');
     return 0;
   }
 
@@ -203,7 +212,7 @@ function pushLeftovers() {
 line(GIT_TOKEN
   ? '🔑 拉取/推送凭据：config.json 中的 GitHub 令牌'
   : '🔑 拉取/推送凭据：本机 git 默认凭据');
-if (DEBUG) line('🐛 调试模式：跳过 git pull / push，提交只留在本地');
+line(`🧩 步骤：拉取${STEPS.pull ? '开' : '关'}｜同步${STEPS.sync ? '开' : '关'}｜提交${STEPS.commit ? '开' : '关'}｜推送${STEPS.push ? '开' : '关'}`);
 if (GIT_TOKEN) {
   const remote = gitText(['remote', 'get-url', 'origin']);
   if (/^(git@|ssh:)/i.test(remote)) {
@@ -217,27 +226,32 @@ if (!pull()) {
   process.exit(2);
 }
 
-line('');
-line('========== 开始执行 sync.mjs ==========');
-const syncRun = spawnSync(process.execPath, [SYNC_SCRIPT], {
-  cwd: ROOT,
-  stdio: 'inherit',
-  env: process.env,
-});
-
 let code = 0;
-if (syncRun.error) {
-  line(`❌ 无法启动 sync.mjs：${syncRun.error.message}`);
-  code = 1;
-} else if (syncRun.status === null) {
-  line('❌ sync.mjs 被异常终止（无退出码）');
-  code = 1;
+if (!STEPS.sync) {
+  line('');
+  line('（步骤设置：同步已关闭，跳过 sync.mjs）');
 } else {
-  code = syncRun.status;
+  line('');
+  line('========== 开始执行 sync.mjs ==========');
+  const syncRun = spawnSync(process.execPath, [SYNC_SCRIPT], {
+    cwd: ROOT,
+    stdio: 'inherit',
+    env: process.env,
+  });
+
+  if (syncRun.error) {
+    line(`❌ 无法启动 sync.mjs：${syncRun.error.message}`);
+    code = 1;
+  } else if (syncRun.status === null) {
+    line('❌ sync.mjs 被异常终止（无退出码）');
+    code = 1;
+  } else {
+    code = syncRun.status;
+  }
 }
 
-// 只有本次同步成功才补推：失败时把历史提交继续留着，避免在故障状态下越推越乱
-if (code === 0 && RETRY_PUSH) {
+// 只有本次成功且推送步骤开启时才补推：失败时把历史提交继续留着，避免故障状态下越推越乱
+if (code === 0 && STEPS.push && RETRY_PUSH) {
   const retryCode = pushLeftovers();
   if (retryCode !== 0) code = retryCode;
 }

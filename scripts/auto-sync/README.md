@@ -168,7 +168,7 @@ node scripts/auto-sync/probe.mjs
 
 - **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
 - **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
-- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、调试模式、托盘图标、拉取方式、通知、GitHub 令牌）/ 开机启动 / 打开日志 / 打开最近日志 / 打开配置 / 会话剩余天数 / 重新启动 / 退出
+- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、步骤设置、托盘图标、拉取方式、通知、GitHub 令牌）/ 开机启动 / 打开日志 / 打开最近日志 / 打开配置 / 会话剩余天数 / 重新启动 / 退出
 - **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
 
 ### 配置（首次运行自动生成）
@@ -188,7 +188,10 @@ node scripts/auto-sync/probe.mjs
 | `pullStrategy` | `"rebase"` | `rebase`（推荐，能自动把上次未推的提交叠到远端之上）或 `ff-only` |
 | `pullTimeoutMinutes` | `10` | pull 超过这个时长视为失败，取消本轮同步 |
 | `retryPush` | `true` | 上次 push 失败留下的本地提交，在下一次**同步成功**后自动补推 |
-| `debug` | `false` | 调试模式：跳过所有 git 网络操作（不 `pull` / 不 `push`），sync.mjs 仍正常联网同步、只在本地提交 |
+| `stepPull` | `true` | 步骤开关：同步前 `git pull` |
+| `stepSync` | `true` | 步骤开关：执行 `sync.mjs`（探测 / 下载 / 写数据） |
+| `stepCommit` | `true` | 步骤开关：生成变更后 `git commit`；关闭时变更留在工作区 |
+| `stepPush` | `true` | 步骤开关：`git push`（含补推）；关闭时提交只留在本地 |
 | `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标：同步中黄点、暂停「||」，空闲与失败不显示角标 |
 | `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 |
 
@@ -202,7 +205,7 @@ node scripts/auto-sync/probe.mjs
 - push 失败（超时或远端已有新提交）时，提交留在本地；**下一次同步成功后会自动补推**（`retryPush`）。若补推仍失败，托盘持续显示「待推 N」并提示；也可手动 `git pull --rebase && git push`
 - **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不
 - 拉取开关、拉取方式（rebase / ff-only）、失败补推都可在托盘「选项」菜单里即时切换，也可直接改 `config.json`（下一轮生效）
-- **调试模式**（`debug`，托盘「选项 → 调试模式」）：跳过所有 git 网络操作（不 `git pull`、不 `git push`、不补推），`sync.mjs` 仍正常联网同步，产生的提交只留在本地；用于验证流程而不改动远端，验证完记得关掉
+- **步骤设置**（托盘「选项 → 步骤设置」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
 - 每次同步写一个日志：`local/logs/sync-<时间>.log`；托盘自身事件写 `local/logs/tray.log`。双击托盘图标可直接打开**最近一次**同步日志
 - 同步进程完全隐藏运行，**不会弹任何窗口**；只有点「自定义间隔」等菜单项时才会出现小对话框

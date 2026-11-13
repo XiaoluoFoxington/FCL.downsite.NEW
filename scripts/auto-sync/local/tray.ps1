@@ -59,7 +59,10 @@ $script:Defaults = [ordered]@{
   pullStrategy       = 'rebase' # rebase | ff-only
   pullTimeoutMinutes = 10      # pull 超过这个时长算失败，取消本轮同步
   retryPush          = $true   # 上次 push 失败留下的提交，下一次同步成功后补推
-  debug              = $false  # 调试模式：跳过所有 git 网络操作（不 pull / 不 push），仅本地提交
+  stepPull           = $true   # 步骤开关：同步前拉取
+  stepSync           = $true   # 步骤开关：执行 sync.mjs（探测 / 下载 / 写数据）
+  stepCommit         = $true   # 步骤开关：生成变更后提交
+  stepPush           = $true   # 步骤开关：推送（含补推）
   iconPath           = ''      # 自定义托盘图标（png/jpg/bmp/gif/ico）；留空 = 内置图标
   notifyMode         = 'always' # always | failure | never；每次同步是否弹通知
 }
@@ -143,7 +146,7 @@ function Read-Config {
   }
 
   # 手写 "false"/"0" 这种字符串时也按布尔处理
-  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'debug')) {
+  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush')) {
     $v = $cfg[$k]
     if ($v -is [string]) {
       $s = ([string]$v).Trim().ToLower()
@@ -177,6 +180,15 @@ function Save-Config($cfg) {
   } catch {
     Write-TrayLog "写入 config.json 失败：$($_.Exception.Message)"
   }
+}
+
+# 步骤开关：四个全关等同于暂停
+function Test-StepsEnabled {
+  return ([bool]$script:cfg.stepPull -or [bool]$script:cfg.stepSync -or [bool]$script:cfg.stepCommit -or [bool]$script:cfg.stepPush)
+}
+
+function Test-EffectivePaused {
+  return ([bool]$script:paused -or -not (Test-StepsEnabled))
 }
 
 function Set-InjectedEnv([string]$Name, [string]$Value) {
@@ -348,6 +360,12 @@ function Update-TrayIcons {
   foreach ($b in $oldBitmaps) { try { $b.Dispose() } catch { } }
 }
 
+function Update-IdleStateIcon {
+  if ($script:running) { Update-TrayIcon 'busy' }
+  elseif (Test-EffectivePaused) { Update-TrayIcon 'paused' }
+  else { Update-TrayIcon 'idle' }
+}
+
 function Update-TrayIcon([string]$State) {
   $script:trayState = $State
   if (-not $script:notify) { return }
@@ -453,9 +471,9 @@ function Update-UnpushedState {
   if ($script:unpushedCount -gt 0 -and $script:unpushedCount -ne $prev) {
     $msg = '本地有 ' + $script:unpushedCount + ' 个提交没推到 ' + $script:unpushedBranch +
       '（多半是 push 超时或被远端新提交拒绝）。在仓库目录执行：git pull --rebase && git push'
-    if ($script:cfg.debug) {
-      # 调试模式本来就不推送，别拿「未推送」反复弹气泡
-      Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '，调试模式忽略）')
+    if (-not $script:cfg.stepPush) {
+      # 推送步骤关着时，未推送是预期状态，别反复弹气泡
+      Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '，推送步骤已关闭）')
     } else {
       if (Test-Notify $true) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
       Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '）')
@@ -470,6 +488,15 @@ function Start-SyncRun {
 
   # 每轮重新读配置：改 config.json（例如换会话 cookie / token / node 路径）后无需重启托盘即可生效
   $script:cfg = Read-Config
+
+  # 四个步骤全关 = 暂停：不启动、不弹失败气泡
+  if (-not (Test-StepsEnabled)) {
+    # 仍排好下一轮，用户重新勾选步骤后无需重启托盘也能恢复自动同步
+    $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
+    Write-TrayLog '启动同步被忽略：所有步骤均已关闭（等同于暂停）'
+    return
+  }
+
   Set-InjectedEnv 'H1111_SESSION' ([string]$script:cfg.session)
   Set-InjectedEnv 'GITHUB_TOKEN' ([string]$script:cfg.githubToken)
   # 拉取/推送用的 PAT：没有就清掉，让 run-sync 回退到本机 git 凭据
@@ -480,8 +507,11 @@ function Start-SyncRun {
   $env:LOCAL_SYNC_PULL_STRATEGY = [string]$script:cfg.pullStrategy
   $env:LOCAL_SYNC_PULL_TIMEOUT_MS = [string]([int]([double]$script:cfg.pullTimeoutMinutes * 60000))
   if ($script:cfg.retryPush) { $env:LOCAL_SYNC_RETRY_PUSH = '1' } else { $env:LOCAL_SYNC_RETRY_PUSH = '0' }
-  # 调试模式：跳过 git pull / push（sync.mjs 仍正常联网同步，只在本地提交）
-  if ($script:cfg.debug) { $env:LOCAL_SYNC_DEBUG = '1' } else { Remove-Item Env:\LOCAL_SYNC_DEBUG -ErrorAction SilentlyContinue }
+  # 步骤开关交给 run-sync / sync.mjs
+  $env:LOCAL_SYNC_STEP_PULL = $(if ($script:cfg.stepPull) { '1' } else { '0' })
+  $env:LOCAL_SYNC_STEP_SYNC = $(if ($script:cfg.stepSync) { '1' } else { '0' })
+  $env:LOCAL_SYNC_STEP_COMMIT = $(if ($script:cfg.stepCommit) { '1' } else { '0' })
+  $env:LOCAL_SYNC_STEP_PUSH = $(if ($script:cfg.stepPush) { '1' } else { '0' })
 
   if (-not $script:nodeExe) {
     Show-Balloon '无法启动同步' '未找到 Node.js。请安装 Node.js 18+，或在 config.json 的 nodePath 里写 node.exe 的完整路径。' 'Error'
@@ -515,8 +545,7 @@ function Start-SyncRun {
       -PassThru
     $script:running = $true
     $script:runStartedAt = Get-Date
-    Update-TrayIcon 'busy'
-    Write-TrayLog "开始同步（PID $($script:proc.Id)）→ $script:runLog"
+    Update-TrayIcon 'busy'    Write-TrayLog "开始同步（PID $($script:proc.Id)）→ $script:runLog"
   } catch {
     $script:proc = $null
     $script:running = $false
@@ -577,8 +606,7 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
     else { $elapsedText = "｜用时 $sec 秒" }
   }
 
-  if ($script:paused) { Update-TrayIcon 'paused' }
-  elseif ($isFailure) { Update-TrayIcon 'error' } else { Update-TrayIcon 'idle' }
+  Update-IdleStateIcon
 
   if (Test-Notify $isFailure) {
     $text = $summary
@@ -610,7 +638,7 @@ function Invoke-Tick {
           Complete-SyncRun -ExitCode -1 -TimedOut $true
         }
       }
-    } elseif (-not $script:paused -and $script:nextRunAt -and (Get-Date) -ge $script:nextRunAt) {
+    } elseif (-not (Test-EffectivePaused) -and $script:nextRunAt -and (Get-Date) -ge $script:nextRunAt) {
       # 先排下一轮再启动：即便这次启动失败（如 node 丢失），也不会卡死不再重试
       $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
       Start-SyncRun
@@ -627,14 +655,13 @@ function Update-Tooltip {
   if ($script:running -and $script:runStartedAt) {
     $mins = [int](((Get-Date) - $script:runStartedAt).TotalMinutes)
     $text = "自动同步 · 同步中 ${mins}m"
-  } elseif ($script:paused) {
+  } elseif (Test-EffectivePaused) {
     $text = '自动同步 · 已暂停'
   } elseif ($script:nextRunAt) {
     $text = '自动同步 · 下次 ' + $script:nextRunAt.ToString('HH:mm')
   } else {
     $text = '自动同步'
   }
-  if ($script:cfg.debug) { $text += ' · 调试' }
   if ($script:unpushedCount -gt 0) { $text += " · 待推 $($script:unpushedCount)" }
   if ($text.Length -gt 63) { $text = $text.Substring(0, 63) }
   if ($text -ne $script:lastTip) {
@@ -768,8 +795,8 @@ function Build-Menu {
   $status = ''
   if ($script:running -and $script:runStartedAt) {
     $status = '状态：正在同步（已 ' + [int](((Get-Date) - $script:runStartedAt).TotalMinutes) + ' 分钟）'
-  } elseif ($script:paused) {
-    $status = '状态：已暂停'
+  } elseif (Test-EffectivePaused) {
+    $status = $(if (Test-StepsEnabled) { '状态：已暂停' } else { '状态：已暂停（步骤全关）' })
   } elseif ($script:nextRunAt) {
     $status = '状态：下次 ' + $script:nextRunAt.ToString('MM-dd HH:mm')
   } else {
@@ -790,8 +817,10 @@ function Build-Menu {
 
   # ---- 操作区 ----
   $nowText = '立即同步'
+  $anySteps = Test-StepsEnabled
   if ($script:running) { $nowText = '立即同步（正在运行）' }
-  $nowItem = New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running)
+  elseif (-not $anySteps) { $nowText = '立即同步（步骤全关）' }
+  $nowItem = New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)
   [void]$menu.Items.Add($nowItem)
 
   $pauseText = '暂停自动同步'
@@ -799,12 +828,17 @@ function Build-Menu {
   [void]$menu.Items.Add((New-MenuItem $pauseText ({
     $script:paused = -not $script:paused
     if ($script:paused) {
-      Update-TrayIcon 'paused'
+      Update-IdleStateIcon
       Write-TrayLog '已暂停自动同步'
     } else {
       $script:nextRunAt = (Get-Date)
-      if ($script:running) { Update-TrayIcon 'busy' } else { Update-TrayIcon 'idle' }
-      Write-TrayLog '已恢复自动同步'
+      Update-IdleStateIcon
+      if (Test-StepsEnabled) {
+        Write-TrayLog '已恢复自动同步'
+      } else {
+        Show-Balloon '仍处于暂停' '所有步骤均已关闭，勾选至少一个步骤后才会自动同步。' 'Warning'
+        Write-TrayLog '恢复自动同步失败：所有步骤均已关闭'
+      }
     }
   })))
 
@@ -812,10 +846,10 @@ function Build-Menu {
   $intervalItem = New-Object System.Windows.Forms.ToolStripMenuItem
   $intervalItem.Text = '更新间隔（当前 ' + (Format-Interval ([double]$script:cfg.intervalMinutes)) + '）'
   foreach ($preset in @(15, 30, 60, 120, 240, 720)) {
-    $v = $preset
-    $click = { Set-Interval $v }.GetNewClosure()
-    $sub = New-MenuItem (Format-Interval $v) $click
-    if ([double]$script:cfg.intervalMinutes -eq [double]$v) { $sub.Checked = $true }
+    $sub = New-MenuItem (Format-Interval $preset) $null
+    $sub.Tag = [double]$preset
+    $sub.Add_Click({ Set-Interval ([double]$this.Tag) })
+    if ([double]$script:cfg.intervalMinutes -eq [double]$preset) { $sub.Checked = $true }
     [void]$intervalItem.DropDownItems.Add($sub)
   }
   [void]$intervalItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
@@ -860,13 +894,33 @@ function Build-Menu {
   $retryItem.Checked = [bool]$script:cfg.retryPush
   [void]$optItem.DropDownItems.Add($retryItem)
 
-  $debugItem = New-MenuItem '调试模式（不拉取 / 不推送）' ({
-    $script:cfg.debug = -not $script:cfg.debug
-    Save-Config $script:cfg
-    Write-TrayLog ('调试模式：' + $(if ($script:cfg.debug) { '开（跳过 git pull/push）' } else { '关' }))
-  })
-  $debugItem.Checked = [bool]$script:cfg.debug
-  [void]$optItem.DropDownItems.Add($debugItem)
+  # ---- 步骤设置（全关 = 暂停）----
+  $stepsItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $stepsItem.Text = '步骤设置（全关 = 暂停）'
+  $stepDefs = @(
+    @{ Key = 'stepPull'; Text = '拉取（git pull）' },
+    @{ Key = 'stepSync'; Text = '同步（探测 / 下载 / 写入）' },
+    @{ Key = 'stepCommit'; Text = '提交（git commit）' },
+    @{ Key = 'stepPush'; Text = '推送（git push）' }
+  )
+  foreach ($def in $stepDefs) {
+    $sub = New-MenuItem ([string]$def.Text) $null
+    $sub.Tag = [string]$def.Key
+    # 事件脚本块里不能用 GetNewClosure：闭包模块的 $script: 看不到主脚本的 cfg
+    $sub.Add_Click({
+      $key = [string]$this.Tag
+      $script:cfg[$key] = -not $script:cfg[$key]
+      Save-Config $script:cfg
+      Write-TrayLog ('步骤 ' + $this.Text + '：' + $(if ($script:cfg[$key]) { '开' } else { '关' }))
+      Update-IdleStateIcon
+      if (-not (Test-StepsEnabled)) {
+        Show-Balloon '已等同于暂停' '所有步骤均已关闭，自动同步将不会启动。' 'Warning'
+      }
+    })
+    $sub.Checked = [bool]$script:cfg[[string]$def.Key]
+    [void]$stepsItem.DropDownItems.Add($sub)
+  }
+  [void]$optItem.DropDownItems.Add($stepsItem)
 
   $iconItem = New-Object System.Windows.Forms.ToolStripMenuItem
   $iconItem.Text = '托盘图标：' + $(if ([string]$script:cfg.iconPath) { [System.IO.Path]::GetFileName([string]$script:cfg.iconPath) } else { '内置' })
@@ -1100,6 +1154,7 @@ Write-TrayLog "托盘已启动｜仓库 $RepoRoot｜间隔 $($script:cfg.interva
 Update-SessionInfo
 Update-UnpushedState
 Update-Tooltip
+Update-IdleStateIcon
 
 if (-not $script:nodeExe) {
   Show-Balloon '未找到 Node.js' '请安装 Node.js 18+，或在 config.json 的 nodePath 里填写 node.exe 的完整路径。' 'Error'

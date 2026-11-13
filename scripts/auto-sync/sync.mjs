@@ -335,13 +335,18 @@ function verifySyncedData(sw, synced, scope) {
 
 // ---------- 提交单个软件 ----------
 function commitSoftware(softwareId, versionList, bodyLines, scope) {
+  // 本地步骤设置：提交关闭时保留工作区变更，不暂存、不提交
+  if (process.env.LOCAL_SYNC_STEP_COMMIT === '0') {
+    scope.line('⏭️ 步骤设置：提交已关闭（变更留在工作区）');
+    return 'skipped';
+  }
   // 先暂存 data/down/{id} 全部变更
   git(['add', '--', `data/down/${softwareId}`]);
   // 无变更则不提交
   try {
     gitQuiet(['diff', '--cached', '--quiet']);
     scope.line('（无文件变更，跳过提交）');
-    return false;
+    return 'nochange';
   } catch { /* 有变更 */ }
   const subject = `[GHA] 新增：内容：数据源：资源id-${softwareId}：${versionList}呜~`;
   git([
@@ -350,14 +355,14 @@ function commitSoftware(softwareId, versionList, bodyLines, scope) {
     'commit', '-m', subject, '-m', bodyLines.join('\n'),
   ]);
   scope.line(`✅ 已提交：${subject}（正文 ${bodyLines.length} 行）`);
-  return true;
+  return 'committed';
 }
 
 // ---------- push ----------
 function push(scope) {
-  // 本地调试模式：只提交不推送（由 local/tray.ps1 注入，GHA 不会设置）
-  if (process.env.LOCAL_SYNC_DEBUG === '1') {
-    scope.line('⏭️ debug 模式：跳过 git push（提交保留在本地）');
+  // 本地步骤设置：推送关闭时提交只留在本地（由 local/tray.ps1 注入，GHA 不会设置）
+  if (process.env.LOCAL_SYNC_STEP_PUSH === '0') {
+    scope.line('⏭️ 步骤设置：推送已关闭（提交保留在本地）');
     return false;
   }
   const branch = currentBranch();
@@ -522,16 +527,21 @@ async function main() {
       const versionList = synced.map((s) => s.version).sort(compareVersionsDescending).join('&');
       scope.line(`提交版本列表：${versionList}`);
       try {
-        const committed = commitSoftware(sw.softwareId, versionList, scope.collectBody(), scope);
+        const commitState = commitSoftware(sw.softwareId, versionList, scope.collectBody(), scope);
+        const committed = commitState === 'committed';
         if (committed) anyCommit = true;
         if (row) {
           row.taken = synced.map((s) => s.version);
-          row.result = committed ? '✅ 已同步并提交' : '⚠️ 无文件变更';
+          row.result = committed
+            ? '✅ 已同步并提交'
+            : (commitState === 'skipped' ? '✅ 已同步（未提交）' : '⚠️ 无文件变更');
         }
         scope.close(
           committed
             ? `✅ 完成：同步 ${synced.length} 个版本并提交｜用时 ${fmtDur(Date.now() - swT0)}`
-            : `✅ 完成：同步 ${synced.length} 个版本（无变更，未提交）｜用时 ${fmtDur(Date.now() - swT0)}`,
+            : (commitState === 'skipped'
+              ? `✅ 完成：同步 ${synced.length} 个版本（提交步骤关闭）｜用时 ${fmtDur(Date.now() - swT0)}`
+              : `✅ 完成：同步 ${synced.length} 个版本（无变更，未提交）｜用时 ${fmtDur(Date.now() - swT0)}`),
         );
       } catch (e) {
         overallFailed = true;
@@ -560,7 +570,7 @@ async function main() {
       const pushed = push(phase3);
       phase3.close(pushed
         ? `✅ 推送完成｜用时 ${fmtDur(Date.now() - pushT0)}`
-        : '⏭️ debug 模式：已跳过推送（提交保留在本地）');
+        : '⏭️ 步骤设置：推送已关闭（提交保留在本地）');
     } catch (e) {
       overallFailed = true;
       const msg = errText(e);
