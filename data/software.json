@@ -119,7 +119,7 @@
     "id": 17,
     "name": "RikkaHub",
     "icon": "/data/software/17/icon.svg",
-    "tagIds": [7, 6],
+    "tagIds": [7, 6, 14],
     "detailUrl": "/data/software/17/detail.json"
   },
   {
@@ -133,7 +133,7 @@
     "id": 19,
     "name": "DSH Go",
     "icon": "/data/software/19/icon.svg",
-    "tagIds": [7, 6],
+    "tagIds": [7, 6, 14],
     "detailUrl": "/data/software/19/detail.json"
   }
 ]

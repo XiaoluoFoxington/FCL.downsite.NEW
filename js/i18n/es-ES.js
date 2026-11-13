@@ -241,6 +241,7 @@ const esES = {
     '游戏': 'Juegos',
     'macOS': 'macOS',
     '编辑': 'Editores',
+    'Harness': 'Harness',
   },
 
   // Nombres de líneas (data/mirror.json, por id de línea)

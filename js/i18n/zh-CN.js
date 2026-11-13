@@ -252,6 +252,7 @@ const zhCN = {
     '游戏': '游戏',
     'macOS': 'macOS',
     '编辑': '编辑',
+    'Harness': 'Harness',
   },
 
   // 线路名（data/mirror.json，按线路 id 寻址）

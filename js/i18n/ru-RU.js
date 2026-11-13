@@ -240,6 +240,7 @@ const ruRU = {
     '游戏': 'Игры',
     'macOS': 'macOS',
     '编辑': 'Редакторы',
+    'Harness': 'Harness',
   },
 
   // Названия зеркал (data/mirror.json, ключ — ID зеркала)

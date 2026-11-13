@@ -240,6 +240,7 @@ const enUS = {
     '游戏': 'Games',
     'macOS': 'macOS',
     '编辑': 'Editors',
+    'Harness': 'Harness',
   },
 
   // Mirror names (data/mirror.json, keyed by mirror id)

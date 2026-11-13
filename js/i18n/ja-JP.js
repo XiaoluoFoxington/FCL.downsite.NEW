@@ -240,6 +240,7 @@ const jaJP = {
     '游戏': 'ゲーム',
     'macOS': 'macOS',
     '编辑': 'エディタ',
+    'Harness': 'Harness',
   },
 
   // 回線名（data/mirror.json、回線idでアクセス）

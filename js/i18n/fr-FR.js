@@ -240,6 +240,7 @@ const frFR = {
     '游戏': 'Jeux',
     'macOS': 'macOS',
     '编辑': 'Éditeurs',
+    'Harness': 'Harness',
   },
 
   // Noms des miroirs (data/mirror.json, indexés par ID de miroir)
