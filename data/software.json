@@ -128,5 +128,12 @@
     "icon": "/data/software/18/icon.avif",
     "tagIds": [7, 0, 1, 11],
     "detailUrl": "/data/software/18/detail.json"
+  },
+  {
+    "id": 19,
+    "name": "DSH Go",
+    "icon": "/data/software/19/icon.svg",
+    "tagIds": [7, 6],
+    "detailUrl": "/data/software/19/detail.json"
   }
 ]

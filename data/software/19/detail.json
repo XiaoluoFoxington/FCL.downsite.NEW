@@ -1,0 +1,40 @@
+{
+  "info": [
+    {
+      "name": "developer",
+      "href": "https://github.com/ccch1mneyyy"
+    },
+    {
+      "name": "official website",
+      "href": "https://go.dshtui.com"
+    },
+    {
+      "name": "Github",
+      "href": "https://github.com/ccch1mneyyy/dsh-Go"
+    }
+  ],
+  "intro": [
+    {
+      "title": "GH-README",
+      "url": "https://raw.githubusercontent.com/ccch1mneyyy/dsh-Go/refs/heads/main",
+      "file": "/README.md",
+      "type": "md"
+    }
+  ],
+  "releaseHistoryUrl": "https://api.github.com/repos/ccch1mneyyy/dsh-Go/releases",
+  "download": [
+    {
+      "mirrorId": 0,
+      "key": "/19/index.json"
+    },
+    {
+      "mirrorId": 4,
+      "key": "/api/releases?owner=ccch1mneyyy&repo=dsh-Go&versions=20"
+    }
+  ],
+  "OSRequest": [
+    {
+      "osName": "Android"
+    }
+  ]
+}

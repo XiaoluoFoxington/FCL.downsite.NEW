@@ -67,5 +67,14 @@
     "archNames": ["all", "arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
     "fallbackArch": "all",
     "includePrerelease": false
+  },
+  {
+    "softwareId": 19,
+    "githubRepo": "ccch1mneyyy/dsh-Go",
+    "assetFilter": "\\.apk$",
+    "mode": "name",
+    "archNames": [],
+    "fallbackArch": null,
+    "includePrerelease": false
   }
 ]
