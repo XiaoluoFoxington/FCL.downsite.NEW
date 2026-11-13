@@ -386,6 +386,7 @@ function Format-Display([string]$Text) {
   # 中性化：不出现「资源 / 软件」与服务商名
   $Text = $Text -replace '全部软件均已是最新', '全部内容均为最新'
   $Text = $Text -replace '全部软件已是最新', '全部内容均为最新'
+  $Text = $Text -replace '软件同步成功', '同步成功'
   $Text = $Text -replace '成功软件', '成功'
   $Text = $Text -replace '软件', '内容'
   $Text = $Text -replace '资源\s*id\s*=', '条目 '
@@ -494,6 +495,7 @@ function Start-SyncRun {
     # 仍排好下一轮，用户重新勾选步骤后无需重启托盘也能恢复自动同步
     $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
     Write-TrayLog '启动同步被忽略：所有步骤均已关闭（等同于暂停）'
+    Show-Balloon '无法启动同步' '所有步骤均已关闭（等同于暂停）。请在「选项 → 步骤设置」里勾选至少一项。' 'Warning'
     return
   }
 
@@ -789,7 +791,12 @@ function Stop-Tray {
 
 function Build-Menu {
   $menu = $script:menu
-  $menu.Items.Clear()
+  # Clear() 只是移除引用，不会释放 ToolStripItem 的 GDI 资源；菜单每次打开都重建，必须逐个 Dispose
+  while ($menu.Items.Count -gt 0) {
+    $old = $menu.Items[0]
+    $menu.Items.RemoveAt(0)
+    try { $old.Dispose() } catch { }
+  }
 
   # ---- 状态区（只读）----
   $status = ''
@@ -1030,8 +1037,14 @@ function Build-Menu {
 
   [void]$menu.Items.Add((New-MenuItem '打开最近日志' ({
     try {
-      if ($script:runLog -and (Test-Path -LiteralPath $script:runLog)) {
-        Start-Process notepad.exe -ArgumentList ('"' + $script:runLog + '"')
+      $logToOpen = $script:runLog
+      if (-not $logToOpen -or -not (Test-Path -LiteralPath $logToOpen)) {
+        # 托盘重启后内存里没有记录，退回到日志目录里最新的 sync-*.log
+        $logToOpen = Get-ChildItem -LiteralPath $script:LogDir -Filter 'sync-*.log' -File -ErrorAction SilentlyContinue |
+          Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+      }
+      if ($logToOpen -and (Test-Path -LiteralPath $logToOpen)) {
+        Start-Process notepad.exe -ArgumentList ('"' + $logToOpen + '"')
       } else {
         Show-Balloon '暂无日志' '还没有运行过同步。' 'Info'
       }
@@ -1090,7 +1103,14 @@ if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
 
 # 单实例：已有托盘在跑时静默退出
 $mutex = [System.Threading.Mutex]::new($false, 'Local\FCL-downsite-auto-sync-tray')
-if (-not $mutex.WaitOne(0)) { exit 0 }
+$hasMutex = $false
+try {
+  $hasMutex = $mutex.WaitOne(0)
+} catch [System.Threading.AbandonedMutexException] {
+  # 上一个托盘异常退出会留下废弃互斥量；这种情况应当继续启动
+  $hasMutex = $true
+}
+if (-not $hasMutex) { exit 0 }
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing

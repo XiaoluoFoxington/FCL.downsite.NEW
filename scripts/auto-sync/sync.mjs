@@ -338,7 +338,7 @@ function commitSoftware(softwareId, versionList, bodyLines, scope) {
   // 本地步骤设置：提交关闭时保留工作区变更，不暂存、不提交
   if (process.env.LOCAL_SYNC_STEP_COMMIT === '0') {
     scope.line('⏭️ 步骤设置：提交已关闭（变更留在工作区）');
-    return 'skipped';
+    return false;
   }
   // 先暂存 data/down/{id} 全部变更
   git(['add', '--', `data/down/${softwareId}`]);
@@ -346,7 +346,7 @@ function commitSoftware(softwareId, versionList, bodyLines, scope) {
   try {
     gitQuiet(['diff', '--cached', '--quiet']);
     scope.line('（无文件变更，跳过提交）');
-    return 'nochange';
+    return false;
   } catch { /* 有变更 */ }
   const subject = `[GHA] 新增：内容：数据源：资源id-${softwareId}：${versionList}呜~`;
   git([
@@ -355,7 +355,7 @@ function commitSoftware(softwareId, versionList, bodyLines, scope) {
     'commit', '-m', subject, '-m', bodyLines.join('\n'),
   ]);
   scope.line(`✅ 已提交：${subject}（正文 ${bodyLines.length} 行）`);
-  return 'committed';
+  return true;
 }
 
 // ---------- push ----------
@@ -527,19 +527,19 @@ async function main() {
       const versionList = synced.map((s) => s.version).sort(compareVersionsDescending).join('&');
       scope.line(`提交版本列表：${versionList}`);
       try {
-        const commitState = commitSoftware(sw.softwareId, versionList, scope.collectBody(), scope);
-        const committed = commitState === 'committed';
+        const commitSkipped = process.env.LOCAL_SYNC_STEP_COMMIT === '0';
+        const committed = commitSoftware(sw.softwareId, versionList, scope.collectBody(), scope);
         if (committed) anyCommit = true;
         if (row) {
           row.taken = synced.map((s) => s.version);
           row.result = committed
             ? '✅ 已同步并提交'
-            : (commitState === 'skipped' ? '✅ 已同步（未提交）' : '⚠️ 无文件变更');
+            : (commitSkipped ? '✅ 已同步（未提交）' : '⚠️ 无文件变更');
         }
         scope.close(
           committed
             ? `✅ 完成：同步 ${synced.length} 个版本并提交｜用时 ${fmtDur(Date.now() - swT0)}`
-            : (commitState === 'skipped'
+            : (commitSkipped
               ? `✅ 完成：同步 ${synced.length} 个版本（提交步骤关闭）｜用时 ${fmtDur(Date.now() - swT0)}`
               : `✅ 完成：同步 ${synced.length} 个版本（无变更，未提交）｜用时 ${fmtDur(Date.now() - swT0)}`),
         );
