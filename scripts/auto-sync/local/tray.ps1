@@ -59,6 +59,7 @@ $script:Defaults = [ordered]@{
   pullStrategy       = 'rebase' # rebase | ff-only
   pullTimeoutMinutes = 10      # pull 超过这个时长算失败，取消本轮同步
   retryPush          = $true   # 上次 push 失败留下的提交，下一次同步成功后补推
+  debug              = $false  # 调试模式：跳过所有 git 网络操作（不 pull / 不 push），仅本地提交
   notifyMode         = 'always' # always | failure | never；每次同步是否弹通知
 }
 
@@ -136,7 +137,7 @@ function Read-Config {
   }
 
   # 手写 "false"/"0" 这种字符串时也按布尔处理
-  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush')) {
+  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'debug')) {
     $v = $cfg[$k]
     if ($v -is [string]) {
       $s = ([string]$v).Trim().ToLower()
@@ -319,8 +320,13 @@ function Update-UnpushedState {
   if ($script:unpushedCount -gt 0 -and $script:unpushedCount -ne $prev) {
     $msg = '本地有 ' + $script:unpushedCount + ' 个提交没推到 ' + $script:unpushedBranch +
       '（多半是 push 超时或被远端新提交拒绝）。在仓库目录执行：git pull --rebase && git push'
-    if (Test-Notify $true) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
-    Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '）')
+    if ($script:cfg.debug) {
+      # 调试模式本来就不推送，别拿「未推送」反复弹气泡
+      Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '，调试模式忽略）')
+    } else {
+      if (Test-Notify $true) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
+      Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '）')
+    }
   }
 }
 
@@ -341,6 +347,8 @@ function Start-SyncRun {
   $env:LOCAL_SYNC_PULL_STRATEGY = [string]$script:cfg.pullStrategy
   $env:LOCAL_SYNC_PULL_TIMEOUT_MS = [string]([int]([double]$script:cfg.pullTimeoutMinutes * 60000))
   if ($script:cfg.retryPush) { $env:LOCAL_SYNC_RETRY_PUSH = '1' } else { $env:LOCAL_SYNC_RETRY_PUSH = '0' }
+  # 调试模式：跳过 git pull / push（sync.mjs 仍正常联网同步，只在本地提交）
+  if ($script:cfg.debug) { $env:LOCAL_SYNC_DEBUG = '1' } else { Remove-Item Env:\LOCAL_SYNC_DEBUG -ErrorAction SilentlyContinue }
 
   if (-not $script:nodeExe) {
     Show-Balloon '无法启动同步' '未找到 Node.js。请安装 Node.js 18+，或在 config.json 的 nodePath 里写 node.exe 的完整路径。' 'Error'
@@ -492,6 +500,7 @@ function Update-Tooltip {
   } else {
     $text = '自动同步'
   }
+  if ($script:cfg.debug) { $text += ' · 调试' }
   if ($script:unpushedCount -gt 0) { $text += " · 待推 $($script:unpushedCount)" }
   if ($text.Length -gt 63) { $text = $text.Substring(0, 63) }
   if ($text -ne $script:lastTip) {
@@ -709,6 +718,14 @@ function Build-Menu {
   })
   $retryItem.Checked = [bool]$script:cfg.retryPush
   [void]$optItem.DropDownItems.Add($retryItem)
+
+  $debugItem = New-MenuItem '调试模式（不拉取 / 不推送）' ({
+    $script:cfg.debug = -not $script:cfg.debug
+    Save-Config $script:cfg
+    Write-TrayLog ('调试模式：' + $(if ($script:cfg.debug) { '开（跳过 git pull/push）' } else { '关' }))
+  })
+  $debugItem.Checked = [bool]$script:cfg.debug
+  [void]$optItem.DropDownItems.Add($debugItem)
 
   $strategyItem = New-Object System.Windows.Forms.ToolStripMenuItem
   $strategyItem.Text = '拉取方式'

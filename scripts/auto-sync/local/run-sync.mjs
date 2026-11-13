@@ -12,6 +12,7 @@
 //   LOCAL_SYNC_RETRY_PUSH=0|1          是否在成功同步后补推历史未推送提交
 //   LOCAL_SYNC_GIT_TOKEN=...           GitHub PAT，用于 git pull/push 鉴权；
 //                                      未设置 = 回退到本机 git 默认凭据（SSH / credential helper）
+//   LOCAL_SYNC_DEBUG=0|1               调试模式：跳过所有 git 网络操作（不 pull / 不 push）
 //
 // 退出码：0 成功；1 失败；2 拉取失败已取消
 
@@ -30,6 +31,7 @@ const PULL_TIMEOUT_MS = toPositiveInt(process.env.LOCAL_SYNC_PULL_TIMEOUT_MS, 10
 const RETRY_PUSH = process.env.LOCAL_SYNC_RETRY_PUSH !== '0';
 const PUSH_TIMEOUT_MS = 5 * 60 * 1000;
 const GIT_TOKEN = (process.env.LOCAL_SYNC_GIT_TOKEN || '').trim();
+const DEBUG = process.env.LOCAL_SYNC_DEBUG === '1';
 
 // 有 PAT 就用 http.extraheader 临时鉴权：只作用于本次进程（含 sync.mjs 子进程），
 // 不把 token 写进 .git/config 或 remote URL；没有则完全不动，沿用本机 git 凭据。
@@ -112,6 +114,11 @@ function pull() {
   line('');
   line('========== 本地前置：拉取远端 ==========');
 
+  if (DEBUG) {
+    line('（debug 模式：跳过 git pull）');
+    return true;
+  }
+
   if (!PULL_ENABLED) {
     line('（pullBeforeSync 已关闭，跳过拉取）');
     return true;
@@ -155,6 +162,12 @@ function pull() {
 }
 
 function pushLeftovers() {
+  if (DEBUG) {
+    line('');
+    line('（debug 模式：跳过补推，提交保留在本地）');
+    return 0;
+  }
+
   const target = pushTarget();
   if (!target) return 0;
 
@@ -187,6 +200,7 @@ function pushLeftovers() {
 line(GIT_TOKEN
   ? '🔑 拉取/推送凭据：config.json 中的 GitHub 令牌'
   : '🔑 拉取/推送凭据：本机 git 默认凭据');
+if (DEBUG) line('🐛 调试模式：跳过 git pull / push，提交只留在本地');
 
 if (!pull()) {
   line('');

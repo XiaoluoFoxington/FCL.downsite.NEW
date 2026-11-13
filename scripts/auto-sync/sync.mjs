@@ -355,6 +355,11 @@ function commitSoftware(softwareId, versionList, bodyLines, scope) {
 
 // ---------- push ----------
 function push(scope) {
+  // 本地调试模式：只提交不推送（由 local/tray.ps1 注入，GHA 不会设置）
+  if (process.env.LOCAL_SYNC_DEBUG === '1') {
+    scope.line('⏭️ debug 模式：跳过 git push（提交保留在本地）');
+    return false;
+  }
   const branch = currentBranch();
   if (ENV.GITHUB_TOKEN && ENV.GITHUB_REPOSITORY) {
     git(['remote', 'set-url', 'origin', `https://x-access-token:${ENV.GITHUB_TOKEN}@github.com/${ENV.GITHUB_REPOSITORY}.git`]);
@@ -365,6 +370,7 @@ function push(scope) {
     timeout: 5 * 60 * 1000,
   });
   scope.line(`✅ 已推送 origin/${branch}`);
+  return true;
 }
 
 // ---------- 主流程 ----------
@@ -551,8 +557,10 @@ async function main() {
   const pushT0 = Date.now();
   if (anyCommit) {
     try {
-      push(phase3);
-      phase3.close(`✅ 推送完成｜用时 ${fmtDur(Date.now() - pushT0)}`);
+      const pushed = push(phase3);
+      phase3.close(pushed
+        ? `✅ 推送完成｜用时 ${fmtDur(Date.now() - pushT0)}`
+        : '⏭️ debug 模式：已跳过推送（提交保留在本地）');
     } catch (e) {
       overallFailed = true;
       const msg = errText(e);
