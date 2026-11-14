@@ -168,7 +168,7 @@ node scripts/auto-sync/probe.mjs
 
 - **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
 - **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
-- 托盘图标上的菜单：顶部是彩色概览面板（状态 / 下次倒计时 / 上次结果与用时 / 分支与待推数 / 提交身份 / 会话剩余 / 间隔与选项摘要 / Node 与今日同步次数），下面是 立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、步骤设置、托盘图标、拉取方式、通知、GitHub 令牌、提交身份）/ 开机启动 / 打开日志 / 打开最近日志 / 打开配置 / 重新启动 / 退出
+- 托盘图标上的菜单：顶部是彩色概览面板（状态 / 下次倒计时 / 上次结果与用时 / 分支与待推数 / 提交身份 / 会话剩余 / 间隔与选项摘要 / Node 与今日同步次数），下面是 立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、步骤设置、托盘图标、拉取方式、通知、GitHub 令牌、会话 Cookie、提交身份、日志保留）/ 开机启动 / 打开日志 / 打开最近日志 / 打开配置 / 重新启动 / 退出
 - **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
 
 ### 配置（首次运行自动生成）
@@ -197,9 +197,10 @@ node scripts/auto-sync/probe.mjs
 | `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「选项 → 提交身份」可设） |
 | `gitUserName` | `""` | `gitIdentityMode=custom` 时的 `user.name` |
 | `gitUserEmail` | `""` | `gitIdentityMode=custom` 时的 `user.email` |
+| `logRetentionDays` | `90` | 日志保留天数；启动与跨天时删除更早的日期目录，`0` = 永久保留（托盘「选项 → 日志保留」可改） |
 
 > 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。
-> 托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
+> 也可在托盘「选项 → 会话 Cookie」里直接粘贴或清除，保存后立即刷新剩余天数，无需手改 `config.json`。托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
 
 ### 行为与注意
 

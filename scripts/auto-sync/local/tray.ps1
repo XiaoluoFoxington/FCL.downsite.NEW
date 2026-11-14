@@ -68,6 +68,7 @@ $script:Defaults = [ordered]@{
   gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
   gitUserEmail       = ''      # gitIdentityMode = custom 时的提交邮箱
+  logRetentionDays   = 90      # 日志保留天数（0 = 永久保留）；启动与跨天时清理更早的日期目录
 }
 
 $script:cfg = $null
@@ -98,6 +99,7 @@ $script:paused = $false
 $script:sessionText = '会话：未检查'
 $script:sessionDaysLeft = $null
 $script:nodeVersion = ''
+$script:lastCleanDate = $null
 $script:restartRequested = $false
 $script:lastTip = ''
 $script:injectedEnv = @{}
@@ -179,6 +181,9 @@ function Read-Config {
   $identity = ([string]$cfg.gitIdentityMode).Trim().ToLower()
   if ($identity -ne 'git' -and $identity -ne 'custom') { $identity = 'script' }
   $cfg.gitIdentityMode = $identity
+
+  try { $cfg.logRetentionDays = [math]::Max(0, [int][double]$cfg.logRetentionDays) }
+  catch { $cfg.logRetentionDays = $script:Defaults.logRetentionDays }
 
   return $cfg
 }
@@ -655,6 +660,11 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
 
 function Invoke-Tick {
   try {
+    # 跨天时清理一次过期日志，避免长期常驻时日志无限增长
+    if ($script:lastCleanDate -and (Get-Date).Date -ne $script:lastCleanDate) {
+      $script:lastCleanDate = (Get-Date).Date
+      Remove-OldLogs
+    }
     if ($script:running) {
       $p = $script:proc
       if ($p -and $p.HasExited) {
@@ -759,7 +769,7 @@ function New-MenuItem([string]$Text, [scriptblock]$OnClick = $null, [bool]$Enabl
   return $item
 }
 
-function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current) {
+function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [string]$Hint = '留空并确定 = 清除，改回本机 git 凭据') {
   $form = New-Object System.Windows.Forms.Form
   $form.Text = $Title
   $form.FormBorderStyle = 'FixedDialog'
@@ -782,7 +792,7 @@ function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current) {
   $form.Controls.Add($tb)
 
   $hint = New-Object System.Windows.Forms.Label
-  $hint.Text = '留空并确定 = 清除，改回本机 git 凭据'
+  $hint.Text = $Hint
   $hint.ForeColor = [System.Drawing.Color]::Gray
   $hint.Location = New-Object System.Drawing.Point(14, 90)
   $hint.Size = New-Object System.Drawing.Size(392, 20)
@@ -844,6 +854,44 @@ function Get-TodayLogInfo {
     if ($files.Count -gt 0) { $info.Last = $files[$files.Count - 1].LastWriteTime }
   } catch { }
   return $info
+}
+
+# 按 logRetentionDays 清理过期日期目录（logs/yyyy/MM/dd），0 = 永久保留
+function Remove-OldLogs {
+  $days = 0
+  try { $days = [int][double]$script:cfg.logRetentionDays } catch { $days = 0 }
+  if ($days -le 0) { return }
+  $cutoff = (Get-Date).Date.AddDays(-$days)
+  $removed = 0
+  try {
+    if (-not (Test-Path -LiteralPath $LogDir)) { return }
+    foreach ($yearDir in @(Get-ChildItem -LiteralPath $LogDir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^\d{4}$' })) {
+      foreach ($monthDir in @(Get-ChildItem -LiteralPath $yearDir.FullName -Directory -ErrorAction SilentlyContinue |
+          Where-Object { $_.Name -match '^\d{2}$' })) {
+        foreach ($dayDir in @(Get-ChildItem -LiteralPath $monthDir.FullName -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^\d{2}$' })) {
+          $dateText = "$($yearDir.Name)-$($monthDir.Name)-$($dayDir.Name)"
+          $parsed = [datetime]::MinValue
+          if (-not [datetime]::TryParseExact($dateText, 'yyyy-MM-dd',
+              [System.Globalization.CultureInfo]::InvariantCulture,
+              [System.Globalization.DateTimeStyles]::None, [ref]$parsed)) { continue }
+          if ($parsed -ge $cutoff) { continue }
+          Remove-Item -LiteralPath $dayDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+          $removed++
+        }
+        if (-not (Get-ChildItem -LiteralPath $monthDir.FullName -Force -ErrorAction SilentlyContinue)) {
+          Remove-Item -LiteralPath $monthDir.FullName -Force -ErrorAction SilentlyContinue
+        }
+      }
+      if (-not (Get-ChildItem -LiteralPath $yearDir.FullName -Force -ErrorAction SilentlyContinue)) {
+        Remove-Item -LiteralPath $yearDir.FullName -Force -ErrorAction SilentlyContinue
+      }
+    }
+    if ($removed -gt 0) { Write-TrayLog "已清理 $removed 个过期日志目录（保留 $days 天）" }
+  } catch {
+    Write-TrayLog "清理过期日志失败：$($_.Exception.Message)"
+  }
 }
 
 function Format-IdentityText {
@@ -1137,6 +1185,20 @@ function Build-Menu {
     else { Show-Balloon '令牌已清除' '将回退到本机 git 默认凭据。' 'Info' }
   })))
 
+  # ---- 会话 Cookie（不必再手改 config.json）----
+  $hasSessionCfg = -not [string]::IsNullOrWhiteSpace([string]$script:cfg.session)
+  [void]$optItem.DropDownItems.Add((New-MenuItem ('会话 Cookie：' + $(if ($hasSessionCfg) { '已配置' } else { '未配置' })) ({
+    $value = Show-TokenDialog '会话 Cookie' '粘贴 huang1111 的会话 cookie 值（取法见 README「会话 cookie」一节）。' ([string]$script:cfg.session) '留空并确定 = 清除；若系统环境变量 H1111_SESSION 存在则回退到它'
+    if ($null -eq $value) { return }
+    $script:cfg.session = $value
+    Save-Config $script:cfg
+    Set-InjectedEnv 'H1111_SESSION' $value
+    Update-SessionInfo
+    Write-TrayLog ('会话 Cookie：' + $(if ($value) { '已更新' } else { '已清除' }))
+    if ($value) { Show-Balloon '会话已保存' $script:sessionText 'Info' }
+    else { Show-Balloon '会话已清除' '若系统环境变量里有 H1111_SESSION，将回退到它。' 'Info' }
+  })))
+
   # ---- 提交身份（git user.name / user.email）----
   $identityLabels = @{ script = '脚本默认'; git = '本机 git 配置'; custom = '自定义' }
   $identityLabel = $identityLabels[[string]$script:cfg.gitIdentityMode]
@@ -1180,6 +1242,29 @@ function Build-Menu {
   $idCustom.Checked = ([string]$script:cfg.gitIdentityMode -eq 'custom')
   [void]$identityItem.DropDownItems.Add($idCustom)
   [void]$optItem.DropDownItems.Add($identityItem)
+
+  # ---- 日志保留天数 ----
+  $retentionDays = 0
+  try { $retentionDays = [int][double]$script:cfg.logRetentionDays } catch { }
+  $retentionText = '日志保留：' + $(if ($retentionDays -le 0) { '永久' } else { "$retentionDays 天" })
+  [void]$optItem.DropDownItems.Add((New-MenuItem $retentionText ({
+    try {
+      Add-Type -AssemblyName Microsoft.VisualBasic
+      $answer = [Microsoft.VisualBasic.Interaction]::InputBox('日志保留天数（0 = 永久保留）', '日志设置', [string]([int][double]$script:cfg.logRetentionDays))
+      if ($null -eq $answer -or ([string]$answer).Trim() -eq '') { return }
+      $n = 0
+      if (-not [int]::TryParse(([string]$answer).Trim(), [ref]$n) -or $n -lt 0) {
+        Show-Balloon '输入无效' '请输入 0 或更大的整数天数。' 'Warning'
+        return
+      }
+      $script:cfg.logRetentionDays = $n
+      Save-Config $script:cfg
+      Write-TrayLog ('日志保留：' + $(if ($n -eq 0) { '永久' } else { "$n 天" }))
+      Remove-OldLogs
+    } catch {
+      Write-TrayLog "设置日志保留失败：$($_.Exception.Message)"
+    }
+  })))
 
   [void]$menu.Items.Add($optItem)
 
@@ -1350,6 +1435,8 @@ $script:notify.Add_MouseDoubleClick({
 })
 
 Write-TrayLog "托盘已启动｜仓库 $RepoRoot｜间隔 $($script:cfg.intervalMinutes) 分钟｜node $script:nodeExe"
+$script:lastCleanDate = (Get-Date).Date
+Remove-OldLogs
 Update-SessionInfo
 Update-UnpushedState
 Update-Tooltip
