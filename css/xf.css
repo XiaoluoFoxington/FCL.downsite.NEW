@@ -382,8 +382,9 @@ table .xf-vertical-sticky-th {
   top: 64px;
   height: 0;
   z-index: 900; /* 低于筛选面板（999）与 appbar（1000），高于表格单元格 */
+  /* 隐藏用 visibility 而不是 display：替身仍需参与布局才能测量列宽。
+     不能再加 pointer-events: none——列表页的可排序表头要靠点击替身转发。 */
   visibility: hidden;
-  pointer-events: none;
 }
 
 .xf-sticky-thead[data-visible] {

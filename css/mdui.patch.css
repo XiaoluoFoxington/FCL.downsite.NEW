@@ -78,6 +78,12 @@ html[data-xf-theme="dark"] .mdui-panel-item {
   overflow: unset;
 }
 
+/* 列表页主表格也要粘滞表头：面板体一旦裁剪，里面的 position: sticky 就只能相对它生效，
+   永远贴不到视口。这里同样放行（只匹配直接子元素，不会误伤筛选编辑器里嵌套的表格）。 */
+.mdui-panel-item-open>.mdui-panel-item-body:has(> .mdui-table-fluid) {
+  overflow: unset;
+}
+
 /* 旧浏览器不认 :has()，那就退回以前那样全都放行，总比下拉被切了强。 */
 @supports not selector(:has(*)) {
   .mdui-panel-item-open>.mdui-panel-item-body {

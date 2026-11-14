@@ -135,6 +135,16 @@ export function createStickyTableHeader(wrapper, { top = DEFAULT_TOP, offsetElem
   let lastTop = NaN;         // 上次写入的 top，数值没变就不碰样式
   let lastScrollLeft = 0;    // 上次同步的横向偏移
 
+  // 粘滞表头只是视觉替身：点击要转发给真正的表头，列表页的排序就挂在表头上。
+  pin.addEventListener('click', (event) => {
+    const cloneCell = event.target.closest?.('th');
+    if (!cloneCell || !cloneTable?.contains(cloneCell)) return;
+    const cloneRow = cloneCell.parentElement;
+    const rowIndex = Array.prototype.indexOf.call(cloneTable.tHead?.rows || [], cloneRow);
+    const cellIndex = Array.prototype.indexOf.call(cloneRow.cells, cloneCell);
+    thead?.rows[rowIndex]?.cells[cellIndex]?.click();
+  });
+
   let syncFrame = 0;         // 纵向显隐的 rAF
   let measureFrame = 0;      // 尺寸变化后的测量 rAF
   let refreshFrame = 0;      // 重建表头的 rAF
@@ -203,8 +213,10 @@ export function createStickyTableHeader(wrapper, { top = DEFAULT_TOP, offsetElem
     nextTable.className = `${table.className} xf-sticky-thead-table`;
     // 只克隆 thead：带上 tbody 会让列宽被行内容左右，反而和表头对不齐。
     nextTable.appendChild(head.cloneNode(true));
-    // 克隆体不需要交互，去掉重复 id 避免 getElementById 命中两份。
+    // 克隆体不需要交互：去掉重复 id 避免 getElementById 命中两份，
+    // 去掉 tabindex 避免键盘 Tab 在 aria-hidden 的替身里多停一站。
     nextTable.querySelectorAll('[id]').forEach((node) => node.removeAttribute('id'));
+    nextTable.querySelectorAll('[tabindex]').forEach((node) => node.removeAttribute('tabindex'));
 
     scroller.replaceChildren(nextTable);
     cloneTable = nextTable;

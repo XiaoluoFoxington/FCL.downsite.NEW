@@ -1,18 +1,46 @@
 import { renderStatus, setFilterIndicator } from './commonView.js';
+import { createStickyColumn, createStickyTableHeader } from './stickyTable.js';
 import { createIconElement } from './iconView.js';
 import { readPreference } from '../domain/preferences.js';
 import { isBookmarked, toggleBookmark } from '../domain/bookmarks.js';
 import { t, translateTag } from '../common/i18n.js';
 import { withShowHidden } from '../domain/visibility.js';
 
+/** 粘滞表头句柄：表格被状态块替换或重新渲染时同步销毁。 */
+let _stickyHeader = null;
+
+/** 销毁粘滞表头，避免表格消失后还留着页面级监听。 */
+function destroyStickyHeader() {
+  _stickyHeader?.destroy();
+  _stickyHeader = null;
+}
+
+/**
+ * 首次渲染时创建粘滞表头；后续重渲染只让它重新测量列宽。
+ * 表头贴在吸顶筛选面板下方，面板高度变化由 offsetElement 自动跟随。
+ */
+function ensureStickyHeader(wrapper) {
+  if (_stickyHeader && _stickyHeader.element.isConnected) {
+    _stickyHeader.refresh();
+    return;
+  }
+  destroyStickyHeader();
+  const panel = wrapper.closest('.mdui-panel')?.querySelector('.xf-sticky-panel-item') || null;
+  _stickyHeader = createStickyTableHeader(wrapper, panel
+    ? { top: () => panel.getBoundingClientRect().bottom, offsetElement: panel }
+    : {});
+}
+
 /** 显示目录加载状态。 */
 export function renderListLoading(elements) {
+  destroyStickyHeader();
   renderStatus(elements.list, 'loading', { message: t('list.loadingCatalog') });
   setFilterIndicator(elements.filterIndicatorOn, elements.filterIndicatorOff, false);
 }
 
 /** 目录加载失败时显示错误与重试按钮。 */
 export function renderListError(elements, error, onRetry) {
+  destroyStickyHeader();
   renderStatus(elements.list, 'error', { message: error.message, onRetry });
   setFilterIndicator(elements.filterIndicatorOn, elements.filterIndicatorOff, false);
 }
@@ -239,6 +267,8 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
   _container = container;
 
   if (!software.length) {
+    // 空结果会顶掉表格，粘滞表头必须跟着一起销毁。
+    destroyStickyHeader();
     renderStatus(container, 'empty', { message: t('list.noMatch') });
     return;
   }
@@ -259,6 +289,9 @@ export function renderSoftwareList(container, software, tagMap, openMethod = 'de
   updateSortIndicators(table.querySelector('thead'));
   const iconSize = readPreference('fdn-list-icon-size', 32);
   renderTableBody(table.querySelector('tbody'), iconSize);
+  // 行每次都是重建的，粘滞首列必须在新行上重新打标记。
+  createStickyColumn(table, 0);
+  ensureStickyHeader(container);
 }
 
 
