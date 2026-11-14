@@ -1,9 +1,14 @@
 [
   {
+    "name": "ZPCL Launcher 1.5.4",
+    "nextUrl": "/data/down/18/auto/2026/11/14/v1.5.4.json",
+    "tag": "v1.5.4",
+    "default": true
+  },
+  {
     "name": "Zalith-Plain Craft Launcher 1.4.1",
     "nextUrl": "/data/down/18/auto/2026/11/7/v1.4.1.json",
-    "tag": "v1.4.1",
-    "default": true
+    "tag": "v1.4.1"
   },
   {
     "name": "Zalith-Plain Craft Launcher 1.4.0",

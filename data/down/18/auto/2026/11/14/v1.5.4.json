@@ -1,0 +1,27 @@
+[
+  {
+    "arch": "all",
+    "url": "https://pan.huang1111.cn/f/9l3jFx/ZPCL-Launcher-1.5.4-universal.apk",
+    "size": 354858003
+  },
+  {
+    "arch": "arm64-v8a",
+    "url": "https://pan.huang1111.cn/f/dblDcW/ZPCL-Launcher-1.5.4-arm64-v8a.apk",
+    "size": 181778599
+  },
+  {
+    "arch": "armeabi-v7a",
+    "url": "https://pan.huang1111.cn/f/25RBI6/ZPCL-Launcher-1.5.4-armeabi-v7a.apk",
+    "size": 173698119
+  },
+  {
+    "arch": "x86",
+    "url": "https://pan.huang1111.cn/f/PnA9Tq/ZPCL-Launcher-1.5.4-x86.apk",
+    "size": 162236201
+  },
+  {
+    "arch": "x86_64",
+    "url": "https://pan.huang1111.cn/f/zNvYUE/ZPCL-Launcher-1.5.4-x86_64.apk",
+    "size": 187606285
+  }
+]
