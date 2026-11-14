@@ -65,6 +65,9 @@ $script:Defaults = [ordered]@{
   stepPush           = $true   # 步骤开关：推送（含补推）
   iconPath           = ''      # 自定义托盘图标（png/jpg/bmp/gif/ico）；留空 = 内置图标
   notifyMode         = 'always' # always | failure | never；每次同步是否弹通知
+  gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
+  gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
+  gitUserEmail       = ''      # gitIdentityMode = custom 时的提交邮箱
 }
 
 $script:cfg = $null
@@ -169,6 +172,10 @@ function Read-Config {
   $mode = ([string]$cfg.notifyMode).Trim().ToLower()
   if ($mode -ne 'failure' -and $mode -ne 'never') { $mode = 'always' }
   $cfg.notifyMode = $mode
+
+  $identity = ([string]$cfg.gitIdentityMode).Trim().ToLower()
+  if ($identity -ne 'git' -and $identity -ne 'custom') { $identity = 'script' }
+  $cfg.gitIdentityMode = $identity
 
   return $cfg
 }
@@ -509,6 +516,10 @@ function Start-SyncRun {
   Set-InjectedEnv 'GITHUB_TOKEN' ([string]$script:cfg.githubToken)
   # 拉取/推送用的 PAT：没有就清掉，让 run-sync 回退到本机 git 凭据
   Set-InjectedEnv 'LOCAL_SYNC_GIT_TOKEN' (([string]$script:cfg.gitToken).Trim())
+  # 提交身份：脚本默认（github-actions[bot]）/ 本机 git 配置 / 自定义
+  $env:LOCAL_SYNC_GIT_IDENTITY = [string]$script:cfg.gitIdentityMode
+  Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_NAME' (([string]$script:cfg.gitUserName).Trim())
+  Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_EMAIL' (([string]$script:cfg.gitUserEmail).Trim())
   $script:nodeExe = Resolve-NodeExe
   # 拉取 / 补推 / 通知的行为都来自 config.json，每次同步前重新注入给包装器
   if ($script:cfg.pullBeforeSync) { $env:LOCAL_SYNC_PULL = '1' } else { $env:LOCAL_SYNC_PULL = '0' }
@@ -1019,6 +1030,50 @@ function Build-Menu {
     else { Show-Balloon '令牌已清除' '将回退到本机 git 默认凭据。' 'Info' }
   })))
 
+  # ---- 提交身份（git user.name / user.email）----
+  $identityLabels = @{ script = '脚本默认'; git = '本机 git 配置'; custom = '自定义' }
+  $identityLabel = $identityLabels[[string]$script:cfg.gitIdentityMode]
+  if (-not $identityLabel) { $identityLabel = '脚本默认' }
+  $identityItem = New-Object System.Windows.Forms.ToolStripMenuItem
+  $identityItem.Text = '提交身份：' + $identityLabel
+
+  $idScript = New-MenuItem '脚本默认（github-actions[bot]）' ({
+    $script:cfg.gitIdentityMode = 'script'
+    Save-Config $script:cfg
+    Write-TrayLog '提交身份：脚本默认（github-actions[bot]）'
+  })
+  $idScript.Checked = ([string]$script:cfg.gitIdentityMode -eq 'script')
+  [void]$identityItem.DropDownItems.Add($idScript)
+
+  $idGit = New-MenuItem '本机 git 配置' ({
+    $script:cfg.gitIdentityMode = 'git'
+    Save-Config $script:cfg
+    Write-TrayLog '提交身份：本机 git 配置'
+  })
+  $idGit.Checked = ([string]$script:cfg.gitIdentityMode -eq 'git')
+  [void]$identityItem.DropDownItems.Add($idGit)
+
+  $idCustom = New-MenuItem '自定义…' ({
+    try {
+      Add-Type -AssemblyName Microsoft.VisualBasic
+      $name = [Microsoft.VisualBasic.Interaction]::InputBox('提交用户名（git user.name）', '提交身份', [string]$script:cfg.gitUserName)
+      if ([string]::IsNullOrWhiteSpace([string]$name)) { return }
+      $email = [Microsoft.VisualBasic.Interaction]::InputBox('提交邮箱（git user.email）', '提交身份', [string]$script:cfg.gitUserEmail)
+      if ([string]::IsNullOrWhiteSpace([string]$email)) { return }
+      $script:cfg.gitUserName = ([string]$name).Trim()
+      $script:cfg.gitUserEmail = ([string]$email).Trim()
+      $script:cfg.gitIdentityMode = 'custom'
+      Save-Config $script:cfg
+      Write-TrayLog ('提交身份：自定义 ' + $script:cfg.gitUserName + ' <' + $script:cfg.gitUserEmail + '>')
+      Show-Balloon '提交身份已保存' ('下一轮同步起使用：' + $script:cfg.gitUserName + ' <' + $script:cfg.gitUserEmail + '>') 'Info'
+    } catch {
+      Write-TrayLog "设置提交身份失败：$($_.Exception.Message)"
+    }
+  })
+  $idCustom.Checked = ([string]$script:cfg.gitIdentityMode -eq 'custom')
+  [void]$identityItem.DropDownItems.Add($idCustom)
+  [void]$optItem.DropDownItems.Add($identityItem)
+
   [void]$menu.Items.Add($optItem)
 
   # ---- 开机启动 ----
@@ -1152,6 +1207,9 @@ try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catc
 Set-InjectedEnv 'H1111_SESSION' ([string]$script:cfg.session)
 Set-InjectedEnv 'GITHUB_TOKEN' ([string]$script:cfg.githubToken)
 Set-InjectedEnv 'LOCAL_SYNC_GIT_TOKEN' (([string]$script:cfg.gitToken).Trim())
+$env:LOCAL_SYNC_GIT_IDENTITY = [string]$script:cfg.gitIdentityMode
+Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_NAME' (([string]$script:cfg.gitUserName).Trim())
+Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_EMAIL' (([string]$script:cfg.gitUserEmail).Trim())
 # 隐藏进程里没有可交互的终端：禁用 git 终端提示，缺凭据时直接失败而不是挂起
 $env:GIT_TERMINAL_PROMPT = '0'
 # 本地运行必须摘掉 GHA 上下文：否则 sync.mjs 会把 token 写进 git remote URL

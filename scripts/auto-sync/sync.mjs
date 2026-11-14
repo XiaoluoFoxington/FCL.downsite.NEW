@@ -333,6 +333,31 @@ function verifySyncedData(sw, synced, scope) {
   scope.line(`✅ 提交前校验通过：${synced.length} 个版本 JSON / URL 前缀 ${urlPrefix} / size 合法 / index.json 条目齐全`);
 }
 
+// ---------- 提交身份 ----------
+// 默认（GHA 与未配置的本地版）：脚本内置的 github-actions[bot]。
+// 本地托盘版可通过环境变量覆盖（GHA 不会设置这些变量）：
+//   LOCAL_SYNC_GIT_IDENTITY=script|git|custom
+//     script = 脚本默认（github-actions[bot]）
+//     git    = 不注入身份，沿用本机 git 配置（user.name / user.email）
+//     custom = 使用下面两项（只填一项时，另一项仍沿用本机 git 配置）
+//   LOCAL_SYNC_GIT_USER_NAME / LOCAL_SYNC_GIT_USER_EMAIL
+function gitIdentityArgs() {
+  const mode = (process.env.LOCAL_SYNC_GIT_IDENTITY || 'script').trim().toLowerCase();
+  if (mode === 'git') return [];
+  if (mode === 'custom') {
+    const args = [];
+    const name = (process.env.LOCAL_SYNC_GIT_USER_NAME || '').trim();
+    const email = (process.env.LOCAL_SYNC_GIT_USER_EMAIL || '').trim();
+    if (name) args.push('-c', `user.name=${name}`);
+    if (email) args.push('-c', `user.email=${email}`);
+    return args;
+  }
+  return [
+    '-c', 'user.name=github-actions[bot]',
+    '-c', 'user.email=github-actions[bot]@users.noreply.github.com',
+  ];
+}
+
 // ---------- 提交单个软件 ----------
 function commitSoftware(softwareId, versionList, bodyLines, scope) {
   // 本地步骤设置：提交关闭时保留工作区变更，不暂存、不提交
@@ -350,8 +375,7 @@ function commitSoftware(softwareId, versionList, bodyLines, scope) {
   } catch { /* 有变更 */ }
   const subject = `[GHA] 新增：内容：数据源：资源id-${softwareId}：${versionList}呜~`;
   git([
-    '-c', 'user.name=github-actions[bot]',
-    '-c', 'user.email=github-actions[bot]@users.noreply.github.com',
+    ...gitIdentityArgs(),
     'commit', '-m', subject, '-m', bodyLines.join('\n'),
   ]);
   scope.line(`✅ 已提交：${subject}（正文 ${bodyLines.length} 行）`);

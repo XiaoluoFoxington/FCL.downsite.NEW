@@ -12,6 +12,11 @@
 //   LOCAL_SYNC_RETRY_PUSH=0|1          是否在成功同步后补推历史未推送提交
 //   LOCAL_SYNC_GIT_TOKEN=...           GitHub PAT，用于 git pull/push 鉴权；
 //                                      未设置 = 回退到本机 git 默认凭据（SSH / credential helper）
+//   LOCAL_SYNC_GIT_IDENTITY=script|git|custom
+//                                      提交身份：script = github-actions[bot]（默认）；
+//                                      git = 本机 git 配置；custom = 使用下面两项
+//   LOCAL_SYNC_GIT_USER_NAME=...       自定义提交用户名（custom 时）
+//   LOCAL_SYNC_GIT_USER_EMAIL=...      自定义提交邮箱（custom 时）
 //   LOCAL_SYNC_STEP_PULL=0|1           步骤：同步前拉取
 //   LOCAL_SYNC_STEP_SYNC=0|1           步骤：执行 sync.mjs
 //   LOCAL_SYNC_STEP_COMMIT=0|1         步骤：提交（由 sync.mjs 读取）
@@ -35,6 +40,9 @@ const PULL_TIMEOUT_MS = toPositiveInt(process.env.LOCAL_SYNC_PULL_TIMEOUT_MS, 10
 const RETRY_PUSH = process.env.LOCAL_SYNC_RETRY_PUSH !== '0';
 const PUSH_TIMEOUT_MS = 5 * 60 * 1000;
 const GIT_TOKEN = (process.env.LOCAL_SYNC_GIT_TOKEN || '').trim();
+const IDENTITY_MODE = (process.env.LOCAL_SYNC_GIT_IDENTITY || 'script').trim().toLowerCase();
+const IDENTITY_NAME = (process.env.LOCAL_SYNC_GIT_USER_NAME || '').trim();
+const IDENTITY_EMAIL = (process.env.LOCAL_SYNC_GIT_USER_EMAIL || '').trim();
 const STEPS = {
   pull: process.env.LOCAL_SYNC_STEP_PULL !== '0',
   sync: process.env.LOCAL_SYNC_STEP_SYNC !== '0',
@@ -67,6 +75,17 @@ function fmtMs(ms) {
   const sec = Math.round(ms / 1000);
   if (sec < 60) return `${sec} 秒`;
   return `${Math.floor(sec / 60)} 分 ${sec % 60} 秒`;
+}
+
+function identityText() {
+  if (IDENTITY_MODE === 'git') return '本机 git 配置';
+  if (IDENTITY_MODE === 'custom') {
+    if (IDENTITY_NAME || IDENTITY_EMAIL) {
+      return `自定义 ${IDENTITY_NAME || '（沿用 git 用户名）'} <${IDENTITY_EMAIL || '（沿用 git 邮箱）'}>`;
+    }
+    return '自定义未填写，等同本机 git 配置';
+  }
+  return '脚本默认（github-actions[bot]）';
 }
 
 function git(args, opts = {}) {
@@ -212,6 +231,7 @@ function pushLeftovers() {
 line(GIT_TOKEN
   ? '🔑 拉取/推送凭据：config.json 中的 GitHub 令牌'
   : '🔑 拉取/推送凭据：本机 git 默认凭据');
+line(`👤 提交身份：${identityText()}`);
 line(`🧩 步骤：拉取${STEPS.pull ? '开' : '关'}｜同步${STEPS.sync ? '开' : '关'}｜提交${STEPS.commit ? '开' : '关'}｜推送${STEPS.push ? '开' : '关'}`);
 if (GIT_TOKEN) {
   const remote = gitText(['remote', 'get-url', 'origin']);

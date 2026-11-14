@@ -168,7 +168,7 @@ node scripts/auto-sync/probe.mjs
 
 - **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
 - **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
-- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、步骤设置、托盘图标、拉取方式、通知、GitHub 令牌）/ 开机启动 / 打开日志 / 打开最近日志 / 打开配置 / 会话剩余天数 / 重新启动 / 退出
+- 托盘图标上的菜单：立即同步 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、步骤设置、托盘图标、拉取方式、通知、GitHub 令牌、提交身份）/ 开机启动 / 打开日志 / 打开最近日志 / 打开配置 / 会话剩余天数 / 重新启动 / 退出
 - **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
 
 ### 配置（首次运行自动生成）
@@ -194,6 +194,9 @@ node scripts/auto-sync/probe.mjs
 | `stepPush` | `true` | 步骤开关：`git push`（含补推）；关闭时提交只留在本地 |
 | `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标：同步中黄点、暂停「||」，空闲与失败不显示角标 |
 | `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 |
+| `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「选项 → 提交身份」可设） |
+| `gitUserName` | `""` | `gitIdentityMode=custom` 时的 `user.name` |
+| `gitUserEmail` | `""` | `gitIdentityMode=custom` 时的 `user.email` |
 
 > 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。
 > 托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
