@@ -7,7 +7,7 @@
 #   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
 #   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 开机启动 / 打开日志 / 会话剩余天数 / 退出
 #   · 单实例：重复启动会被静默忽略
-#   · 日志：scripts/auto-sync/local/logs/yyyy-MM-dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
+#   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
 #   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
 #
 # 用法（详见 scripts/auto-sync/README.md「本地版（Windows 托盘）」）：
@@ -103,9 +103,9 @@ $script:appContext = $null
 
 # ============================ 基础工具 ============================
 
-# 日志按日期嵌套：logs/yyyy-MM-dd/，避免单目录堆积过多文件
+# 日志按日期嵌套：logs/yyyy/MM/dd/，避免单目录堆积过多文件
 function Get-LogDir([datetime]$Date = (Get-Date)) {
-  return (Join-Path $LogDir $Date.ToString('yyyy-MM-dd'))
+  return (Join-Path $LogDir (Join-Path $Date.ToString('yyyy') (Join-Path $Date.ToString('MM') $Date.ToString('dd'))))
 }
 
 function Write-TrayLog([string]$Message) {
