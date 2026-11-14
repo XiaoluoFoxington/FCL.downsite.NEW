@@ -89,12 +89,16 @@ $script:runLog = ''
 $script:runErrLog = ''
 $script:unpushedCount = 0
 $script:unpushedBranch = ''
+$script:branchLocal = ''
 $script:lastRunAt = $null
 $script:lastResult = ''
+$script:lastElapsedText = ''
 $script:nextRunAt = $null
 $script:paused = $false
 $script:sessionText = '会话：未检查'
 $script:sessionDaysLeft = $null
+$script:nodeVersion = ''
+$script:titleFont = $null
 $script:restartRequested = $false
 $script:lastTip = ''
 $script:injectedEnv = @{}
@@ -463,10 +467,11 @@ function Update-SessionInfo {
 # 下一轮 probe 看到本地 JSON 已是最新 → 直接退出 0，永远不会自动补推。
 # 这里只检测并提示，不自动 push：避免把用户自己的本地提交一起推上去。
 function Get-UnpushedInfo {
-  $info = @{ Count = 0; Branch = '' }
+  $info = @{ Count = 0; Branch = ''; Local = '' }
   try {
     $branch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
     if (-not $branch -or $branch -eq 'HEAD') { return $info }
+    $info.Local = $branch
     $upstream = (& git -C $RepoRoot rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null | Out-String).Trim()
     $ref = $upstream
     if (-not $ref) { $ref = "origin/$branch" }
@@ -482,6 +487,7 @@ function Update-UnpushedState {
   $prev = $script:unpushedCount
   $script:unpushedCount = [int]$info.Count
   $script:unpushedBranch = [string]$info.Branch
+  $script:branchLocal = [string]$info.Local
   if ($script:unpushedCount -gt 0 -and $script:unpushedCount -ne $prev) {
     $msg = '本地有 ' + $script:unpushedCount + ' 个提交没推到 ' + $script:unpushedBranch +
       '（多半是 push 超时或被远端新提交拒绝）。在仓库目录执行：git pull --rebase && git push'
@@ -521,6 +527,9 @@ function Start-SyncRun {
   Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_NAME' (([string]$script:cfg.gitUserName).Trim())
   Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_EMAIL' (([string]$script:cfg.gitUserEmail).Trim())
   $script:nodeExe = Resolve-NodeExe
+  if ($script:nodeExe -and -not $script:nodeVersion) {
+    try { $script:nodeVersion = (& $script:nodeExe --version 2>$null | Out-String).Trim() } catch { }
+  }
   # 拉取 / 补推 / 通知的行为都来自 config.json，每次同步前重新注入给包装器
   if ($script:cfg.pullBeforeSync) { $env:LOCAL_SYNC_PULL = '1' } else { $env:LOCAL_SYNC_PULL = '0' }
   $env:LOCAL_SYNC_PULL_STRATEGY = [string]$script:cfg.pullStrategy
@@ -625,6 +634,7 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
     if ($sec -ge 60) { $elapsedText = "｜用时 $([int]($sec / 60)) 分 $($sec % 60) 秒" }
     else { $elapsedText = "｜用时 $sec 秒" }
   }
+  $script:lastElapsedText = $elapsedText
 
   Update-IdleStateIcon
 
@@ -807,6 +817,51 @@ function Stop-Tray {
   if ($script:appContext) { try { $script:appContext.ExitThread() } catch { } }
 }
 
+# ============================ 顶层菜单概览 ============================
+
+# 下次运行：今天/明天/日期 + 时间 + 倒计时
+function Format-NextRun([datetime]$Target) {
+  $now = Get-Date
+  $day = $Target.ToString('MM-dd')
+  if ($Target.Date -eq $now.Date) { $day = '今天' }
+  elseif ($Target.Date -eq $now.Date.AddDays(1)) { $day = '明天' }
+  $span = $Target - $now
+  if ($span.TotalSeconds -le 0) { $remain = '即将开始' }
+  elseif ($span.TotalMinutes -lt 60) { $remain = "$([int][math]::Ceiling($span.TotalMinutes)) 分钟后" }
+  elseif ($span.TotalHours -lt 24) { $remain = "$([int][math]::Floor($span.TotalHours)) 小时 $($span.Minutes) 分后" }
+  else { $remain = "$([int][math]::Floor($span.TotalDays)) 天后" }
+  return "$day $($Target.ToString('HH:mm'))（$remain）"
+}
+
+# 今天的同步日志：次数与最近一次时间（不含 .err.log）
+function Get-TodayLogInfo {
+  $info = @{ Count = 0; Last = $null }
+  try {
+    $dir = Get-LogDir
+    if (-not (Test-Path -LiteralPath $dir)) { return $info }
+    $files = @(Get-ChildItem -LiteralPath $dir -Filter 'sync-*.log' -File -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -notlike '*.err.log' } | Sort-Object LastWriteTime)
+    $info.Count = $files.Count
+    if ($files.Count -gt 0) { $info.Last = $files[$files.Count - 1].LastWriteTime }
+  } catch { }
+  return $info
+}
+
+function Format-IdentityText {
+  switch ([string]$script:cfg.gitIdentityMode) {
+    'git' { return '本机 git 配置' }
+    'custom' {
+      $n = ([string]$script:cfg.gitUserName).Trim()
+      $e = ([string]$script:cfg.gitUserEmail).Trim()
+      if ($n -and $e) { return "自定义 $n <$e>" }
+      if ($n) { return "自定义 $n（邮箱沿用 git）" }
+      if ($e) { return "自定义 <$e>（用户名沿用 git）" }
+      return '自定义（未填写，等同本机 git 配置）'
+    }
+    default { return '脚本默认（github-actions[bot]）' }
+  }
+}
+
 function Build-Menu {
   $menu = $script:menu
   # Clear() 只是移除引用，不会释放 ToolStripItem 的 GDI 资源；菜单每次打开都重建，必须逐个 Dispose
@@ -815,29 +870,91 @@ function Build-Menu {
     $menu.Items.RemoveAt(0)
     try { $old.Dispose() } catch { }
   }
+  # 标题字体随菜单重建，先释放上一份，避免反复开菜单堆积 GDI 对象
+  if ($script:titleFont) { try { $script:titleFont.Dispose() } catch { } ; $script:titleFont = $null }
+  try {
+    $script:titleFont = New-Object System.Drawing.Font('Microsoft YaHei UI', 10, [System.Drawing.FontStyle]::Bold)
+  } catch { }
 
-  # ---- 状态区（只读）----
-  $status = ''
-  if ($script:running -and $script:runStartedAt) {
-    $status = '状态：正在同步（已 ' + [int](((Get-Date) - $script:runStartedAt).TotalMinutes) + ' 分钟）'
+  # ---- 概览区（只读；标题与状态行带颜色，点击无动作）----
+  $accent = [System.Drawing.Color]::FromArgb(38, 132, 255)
+  $okColor = [System.Drawing.Color]::FromArgb(46, 160, 67)
+  $warnColor = [System.Drawing.Color]::FromArgb(210, 153, 34)
+  $errColor = [System.Drawing.Color]::FromArgb(218, 54, 51)
+
+  $titleItem = New-MenuItem '◆ 自动同步' $null $true
+  if ($script:titleFont) { $titleItem.Font = $script:titleFont }
+  $titleItem.ForeColor = $accent
+  [void]$menu.Items.Add($titleItem)
+
+  $stateText = '待命'
+  $stateSymbol = '●'
+  $stateColor = $okColor
+  if ($script:running) {
+    $stateText = '同步中（已 ' + [int](((Get-Date) - $script:runStartedAt).TotalMinutes) + ' 分钟）'
+    $stateSymbol = '◉'
+    $stateColor = $accent
   } elseif (Test-EffectivePaused) {
-    $status = $(if (Test-StepsEnabled) { '状态：已暂停' } else { '状态：已暂停（步骤全关）' })
-  } elseif ($script:nextRunAt) {
-    $status = '状态：下次 ' + $script:nextRunAt.ToString('MM-dd HH:mm')
-  } else {
-    $status = '状态：待启动'
+    $stateText = $(if (Test-StepsEnabled) { '已暂停' } else { '已暂停（步骤全关）' })
+    $stateSymbol = '‖'
+    $stateColor = $warnColor
+  } elseif ($script:lastResult -like '❌*') {
+    $stateText = '待命（上次失败）'
+    $stateSymbol = '×'
+    $stateColor = $errColor
   }
-  [void]$menu.Items.Add((New-MenuItem $status $null $false))
+  $statusItem = New-MenuItem ('   状态　' + $stateSymbol + ' ' + $stateText) $null $true
+  $statusItem.ForeColor = $stateColor
+  [void]$menu.Items.Add($statusItem)
+
+  if ($script:running) { $nextText = '本轮结束后重新排期' }
+  elseif (Test-EffectivePaused) { $nextText = '已暂停，不排期' }
+  elseif ($script:nextRunAt) { $nextText = Format-NextRun $script:nextRunAt }
+  else { $nextText = '待启动' }
+  [void]$menu.Items.Add((New-MenuItem ('   下次　' + $nextText) $null $false))
 
   if ($script:lastRunAt) {
-    [void]$menu.Items.Add((New-MenuItem ('上次：' + $script:lastRunAt.ToString('MM-dd HH:mm') + ' · ' + $script:lastResult) $null $false))
+    $lastText = $script:lastRunAt.ToString('MM-dd HH:mm') + ' · ' + $script:lastResult + $script:lastElapsedText
   } else {
-    [void]$menu.Items.Add((New-MenuItem '上次：尚未运行' $null $false))
+    $lastText = '尚未运行'
   }
-  [void]$menu.Items.Add((New-MenuItem $script:sessionText $null $false))
+  [void]$menu.Items.Add((New-MenuItem ('   上次　' + $lastText) $null $false))
+
+  $branchTarget = $(if ($script:unpushedBranch) { $script:unpushedBranch } elseif ($script:branchLocal) { 'origin/' + $script:branchLocal } else { '?' })
+  $branchText = $(if ($script:branchLocal) { $script:branchLocal + ' → ' + $branchTarget } else { '（未检测）' }) + '｜待推 ' + $script:unpushedCount
+  $branchItem = New-MenuItem ('   分支　' + $branchText) $null $false
   if ($script:unpushedCount -gt 0) {
-    [void]$menu.Items.Add((New-MenuItem ("⚠️ $($script:unpushedCount) 个本地提交未推送到 $($script:unpushedBranch)") $null $false))
+    # 有未推送提交时用警示色；颜色只在启用状态下生效，故这里临时启用（无点击动作）
+    $branchItem.Enabled = $true
+    $branchItem.ForeColor = $warnColor
   }
+  [void]$menu.Items.Add($branchItem)
+
+  [void]$menu.Items.Add((New-MenuItem ('   提交　' + (Format-IdentityText)) $null $false))
+
+  $sessionBody = ($script:sessionText -replace '^会话：', '')
+  $sessionItem = New-MenuItem ('   会话　' + $sessionBody) $null $false
+  if ($null -ne $script:sessionDaysLeft -and $script:sessionDaysLeft -le 10) {
+    $sessionItem.Enabled = $true
+    $sessionItem.ForeColor = $errColor
+  }
+  [void]$menu.Items.Add($sessionItem)
+
+  $pullText = $(if ($script:cfg.pullBeforeSync) { '拉取 ' + $script:cfg.pullStrategy } else { '拉取关' })
+  $notifyText = @{ always = '每次'; failure = '仅失败'; never = '从不' }[[string]$script:cfg.notifyMode]
+  if (-not $notifyText) { $notifyText = '每次' }
+  $retryText = $(if ($script:cfg.retryPush) { '开' } else { '关' })
+  $onSteps = 0
+  foreach ($k in @('stepPull', 'stepSync', 'stepCommit', 'stepPush')) { if ([bool]$script:cfg[$k]) { $onSteps++ } }
+  $intervalText = (Format-Interval ([double]$script:cfg.intervalMinutes)) + '｜' + $pullText + '｜补推 ' + $retryText +
+    '｜通知 ' + $notifyText + '｜步骤 ' + $onSteps + '/4'
+  [void]$menu.Items.Add((New-MenuItem ('   间隔　' + $intervalText) $null $false))
+
+  $logInfo = Get-TodayLogInfo
+  $envText = 'Node ' + $(if ($script:nodeVersion) { $script:nodeVersion } else { '未找到' }) + '｜今日同步 ' + $logInfo.Count + ' 次'
+  if ($logInfo.Last) { $envText += '｜最近 ' + $logInfo.Last.ToString('HH:mm') }
+  [void]$menu.Items.Add((New-MenuItem ('   环境　' + $envText) $null $false))
+
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
   # ---- 操作区 ----
@@ -1219,6 +1336,9 @@ Remove-Item Env:\GITHUB_STEP_SUMMARY -ErrorAction SilentlyContinue
 Remove-Item Env:\GITHUB_REF_NAME -ErrorAction SilentlyContinue
 
 $script:nodeExe = Resolve-NodeExe
+if ($script:nodeExe -and -not $script:nodeVersion) {
+  try { $script:nodeVersion = (& $script:nodeExe --version 2>$null | Out-String).Trim() } catch { }
+}
 Update-TrayIcons
 
 $script:notify = New-Object System.Windows.Forms.NotifyIcon
@@ -1285,6 +1405,7 @@ foreach ($i in @($script:iconIdle, $script:iconBusy, $script:iconPaused)) { if (
 foreach ($h in $script:iconHandles) { Destroy-IconHandle $h }
 foreach ($b in $script:iconBitmaps) { if ($b) { try { $b.Dispose() } catch { } } }
 if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
+if ($script:titleFont) { try { $script:titleFont.Dispose() } catch { } }
 Write-TrayLog '托盘已退出'
 try { $mutex.ReleaseMutex() } catch { }
 
