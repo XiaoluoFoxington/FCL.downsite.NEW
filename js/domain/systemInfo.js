@@ -92,9 +92,18 @@ export function checkOSRequirement(osRequests, system) {
     return messages;
   }
 
-  const matched = osRequests.find(
-    (req) => req.osName?.toLowerCase() === osName.toLowerCase()
-  );
+  // 非纯血鸿蒙（HarmonyOS）本质是 Android 兼容发行版：需求写 HarmonyOS 时按原名匹配，
+  // 需求写 Android 时也能命中。纯血鸿蒙是 OpenHarmony，仍只按自身名称匹配。
+  // 命中兼容基线时提示用户，说明实际按哪套基线参与判断。
+  const isHarmonyOs = osName.toLowerCase() === 'harmonyos';
+  if (isHarmonyOs) {
+    messages.push({ type: 'info', text: t('common.system.harmonyOsAsAndroid', { osName }) });
+  }
+
+  const matched = osRequests.find((req) => {
+    const requirementName = req.osName?.toLowerCase();
+    return requirementName === osName.toLowerCase() || (isHarmonyOs && requirementName === 'android');
+  });
 
   if (!matched) {
     const supportedNames = osRequests.map((r) => r.osName).join(t('common.separator'));

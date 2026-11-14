@@ -133,6 +133,7 @@ const jaJP = {
     },
     system: {
       cannotDetectOs: '現在のシステム名を検出できません。',
+      harmonyOsAsAndroid: '現在のシステム（{osName}）は非純正の HarmonyOS です。Android として照合します。',
       osRequirement: '{supported} が必要です。現在のシステム（{osName}）では正常に動作しない可能性があります。（参考用です、正確とは限りません）',
       osVersionRequirement: '{osName} {osVersion} 以上が必要です。現在のシステム（{currentOs} {currentVersion}）では正常に動作しない可能性があります。（参考用です、正確とは限りません）',
       matchedArch: '推奨アーキテクチャに一致しました：{arch}',

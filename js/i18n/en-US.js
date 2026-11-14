@@ -133,6 +133,7 @@ const enUS = {
     },
     system: {
       cannotDetectOs: 'Unable to detect the current OS name.',
+      harmonyOsAsAndroid: 'The current system ({osName}) is non-pure HarmonyOS; matching it as Android.',
       osRequirement: 'Requires {supported}. The current system ({osName}) may not run properly. (For reference only, not guaranteed)',
       osVersionRequirement: 'Requires {osName} {osVersion} or later. The current system ({currentOs} {currentVersion}) may not run properly. (For reference only, not guaranteed)',
       matchedArch: 'Recommended architecture matched: {arch}',

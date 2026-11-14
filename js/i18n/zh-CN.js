@@ -145,6 +145,7 @@ const zhCN = {
     },
     system: {
       cannotDetectOs: '无法检测当前系统名称。',
+      harmonyOsAsAndroid: '当前系统（{osName}）非纯血鸿蒙，视为 Android 进行匹配。',
       osRequirement: '要求 {supported}，当前系统（{osName}）可能无法正常运行。（仅供参考，不一定准）',
       osVersionRequirement: '要求 {osName} {osVersion} 及以上，当前系统（{currentOs} {currentVersion}）可能无法正常运行。（仅供参考，不一定准）',
       matchedArch: '已为您匹配推荐架构：{arch}',

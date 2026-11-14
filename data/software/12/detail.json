@@ -38,7 +38,7 @@
   ],
   "OSRequest": [
     {
-      "osName": "HarmonyOS"
+      "osName": "OpenHarmony"
     }
   ]
 }

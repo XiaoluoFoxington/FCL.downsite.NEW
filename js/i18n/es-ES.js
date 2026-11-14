@@ -134,6 +134,7 @@ const esES = {
     },
     system: {
       cannotDetectOs: 'No se pudo detectar el nombre del sistema operativo actual.',
+      harmonyOsAsAndroid: 'El sistema actual ({osName}) es HarmonyOS no puro; se compara como Android.',
       osRequirement: 'Se requiere {supported}. El sistema actual ({osName}) puede no funcionar correctamente. (Solo como referencia, no es una garantía)',
       osVersionRequirement: 'Se requiere {osName} {osVersion} o superior. El sistema actual ({currentOs} {currentVersion}) puede no funcionar correctamente. (Solo como referencia, no es una garantía)',
       matchedArch: 'Se ha encontrado la arquitectura recomendada: {arch}',

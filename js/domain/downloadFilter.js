@@ -47,15 +47,18 @@ import { t } from '../common/i18n.js';
  * （由后缀 $ 与片段自带边界控制）。
  *
  * 压缩包/源码包不属于任何系统的原生格式，由 CATEGORY_PATTERNS 单独分类。
- * HarmonyOS 为纯血鸿蒙（HarmonyOS NEXT），不兼容 Android，仅认 .hap（应用安装包）与 .app（应用市场分发格式）。
+ * 鸿蒙的纯血与否按"基线"区分：OpenHarmony 才是纯血鸿蒙，不兼容 Android，只认 .hap
+ * （应用安装包）与 .app（应用市场分发格式）；HarmonyOS 是非纯血版本，本质仍是
+ * 兼容 Android 的发行版，只认 .apk 系列，不认 .hap/.app。两者名称片段各自独立，
+ * 避免纯血包被误归到非纯血版。
  */
 const SYSTEM_PATTERNS = {
   android: '\\.(?:apk|apks|xapk|apkm)$|(^|[-_.])android(?![a-z])',
   windows: '\\.(?:exe|msi|msix|appx|appxbundle|msixbundle)$|(^|[-_.])(?:windows|win)(?![a-z])',
   'mac os': '\\.(?:dmg|pkg)$|(^|[-_.])(?:mac|macos|osx|darwin)(?![a-z])',
   linux: '\\.(?:appimage|deb|rpm|flatpak|snap)$|(^|[-_.])linux(?![a-z])',
-  harmonyos: '\\.(?:hap|app)$|(^|[-_.])(?:harmonyos|openharmony)(?![a-z])',
-  openharmony: '\\.(?:hap|app)$|(^|[-_.])(?:harmonyos|openharmony)(?![a-z])',
+  harmonyos: '\\.(?:apk|apks|xapk|apkm)$|(^|[-_.])(?:harmonyos|hmos)(?![a-z])',
+  openharmony: '\\.(?:hap|app)$|(^|[-_.])openharmony(?![a-z])',
 };
 
 /**
