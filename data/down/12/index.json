@@ -1,9 +1,14 @@
 [
   {
+    "name": "1.0.7",
+    "nextUrl": "/data/down/12/auto/2026/11/14/v1.0.7.json",
+    "tag": "v1.0.7",
+    "default": true
+  },
+  {
     "name": "AMCL v1.0.6",
     "nextUrl": "/data/down/12/auto/2026/10/24/v1.0.6.json",
-    "tag": "v1.0.6",
-    "default": true
+    "tag": "v1.0.6"
   },
   {
     "name": "AMCL v1.0.5",
