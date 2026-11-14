@@ -207,7 +207,7 @@ node scripts/auto-sync/probe.mjs
 - 拉取开关、拉取方式（rebase / ff-only）、失败补推都可在托盘「选项」菜单里即时切换，也可直接改 `config.json`（下一轮生效）
 - **步骤设置**（托盘「选项 → 步骤设置」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
-- 每次同步写一个日志：`local/logs/sync-<时间>.log`；托盘自身事件写 `local/logs/tray.log`。双击托盘图标可直接打开**最近一次**同步日志
+- 日志按日期分目录存放：`local/logs/<yyyy-MM-dd>/sync-<时间>.log`；托盘自身事件写同日目录下的 `tray.log`。这样单目录不会堆积过多文件。双击托盘图标可直接打开**最近一次**同步日志
 - 同步进程完全隐藏运行，**不会弹任何窗口**；只有点「自定义间隔」等菜单项时才会出现小对话框
 - 开机自启：托盘菜单勾选「开机启动」，或执行
   `powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -Install`

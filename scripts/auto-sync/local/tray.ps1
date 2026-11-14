@@ -7,7 +7,7 @@
 #   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
 #   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 开机启动 / 打开日志 / 会话剩余天数 / 退出
 #   · 单实例：重复启动会被静默忽略
-#   · 日志：scripts/auto-sync/local/logs/（每次同步一个 sync-*.log，托盘自身写 tray.log）
+#   · 日志：scripts/auto-sync/local/logs/yyyy-MM-dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
 #   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
 #
 # 用法（详见 scripts/auto-sync/README.md「本地版（Windows 托盘）」）：
@@ -100,15 +100,21 @@ $script:appContext = $null
 
 # ============================ 基础工具 ============================
 
+# 日志按日期嵌套：logs/yyyy-MM-dd/，避免单目录堆积过多文件
+function Get-LogDir([datetime]$Date = (Get-Date)) {
+  return (Join-Path $LogDir $Date.ToString('yyyy-MM-dd'))
+}
+
 function Write-TrayLog([string]$Message) {
   try {
-    if (-not (Test-Path -LiteralPath $LogDir)) {
-      New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+    $dir = Get-LogDir
+    if (-not (Test-Path -LiteralPath $dir)) {
+      New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
     $line = '[{0}] {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Message
     # 显式 UTF-8 无 BOM：避免 PowerShell 5.1 的 Add-Content 在追加时重复写 BOM
     [System.IO.File]::AppendAllText(
-      (Join-Path $LogDir 'tray.log'),
+      (Join-Path $dir 'tray.log'),
       $line + "`r`n",
       (New-Object System.Text.UTF8Encoding -ArgumentList $false)
     )
@@ -526,12 +532,13 @@ function Start-SyncRun {
     return
   }
 
-  if (-not (Test-Path -LiteralPath $LogDir)) {
-    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+  $runLogDir = Get-LogDir
+  if (-not (Test-Path -LiteralPath $runLogDir)) {
+    New-Item -ItemType Directory -Path $runLogDir -Force | Out-Null
   }
   $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-  $script:runLog = Join-Path $LogDir "sync-$stamp.log"
-  $errLog = Join-Path $LogDir "sync-$stamp.err.log"
+  $script:runLog = Join-Path $runLogDir "sync-$stamp.log"
+  $errLog = Join-Path $runLogDir "sync-$stamp.err.log"
   $script:runErrLog = $errLog
 
   try {
@@ -1030,8 +1037,10 @@ function Build-Menu {
   # ---- 日志 / 配置 ----
   [void]$menu.Items.Add((New-MenuItem '打开日志文件夹' ({
     try {
-      if (-not (Test-Path -LiteralPath $script:LogDir)) { New-Item -ItemType Directory -Path $script:LogDir -Force | Out-Null }
-      Start-Process explorer.exe -ArgumentList ('"' + $script:LogDir + '"')
+      # 日志按日期分文件夹，默认打开当天的
+      $dir = Get-LogDir
+      if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+      Start-Process explorer.exe -ArgumentList ('"' + $dir + '"')
     } catch { }
   })))
 
@@ -1039,8 +1048,8 @@ function Build-Menu {
     try {
       $logToOpen = $script:runLog
       if (-not $logToOpen -or -not (Test-Path -LiteralPath $logToOpen)) {
-        # 托盘重启后内存里没有记录，退回到日志目录里最新的 sync-*.log
-        $logToOpen = Get-ChildItem -LiteralPath $script:LogDir -Filter 'sync-*.log' -File -ErrorAction SilentlyContinue |
+        # 托盘重启后内存里没有记录，退回到日志目录（含日期子目录）里最新的 sync-*.log
+        $logToOpen = Get-ChildItem -LiteralPath $script:LogDir -Filter 'sync-*.log' -File -Recurse -ErrorAction SilentlyContinue |
           Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
       }
       if ($logToOpen -and (Test-Path -LiteralPath $logToOpen)) {
