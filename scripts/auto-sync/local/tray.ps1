@@ -98,7 +98,6 @@ $script:paused = $false
 $script:sessionText = '会话：未检查'
 $script:sessionDaysLeft = $null
 $script:nodeVersion = ''
-$script:titleFont = $null
 $script:restartRequested = $false
 $script:lastTip = ''
 $script:injectedEnv = @{}
@@ -853,13 +852,18 @@ function Format-IdentityText {
     'custom' {
       $n = ([string]$script:cfg.gitUserName).Trim()
       $e = ([string]$script:cfg.gitUserEmail).Trim()
-      if ($n -and $e) { return "自定义 $n <$e>" }
-      if ($n) { return "自定义 $n（邮箱沿用 git）" }
-      if ($e) { return "自定义 <$e>（用户名沿用 git）" }
+      if ($n -or $e) { return '自定义' }
       return '自定义（未填写，等同本机 git 配置）'
     }
     default { return '脚本默认（github-actions[bot]）' }
   }
+}
+
+# 概览行统一用彩色文本：ToolStrip 禁用项会忽略 ForeColor，故这些行保持启用但不绑定点击动作
+function Add-InfoLine([string]$Text, [System.Drawing.Color]$Color) {
+  $item = New-MenuItem $Text $null $true
+  $item.ForeColor = $Color
+  [void]$script:menu.Items.Add($item)
 }
 
 function Build-Menu {
@@ -870,22 +874,15 @@ function Build-Menu {
     $menu.Items.RemoveAt(0)
     try { $old.Dispose() } catch { }
   }
-  # 标题字体随菜单重建，先释放上一份，避免反复开菜单堆积 GDI 对象
-  if ($script:titleFont) { try { $script:titleFont.Dispose() } catch { } ; $script:titleFont = $null }
-  try {
-    $script:titleFont = New-Object System.Drawing.Font('Microsoft YaHei UI', 10, [System.Drawing.FontStyle]::Bold)
-  } catch { }
-
-  # ---- 概览区（只读；标题与状态行带颜色，点击无动作）----
+  # ---- 概览区（只读；全部彩色）----
   $accent = [System.Drawing.Color]::FromArgb(38, 132, 255)
   $okColor = [System.Drawing.Color]::FromArgb(46, 160, 67)
   $warnColor = [System.Drawing.Color]::FromArgb(210, 153, 34)
   $errColor = [System.Drawing.Color]::FromArgb(218, 54, 51)
-
-  $titleItem = New-MenuItem '◆ 自动同步' $null $true
-  if ($script:titleFont) { $titleItem.Font = $script:titleFont }
-  $titleItem.ForeColor = $accent
-  [void]$menu.Items.Add($titleItem)
+  $violetColor = [System.Drawing.Color]::FromArgb(128, 90, 213)
+  $tealColor = [System.Drawing.Color]::FromArgb(0, 150, 136)
+  $skyColor = [System.Drawing.Color]::FromArgb(0, 122, 204)
+  $slateColor = [System.Drawing.Color]::FromArgb(96, 125, 139)
 
   $stateText = '待命'
   $stateSymbol = '●'
@@ -903,42 +900,35 @@ function Build-Menu {
     $stateSymbol = '×'
     $stateColor = $errColor
   }
-  $statusItem = New-MenuItem ('   状态　' + $stateSymbol + ' ' + $stateText) $null $true
-  $statusItem.ForeColor = $stateColor
-  [void]$menu.Items.Add($statusItem)
+  Add-InfoLine ('   状态　' + $stateSymbol + ' ' + $stateText) $stateColor
 
   if ($script:running) { $nextText = '本轮结束后重新排期' }
   elseif (Test-EffectivePaused) { $nextText = '已暂停，不排期' }
   elseif ($script:nextRunAt) { $nextText = Format-NextRun $script:nextRunAt }
   else { $nextText = '待启动' }
-  [void]$menu.Items.Add((New-MenuItem ('   下次　' + $nextText) $null $false))
+  Add-InfoLine ('   下次　' + $nextText) $skyColor
 
   if ($script:lastRunAt) {
     $lastText = $script:lastRunAt.ToString('MM-dd HH:mm') + ' · ' + $script:lastResult + $script:lastElapsedText
   } else {
     $lastText = '尚未运行'
   }
-  [void]$menu.Items.Add((New-MenuItem ('   上次　' + $lastText) $null $false))
+  $lastColor = $okColor
+  if ($script:lastResult -like '❌*') { $lastColor = $errColor }
+  elseif (-not $script:lastRunAt) { $lastColor = $slateColor }
+  Add-InfoLine ('   上次　' + $lastText) $lastColor
 
   $branchTarget = $(if ($script:unpushedBranch) { $script:unpushedBranch } elseif ($script:branchLocal) { 'origin/' + $script:branchLocal } else { '?' })
   $branchText = $(if ($script:branchLocal) { $script:branchLocal + ' → ' + $branchTarget } else { '（未检测）' }) + '｜待推 ' + $script:unpushedCount
-  $branchItem = New-MenuItem ('   分支　' + $branchText) $null $false
-  if ($script:unpushedCount -gt 0) {
-    # 有未推送提交时用警示色；颜色只在启用状态下生效，故这里临时启用（无点击动作）
-    $branchItem.Enabled = $true
-    $branchItem.ForeColor = $warnColor
-  }
-  [void]$menu.Items.Add($branchItem)
+  Add-InfoLine ('   分支　' + $branchText) $(if ($script:unpushedCount -gt 0) { $warnColor } else { $accent })
 
-  [void]$menu.Items.Add((New-MenuItem ('   提交　' + (Format-IdentityText)) $null $false))
+  Add-InfoLine ('   提交　' + (Format-IdentityText)) $violetColor
 
   $sessionBody = ($script:sessionText -replace '^会话：', '')
-  $sessionItem = New-MenuItem ('   会话　' + $sessionBody) $null $false
-  if ($null -ne $script:sessionDaysLeft -and $script:sessionDaysLeft -le 10) {
-    $sessionItem.Enabled = $true
-    $sessionItem.ForeColor = $errColor
-  }
-  [void]$menu.Items.Add($sessionItem)
+  $sessionColor = $okColor
+  if ($null -ne $script:sessionDaysLeft -and $script:sessionDaysLeft -le 10) { $sessionColor = $errColor }
+  elseif ($null -eq $script:sessionDaysLeft) { $sessionColor = $slateColor }
+  Add-InfoLine ('   会话　' + $sessionBody) $sessionColor
 
   $pullText = $(if ($script:cfg.pullBeforeSync) { '拉取 ' + $script:cfg.pullStrategy } else { '拉取关' })
   $notifyText = @{ always = '每次'; failure = '仅失败'; never = '从不' }[[string]$script:cfg.notifyMode]
@@ -948,12 +938,12 @@ function Build-Menu {
   foreach ($k in @('stepPull', 'stepSync', 'stepCommit', 'stepPush')) { if ([bool]$script:cfg[$k]) { $onSteps++ } }
   $intervalText = (Format-Interval ([double]$script:cfg.intervalMinutes)) + '｜' + $pullText + '｜补推 ' + $retryText +
     '｜通知 ' + $notifyText + '｜步骤 ' + $onSteps + '/4'
-  [void]$menu.Items.Add((New-MenuItem ('   间隔　' + $intervalText) $null $false))
+  Add-InfoLine ('   间隔　' + $intervalText) $tealColor
 
   $logInfo = Get-TodayLogInfo
   $envText = 'Node ' + $(if ($script:nodeVersion) { $script:nodeVersion } else { '未找到' }) + '｜今日同步 ' + $logInfo.Count + ' 次'
   if ($logInfo.Last) { $envText += '｜最近 ' + $logInfo.Last.ToString('HH:mm') }
-  [void]$menu.Items.Add((New-MenuItem ('   环境　' + $envText) $null $false))
+  Add-InfoLine ('   环境　' + $envText) $slateColor
 
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
@@ -1181,8 +1171,8 @@ function Build-Menu {
       $script:cfg.gitUserEmail = ([string]$email).Trim()
       $script:cfg.gitIdentityMode = 'custom'
       Save-Config $script:cfg
-      Write-TrayLog ('提交身份：自定义 ' + $script:cfg.gitUserName + ' <' + $script:cfg.gitUserEmail + '>')
-      Show-Balloon '提交身份已保存' ('下一轮同步起使用：' + $script:cfg.gitUserName + ' <' + $script:cfg.gitUserEmail + '>') 'Info'
+      Write-TrayLog '提交身份：自定义（已保存）'
+      Show-Balloon '提交身份已保存' '下一轮同步起使用自定义提交身份。' 'Info'
     } catch {
       Write-TrayLog "设置提交身份失败：$($_.Exception.Message)"
     }
@@ -1351,6 +1341,8 @@ $script:notify.ContextMenuStrip = $script:menu
 $script:menu.Add_Opening({
   try { Build-Menu } catch { Write-TrayLog "构建托盘菜单失败：$($_.Exception.Message)" }
 })
+# 先预构建一次：空的 ContextMenuStrip 首次右键可能压根不弹（在 Opening 里加条目会错过那次显示）
+try { Build-Menu } catch { Write-TrayLog "预构建托盘菜单失败：$($_.Exception.Message)" }
 $script:notify.Add_MouseDoubleClick({
   if (-not $script:running) { Start-SyncRun } else {
     try { if ($script:runLog) { Start-Process notepad.exe -ArgumentList ('"' + $script:runLog + '"') } } catch { }
@@ -1405,7 +1397,6 @@ foreach ($i in @($script:iconIdle, $script:iconBusy, $script:iconPaused)) { if (
 foreach ($h in $script:iconHandles) { Destroy-IconHandle $h }
 foreach ($b in $script:iconBitmaps) { if ($b) { try { $b.Dispose() } catch { } } }
 if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
-if ($script:titleFont) { try { $script:titleFont.Dispose() } catch { } }
 Write-TrayLog '托盘已退出'
 try { $mutex.ReleaseMutex() } catch { }
 

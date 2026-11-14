@@ -41,8 +41,6 @@ const RETRY_PUSH = process.env.LOCAL_SYNC_RETRY_PUSH !== '0';
 const PUSH_TIMEOUT_MS = 5 * 60 * 1000;
 const GIT_TOKEN = (process.env.LOCAL_SYNC_GIT_TOKEN || '').trim();
 const IDENTITY_MODE = (process.env.LOCAL_SYNC_GIT_IDENTITY || 'script').trim().toLowerCase();
-const IDENTITY_NAME = (process.env.LOCAL_SYNC_GIT_USER_NAME || '').trim();
-const IDENTITY_EMAIL = (process.env.LOCAL_SYNC_GIT_USER_EMAIL || '').trim();
 const STEPS = {
   pull: process.env.LOCAL_SYNC_STEP_PULL !== '0',
   sync: process.env.LOCAL_SYNC_STEP_SYNC !== '0',
@@ -79,12 +77,7 @@ function fmtMs(ms) {
 
 function identityText() {
   if (IDENTITY_MODE === 'git') return '本机 git 配置';
-  if (IDENTITY_MODE === 'custom') {
-    if (IDENTITY_NAME || IDENTITY_EMAIL) {
-      return `自定义 ${IDENTITY_NAME || '（沿用 git 用户名）'} <${IDENTITY_EMAIL || '（沿用 git 邮箱）'}>`;
-    }
-    return '自定义未填写，等同本机 git 配置';
-  }
+  if (IDENTITY_MODE === 'custom') return '自定义';
   return '脚本默认（github-actions[bot]）';
 }
 
