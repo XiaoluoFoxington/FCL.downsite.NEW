@@ -16,9 +16,31 @@
  */
 
 /**
+ * 按列测量表格宽度（colspan 均摊到覆盖的列）。
+ * 取单元格最多的一行作参照：表头可能缺失或带 colspan，表体行通常一列一格。
+ * @param {HTMLTableElement} table 表格元素
+ * @returns {number[]} 列宽数组；表格还没参与布局时全部为 0
+ */
+function measureColumnWidths(table) {
+  let reference = null;
+  Array.from(table.rows).forEach((row) => {
+    if (!reference || row.cells.length > reference.cells.length) reference = row;
+  });
+  if (!reference) return [];
+
+  const widths = [];
+  Array.from(reference.cells).forEach((cell) => {
+    const span = cell.colSpan || 1;
+    const width = cell.getBoundingClientRect().width / span;
+    for (let i = 0; i < span; i += 1) widths.push(width);
+  });
+  return widths;
+}
+
+/**
  * 给表格指定列的所有单元格加上粘滞样式，并提升其 z-index
  * @param {HTMLTableElement} table 表格元素
- * @param {number} columnIndex 目标列索引（从 0 开始）
+ * @param {number|number[]} columnIndex 目标列索引（从 0 开始）；传数组可同时冻结多列
  * @param {string} [className='xf-vertical-sticky-th'] 要添加的样式类名
  * @returns {HTMLTableElement} 处理后的表格元素
  */
@@ -27,14 +49,18 @@ export function createStickyColumn(table, columnIndex, className = 'xf-vertical-
     throw new TypeError('第一个参数必须是 <table> 元素');
   }
 
-  const index = Number(columnIndex);
-  if (!Number.isInteger(index) || index < 0) {
-    throw new RangeError('列索引必须是非负整数');
-  }
+  const requested = Array.isArray(columnIndex) ? columnIndex : [columnIndex];
+  const indices = [...new Set(requested.map((value) => {
+    const index = Number(value);
+    if (!Number.isInteger(index) || index < 0) {
+      throw new RangeError('列索引必须是非负整数');
+    }
+    return index;
+  }))].sort((a, b) => a - b);
 
   const rows = Array.from(table.rows);
   const occupied = rows.map(() => new Set()); // 记录被 rowspan 占用的列
-  const stickyCells = new Set();             // 需要粘滞的单元格
+  const stickyCells = new Map();              // 需要粘滞的单元格 -> 起始列索引
 
   // 第一遍：找出所有需要粘滞的单元格，并收集非粘滞单元格的最大 z-index
   let maxZIndex = 0;
@@ -49,11 +75,11 @@ export function createStickyColumn(table, columnIndex, className = 'xf-vertical-
       const colspan = cell.colSpan || 1;
       const rowspan = cell.rowSpan || 1;
 
-      // 判断该单元格是否覆盖目标列
-      const isSticky = col <= index && index < col + colspan;
+      // 判断该单元格是否覆盖任一目标列
+      const isSticky = indices.some((index) => col <= index && index < col + colspan);
 
       if (isSticky) {
-        stickyCells.add(cell);
+        stickyCells.set(cell, col);
       } else {
         // 非粘滞单元格：获取计算后的 z-index
         const computedZ = window.getComputedStyle(cell).zIndex;
@@ -74,12 +100,39 @@ export function createStickyColumn(table, columnIndex, className = 'xf-vertical-
     });
   });
 
-  // 第二遍：给粘滞单元格添加类并设置 z-index
+  // 每个粘滞列的 left 等于它前面所有粘滞列的宽度之和。
+  // 只靠 CSS 的 left: 0 会让多列全部叠在左边，这就是多列粘滞糊在一起的原因。
+  function applyLeftOffsets() {
+    const widths = measureColumnWidths(table);
+    // 表格还没参与布局（宽度全为 0）时先保持 CSS 的 left: 0，由调用方决定何时补算。
+    if (!widths.length || widths.every((width) => width === 0)) return false;
+
+    let accumulated = 0;
+    const offsets = new Map();
+    indices.forEach((index) => {
+      offsets.set(index, accumulated);
+      accumulated += widths[index] || 0;
+    });
+
+    for (const [cell, startColumn] of stickyCells) {
+      cell.style.left = `${offsets.get(startColumn) ?? 0}px`;
+    }
+    return true;
+  }
+
+  // 第二遍：给粘滞单元格添加类、设置层级与左侧偏移
   const stickyZIndex = maxZIndex + 1;
-  stickyCells.forEach((cell) => {
+  for (const [cell, startColumn] of stickyCells) {
     cell.classList.add(className);
-    cell.style.zIndex = stickyZIndex;
-  });
+    // 多列时右侧的列要压住从左边滑过来的内容，所以层级按列序递增。
+    const order = indices.indexOf(startColumn);
+    cell.style.zIndex = stickyZIndex + (order > 0 ? order : 0);
+  }
+
+  if (!applyLeftOffsets() && indices.length > 1) {
+    // 调用方可能在插入文档前就标记粘滞列，等下一帧布局完成后再补算偏移。
+    requestAnimationFrame(applyLeftOffsets);
+  }
 
   return table;
 }
