@@ -216,10 +216,21 @@ html[data-xf-theme="dark"] .xf-list-table-th-sortable:hover {
 
 .xf-sticky-panel-item {
   position: sticky;
-  top: 64px;
+  top: 56px;
   z-index: 999;
   backdrop-filter: blur(16px);
 }
+@media (min-width: 600px) {
+  .xf-sticky-panel-item {
+    top: 64px;
+  }
+}
+@media (orientation:landscape) and (max-width:959.9px) {
+  .xf-sticky-panel-item {
+    top: 48px;
+  }
+}
+/* 与MDUI appbar 响应式保持一致，始终贴合在下方无缝隙 */
 
 .xf-filter-table {
   max-height: 50vh;
@@ -357,7 +368,50 @@ table .xf-vertical-sticky-th {
   position: sticky;
   left: 0;
   backdrop-filter: blur(16px);
+  /* background-color: #00000040; */
   z-index: 1;
+}
+
+/**
+ * 粘滞表头（由 js/views/stickyTable.js 创建）。
+ * 表头被克隆到横向滚动容器之外：外层高度为 0，不占布局；内部裁剪容器负责横向偏移，
+ * 因此复制表头里的首列粘滞依然生效。实际的 top 由 JS 按筛选面板高度写入行内样式。
+ */
+.xf-sticky-thead {
+  position: sticky;
+  top: 64px;
+  height: 0;
+  z-index: 900; /* 低于筛选面板（999）与 appbar（1000），高于表格单元格 */
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.xf-sticky-thead[data-visible] {
+  visibility: visible;
+}
+
+.xf-sticky-thead-scroller {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+  /* 毛玻璃整层只做一次：表头有十几列，逐格 backdrop-filter 就是十几次模糊采样。
+     这一层保持透明，采样的是下方正在滚动的表体；表面色交给下面 th。 */
+  backdrop-filter: blur(16px);
+  background-color: transparent;
+}
+
+.xf-sticky-thead-scroller .mdui-table {
+  margin: 0;
+  border: none;
+  box-shadow: none;
+}
+
+/* 表面色沿用 #00000040：模糊由外层统一做，格子上只留这一层色。
+   首列表头继续由 .xf-vertical-sticky-th 自带的那次模糊负责把横滚过来的相邻单元格糊掉。 */
+.xf-sticky-thead-scroller th {
+  /* background-color: #00000040; */
 }
 
 .xf-vertical-margin {

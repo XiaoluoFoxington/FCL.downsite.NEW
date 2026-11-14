@@ -3,7 +3,7 @@ import { createFilterConfig } from '../domain/downloadFilter.js';
 import { isSafeNavigationUrl } from '../security/content.js';
 import { formatBytes, renderStatus, setFilterIndicator } from './commonView.js';
 import { createCheckbox, createExternalLink, createFluidTable, createMaterialIcon, createPanel, createPanelItem } from './uiComponents.js';
-import { createStickyColumn } from './commonView.js';
+import { createStickyColumn, createStickyTableHeader } from './stickyTable.js';
 import { t } from '../common/i18n.js';
 
 // 最终表格会删除所有行均为空的列，列名与下载项统一模型一一对应。
@@ -113,11 +113,21 @@ function createFilterPanel(filterConfig, state, onChange) {
  * osName 是系统筛选信息，与选择层级无关，直接作用于最终下载表格（系统正则由筛选模块按它取用）。
  */
 export function createSelectorView(container, stopButton, matchedArchitecture, osName = '') {
+  // 粘滞表头持有页面级监听，表格所在的 section 被移除后必须销毁，否则会一直空转。
+  let stickyHeader = null;
+
+  function destroyStickyHeader() {
+    stickyHeader?.destroy();
+    stickyHeader = null;
+  }
+
   function clearFrom(level) {
     // 删除 level 及之后的 section；父级选择框必须保留，用户才能改选线路。
     container.querySelectorAll('[data-selector-level]').forEach((element) => {
       if (Number(element.dataset.selectorLevel) >= level) element.remove();
     });
+    // 表格跟着 section 一起被删掉时同步销毁表头监听。
+    if (stickyHeader && !stickyHeader.element.isConnected) destroyStickyHeader();
   }
 
   function setBusy(busy) {
@@ -286,15 +296,24 @@ export function createSelectorView(container, stopButton, matchedArchitecture, o
         if (!hidden) visibleCount += 1;
       });
       emptyTr.hidden = visibleCount > 0;
+      // 列宽由行内容决定，筛选后可见行变了，克隆表头必须重新测量。
+      stickyHeader?.refresh();
     };
 
     // 筛选面板位于文件列表表格之上，默认展开。
-    section.appendChild(createFilterPanel(filterConfig, state, applyFilter));
-    section.appendChild(wrapper);
+    const filterPanel = createFilterPanel(filterConfig, state, applyFilter);
+    section.append(filterPanel, wrapper);
 
     // 首屏按默认勾选状态应用筛选（数据源/当前系统，如可用）。
     applyFilter();
     window.mdui?.mutation();
+
+    // 表头克隆到横向滚动容器之外，贴在筛选面板下方：横向滚动归容器，纵向滚动归页面。
+    destroyStickyHeader();
+    stickyHeader = createStickyTableHeader(wrapper, {
+      top: () => filterPanel.getBoundingClientRect().bottom,
+      offsetElement: filterPanel,
+    });
   }
 
   function renderError(level, error, onRetry) {
