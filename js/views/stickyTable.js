@@ -15,6 +15,15 @@
  * - 只有容器尺寸变化才重新测量列宽，筛选面板的高度变化只更新 top。
  */
 
+/** 粘滞列的类名（与 xf.css 中的规则对应）。 */
+const STICKY_COLUMN_CLASS = 'xf-vertical-sticky-th';
+
+/** 表头文本的包裹类名，负责让它自己横向粘滞。 */
+const STICKY_TEXT_CLASS = 'xf-sticky-th-text';
+
+/** 表头文本与已粘滞列右边界之间的间隙。 */
+const STICKY_TEXT_GAP = 8;
+
 /**
  * 按列测量表格宽度（colspan 均摊到覆盖的列）。
  * 取单元格最多的一行作参照：表头可能缺失或带 colspan，表体行通常一列一格。
@@ -44,7 +53,7 @@ function measureColumnWidths(table) {
  * @param {string} [className='xf-vertical-sticky-th'] 要添加的样式类名
  * @returns {HTMLTableElement} 处理后的表格元素
  */
-export function createStickyColumn(table, columnIndex, className = 'xf-vertical-sticky-th') {
+export function createStickyColumn(table, columnIndex, className = STICKY_COLUMN_CLASS) {
   if (!(table instanceof HTMLTableElement)) {
     throw new TypeError('第一个参数必须是 <table> 元素');
   }
@@ -249,6 +258,45 @@ export function createStickyTableHeader(wrapper, { top = DEFAULT_TOP, offsetElem
     scroller.style.left = borderLeft;
     scroller.style.right = borderRight;
     scroller.style.height = `${cloneTable.getBoundingClientRect().height}px`;
+
+    // 表头文本粘在"已粘滞列"的右边界上，偏移就是这些列宽的总和。
+    let stickyWidth = 0;
+    sourceCells.forEach((cell, index) => {
+      if (cell.classList.contains(STICKY_COLUMN_CLASS)) stickyWidth += widths[index] || 0;
+    });
+    applyStickyHeaderText(stickyWidth);
+  }
+
+  /**
+   * 把表头单元格的文本包进粘滞元素。
+   * 宽列（如 sha256、URL）横向滚动时，短标题会跟着单元格左边界滑出可视区；
+   * 让文本自身粘在已粘滞列的右侧，就能一直停在可视范围内。
+   * 源表头与克隆表头都要处理：克隆体在滚动前显示，源表头在滚动后才被替身接管。
+   */
+  function applyStickyHeaderText(offset) {
+    if (!(offset > 0)) return; // 没有粘滞列或表格还没布局，保持原样
+    for (const root of [thead, cloneTable?.tHead]) {
+      const row = root?.rows?.[0];
+      if (!row) continue;
+      for (const cell of row.cells) {
+        // 粘滞列本身已经贴在左边，再加一层没有意义。
+        if (cell.classList.contains(STICKY_COLUMN_CLASS)) continue;
+
+        let text = cell.querySelector(`:scope > .${STICKY_TEXT_CLASS}`);
+        if (!text) {
+          if (!cell.firstChild) continue; // 空表头单元格不包
+          text = document.createElement('span');
+          text.className = STICKY_TEXT_CLASS;
+          cell.appendChild(text);
+        }
+        // 后塞进来的直接子节点（例如排序指示符）一并收进包裹层。
+        for (const node of Array.from(cell.childNodes)) {
+          if (node !== text) text.appendChild(node);
+        }
+        // 留出间隙，免得文字紧贴粘滞列的右边界。
+        text.style.left = `${offset + STICKY_TEXT_GAP}px`;
+      }
+    }
   }
 
   /** 重建克隆表头：表头文字或列数变化后必须重新克隆。 */

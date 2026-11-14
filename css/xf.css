@@ -372,6 +372,15 @@ table .xf-vertical-sticky-th {
   z-index: 1;
 }
 
+/* 表头文本自身的水平粘滞：宽列（如 sha256、URL）横滚时，短标题会跟着单元格左边界
+   滑出可视区，粘住后就能一直停在已粘滞列的右侧。
+   left 由 js/views/stickyTable.js 按"所有粘滞列宽度之和"写入行内样式。 */
+.xf-sticky-th-text {
+  position: sticky;
+  left: 0;
+  display: inline-block;
+}
+
 /**
  * 粘滞表头（由 js/views/stickyTable.js 创建）。
  * 表头被克隆到横向滚动容器之外：外层高度为 0，不占布局；内部裁剪容器负责横向偏移，
@@ -409,10 +418,24 @@ table .xf-vertical-sticky-th {
   box-shadow: none;
 }
 
-/* 表面色沿用 #00000040：模糊由外层统一做，格子上只留这一层色。
-   首列表头继续由 .xf-vertical-sticky-th 自带的那次模糊负责把横滚过来的相邻单元格糊掉。 */
-.xf-sticky-thead-scroller th {
-  /* background-color: #00000040; */
+/* 表头的粘滞格子必须是实底：它是横滚时唯一会盖住相邻内容的一格，
+   半透明就会让滑过来的相邻表头透出来，左上角看起来像两行字糊在一起。
+   颜色不能写死：表格自身背景是透明的（mdui.theme.enhanced.css 里
+   .mdui-table.mdui-table { background-color: unset }），真正铺底的是 body 的
+   --mdui-bg / --mdui-bg-dark，会随用户选择的主题色变化，这里跟着它走。
+   其余表头格保持透明+模糊，表体首列也不动，免得冲掉高亮行的底色。
+   底色叠了两层：主题底色 + 与 .mdui-panel-item 相同的半透明白/黑，
+   这样表头格和它周围的表面色完全一致，换主题色也不会露出色差。 */
+.xf-sticky-thead-scroller th.xf-vertical-sticky-th,
+table thead .xf-vertical-sticky-th {
+  background-color: var(--mdui-bg, #fff);
+  background-image: linear-gradient(#ffffff40, #ffffff40);
+}
+
+html[data-xf-theme="dark"] .xf-sticky-thead-scroller th.xf-vertical-sticky-th,
+html[data-xf-theme="dark"] table thead .xf-vertical-sticky-th {
+  background-color: var(--mdui-bg-dark, #303030);
+  background-image: linear-gradient(#00000040, #00000040);
 }
 
 .xf-vertical-margin {
