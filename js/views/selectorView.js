@@ -49,7 +49,7 @@ function createLevel(container, level) {
  */
 function createFilterPanel(filterConfig, state, onChange) {
   const panel = createPanel();
-  panel.classList.add('xf-download-filter-panel');
+  panel.className = 'xf-download-filter-panel xf-sticky-panel-item';
   const { element, header, body } = createPanelItem(t('common.filter'), { isOpen: true });
 
   // 筛选图标跟随勾选状态变化（与列表页一致）：筛选生效（未勾选"显示全部"）时
