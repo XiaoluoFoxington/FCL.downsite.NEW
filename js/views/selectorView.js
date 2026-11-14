@@ -50,7 +50,7 @@ function createLevel(container, level) {
 function createFilterPanel(filterConfig, state, onChange) {
   const panel = createPanel();
   panel.className = 'xf-download-filter-panel xf-sticky-panel-item';
-  const { element, header, body } = createPanelItem(t('common.filter'), { isOpen: true });
+  const { element, header, body } = createPanelItem(t('common.filter'), { isOpen: 0 });
 
   // 筛选图标跟随勾选状态变化（与列表页一致）：筛选生效（未勾选"显示全部"）时
   // 显示 filter_alt，勾选"显示全部"（筛选关闭）时显示 filter_alt_off。
