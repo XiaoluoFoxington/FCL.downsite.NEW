@@ -93,18 +93,18 @@ $script:running = $false
 $script:proc = $null
 $script:runStartedAt = $null
 $script:runLog = ''
-$script:runErrLog = ''
+$script:runResultFile = ''   # run-sync 写出的结构化结果（JSON），托盘的唯一状态来源
 $script:unpushedCount = 0
 $script:unpushedBranch = ''
 $script:branchLocal = ''
 $script:lastRunAt = $null
 $script:lastResult = ''
-$script:lastResultKind = ''   # '' | success | nosync | failure
+$script:lastResultKind = ''   # '' | success | nosync | failure | unknown
 $script:lastElapsedText = ''
 $script:notifyWindowStart = $null
 $script:notifyModeApplied = ''   # 已生效的通知模式；外部改 config.json 后用于重置汇总窗口
 $script:lastSaveOk = $true       # 最近一次 Save-Config 是否成功
-$script:notifyTally = @{ success = 0; nosync = 0; failure = 0 }
+$script:notifyTally = @{ success = 0; nosync = 0; failure = 0; unknown = 0 }
 $script:nextRunAt = $null
 $script:paused = $false
 $script:sessionText = '会话：未检查'
@@ -532,7 +532,7 @@ function Test-RunNotify([bool]$IsFailure) {
 
 function Reset-NotifyWindow {
   $script:notifyWindowStart = Get-Date
-  $script:notifyTally = @{ success = 0; nosync = 0; failure = 0 }
+  $script:notifyTally = @{ success = 0; nosync = 0; failure = 0; unknown = 0 }
 }
 
 function Format-NotifyRange([datetime]$Start, [datetime]$End) {
@@ -546,7 +546,8 @@ function Add-TimeNotifyResult([string]$Kind) {
   switch ($Kind) {
     'success' { $script:notifyTally.success++ }
     'nosync' { $script:notifyTally.nosync++ }
-    default { $script:notifyTally.failure++ }
+    'failure' { $script:notifyTally.failure++ }
+    default { $script:notifyTally.unknown++ }
   }
   if (-not $script:notifyWindowStart) { $script:notifyWindowStart = Get-Date; return }
   $interval = [double]$script:cfg.notifyIntervalMinutes
@@ -556,11 +557,14 @@ function Add-TimeNotifyResult([string]$Kind) {
   $y = [int]$script:notifyTally.success
   $z = [int]$script:notifyTally.nosync
   $a = [int]$script:notifyTally.failure
-  $total = $y + $z + $a
+  $u = [int]$script:notifyTally.unknown
+  $total = $y + $z + $a + $u
   if ($total -le 0) { Reset-NotifyWindow; return }
   $range = Format-NotifyRange $script:notifyWindowStart $now
-  $text = "在 $range 内，共进行了 $total 次同步。其中 $y 次成功、$z 次无需同步、$a 次失败。"
-  if ($a -gt 0) { Show-Balloon '自动同步汇总' $text 'Warning' }
+  $unknownText = ''
+  if ($u -gt 0) { $unknownText = "、$u 次结果未知" }
+  $text = "在 $range 内，共进行了 $total 次同步。其中 $y 次成功、$z 次无需同步、$a 次失败$unknownText。"
+  if ($a -gt 0 -or $u -gt 0) { Show-Balloon '自动同步汇总' $text 'Warning' }
   else { Show-Balloon '自动同步汇总' $text 'Info' }
   Reset-NotifyWindow
 }
@@ -711,7 +715,10 @@ function Start-SyncRun {
   $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
   $script:runLog = Join-Path $runLogDir "sync-$stamp.log"
   $errLog = Join-Path $runLogDir "sync-$stamp.err.log"
-  $script:runErrLog = $errLog
+  $script:runResultFile = Join-Path $runLogDir "sync-$stamp.result.json"
+  # 同一秒内重跑可能复用文件名：先删掉旧结果，避免本轮没写出时读到上一轮的状态
+  Remove-Item -LiteralPath $script:runResultFile -Force -ErrorAction SilentlyContinue
+  $env:LOCAL_SYNC_RESULT_FILE = $script:runResultFile
 
   try {
     # -NoNewWindow 与重定向是唯一合法组合（-WindowStyle Hidden 与重定向冲突会报错）；
@@ -740,46 +747,28 @@ function Start-SyncRun {
   }
 }
 
-function Get-RunSummary([string]$LogPath, [string]$ErrPath = '') {
-  if (-not $LogPath -or -not (Test-Path -LiteralPath $LogPath)) { return '' }
-  try {
-    $lines = Get-Content -LiteralPath $LogPath -Encoding UTF8 -ErrorAction SilentlyContinue
-    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|全部软件已是最新|登录 huang1111 失败|push 失败|同步失败|拉取失败|已取消|补推' } |
-      Select-Object -Last 2
-    $text = (($hit | ForEach-Object { ([string]$_).Trim() }) -join ' / ')
-    if (-not $text -and $ErrPath -and (Test-Path -LiteralPath $ErrPath)) {
-      # 未捕获异常（栈）只会写进 stderr：stdout 可能停在半路，气泡里至少要给出最后一行错误
-      $errLine = Get-Content -LiteralPath $ErrPath -Encoding UTF8 -ErrorAction SilentlyContinue |
-        Where-Object { ([string]$_).Trim() } | Select-Object -Last 1
-      if ($errLine) { $text = 'stderr：' + ([string]$errLine).Trim() }
-    }
-    return $text
-  } catch { return '' }
-}
-
 function Stop-ProcessTree([int]$ProcessId) {
   try { & taskkill.exe /PID $ProcessId /T /F | Out-Null } catch { }
 }
 
-# 从本次运行日志判定结果种类：failure / nosync / success
-function Get-RunOutcomeKind([int]$ExitCode, [bool]$TimedOut) {
-  if ($TimedOut -or $ExitCode -ne 0) { return 'failure' }
-  $text = ''
+# 读取 run-sync 写出的结构化结果；缺失/损坏/字段非法时返回 $null（托盘显示“结果未知”）
+function Read-RunResult([string]$Path) {
+  if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $null }
   try {
-    if ($script:runLog -and (Test-Path -LiteralPath $script:runLog)) {
-      $text = Get-Content -LiteralPath $script:runLog -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+    $obj = Get-Content -LiteralPath $Path -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json
+    $status = ([string]$obj.status).Trim().ToLower()
+    if ($status -ne 'success' -and $status -ne 'nosync' -and $status -ne 'failure' -and $status -ne 'unknown') {
+      return $null
     }
-  } catch { }
-  # 全部已是最新 / 未执行 sync.mjs：本次确实没事可做
-  if ($text -and $text -match '全部软件均已是最新|全部软件已是最新|本次无操作|跳过 sync\.mjs') {
-    return 'nosync'
+    return @{
+      Status  = $status
+      Reason  = [string]$obj.reason
+      Message = [string]$obj.message
+    }
+  } catch {
+    Write-TrayLog "读取结果文件失败：$($_.Exception.Message)（$Path）"
+    return $null
   }
-  # 「本次无成功同步的版本」会按软件逐条出现：只有全部软件都没同步成功（成功软件 0/N）才算无需同步，
-  # 否则 A 成功、B 无新版本时会被误判
-  if ($text -and $text -match '本次无成功同步的版本' -and $text -match '成功软件 0/') {
-    return 'nosync'
-  }
-  return 'success'
 }
 
 function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
@@ -790,24 +779,25 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   $script:running = $false
   $script:lastRunAt = Get-Date
 
-  $kind = Get-RunOutcomeKind $ExitCode $TimedOut
-  $script:lastResultKind = $kind
-  $isFailure = ($kind -eq 'failure')
-  if ($isFailure) {
-    if ($TimedOut) {
-      $script:lastResult = '❌ 超时已终止'
-    } elseif ($ExitCode -eq 2) {
-      $script:lastResult = '❌ 已取消（拉取失败）'
-    } else {
-      $script:lastResult = "❌ 失败（退出码 $ExitCode）"
-    }
-  } elseif ($kind -eq 'nosync') {
-    $script:lastResult = '✅ 无需同步'
+  # 状态只有两个来源：run-sync 写出的结果文件；读不到就是未知（无角标、计入“结果未知”）
+  $res = Read-RunResult $script:runResultFile
+  if ($res) {
+    $kind = $res.Status
+    $msg = $res.Message
   } else {
-    $script:lastResult = '✅ 成功'
+    $kind = 'unknown'
+    if ($TimedOut) { $msg = '同步超时被强制终止，未生成结果文件' }
+    else { $msg = "未读取到本次结果文件（退出码 $ExitCode）" }
+  }
+  $script:lastResultKind = $kind
+  $isFailure = $false
+  switch ($kind) {
+    'failure' { $script:lastResult = '❌ 失败'; $isFailure = $true }
+    'nosync' { $script:lastResult = '✅ 无需同步' }
+    'success' { $script:lastResult = '✅ 成功' }
+    default { $script:lastResult = '❓ 结果未知' }
   }
 
-  $summary = Get-RunSummary $script:runLog $script:runErrLog
   $minutes = [double]$script:cfg.intervalMinutes
   $script:nextRunAt = (Get-Date).AddMinutes($minutes)
 
@@ -824,17 +814,20 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   Add-TimeNotifyResult $kind
 
   if (Test-RunNotify $isFailure) {
-    $text = $summary
+    $text = $msg
     if (-not $text) {
-      if ($isFailure) { $text = '详见日志：' + $script:runLog }
-      else { $text = '本次同步成功（无新增内容）' }
+      if ($kind -eq 'failure') { $text = '详见日志：' + $script:runLog }
+      elseif ($kind -eq 'unknown') { $text = '未能读取本次结果，详见日志：' + $script:runLog }
+      elseif ($kind -eq 'nosync') { $text = '本次无需同步' }
+      else { $text = '本次同步完成' }
     }
     $text += $elapsedText
-    if ($isFailure) { Show-Balloon '自动同步失败' $text 'Error' }
+    if ($kind -eq 'failure') { Show-Balloon '自动同步失败' $text 'Error' }
+    elseif ($kind -eq 'unknown') { Show-Balloon '同步结果未知' $text 'Warning' }
     else { Show-Balloon '自动同步完成' $text 'Info' }
   }
 
-  Write-TrayLog "同步结束：$($script:lastResult)｜$summary"
+  Write-TrayLog "同步结束：$($script:lastResult)｜$msg｜退出码 $ExitCode｜结果文件 $script:runResultFile"
   Update-SessionInfo
   Update-UnpushedState
 }
@@ -1147,6 +1140,10 @@ function Build-Menu {
     $stateText = '待命（上次失败）'
     $stateSymbol = '×'
     $stateColor = $errColor
+  } elseif ($script:lastResultKind -eq 'unknown') {
+    $stateText = '待命（上次结果未知）'
+    $stateSymbol = '?'
+    $stateColor = $slateColor
   }
   Add-InfoLine ('   状态　' + $stateSymbol + ' ' + $stateText) $stateColor
 
@@ -1164,6 +1161,7 @@ function Build-Menu {
   $lastColor = $okColor
   if ($script:lastResultKind -eq 'failure') { $lastColor = $errColor }
   elseif ($script:lastResultKind -eq 'nosync') { $lastColor = $slateColor }
+  elseif ($script:lastResultKind -eq 'unknown') { $lastColor = $slateColor }
   elseif (-not $script:lastRunAt) { $lastColor = $slateColor }
   Add-InfoLine ('   上次　' + $lastText) $lastColor
 

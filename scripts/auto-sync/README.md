@@ -192,8 +192,8 @@ node scripts/auto-sync/probe.mjs
 | `stepSync` | `true` | 步骤开关：执行 `sync.mjs`（探测 / 下载 / 写数据） |
 | `stepCommit` | `true` | 步骤开关：生成变更后 `git commit`；关闭时变更留在工作区 |
 | `stepPush` | `true` | 步骤开关：`git push`（含补推）；关闭时提交只留在本地 |
-| `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标（均为透明挖空边框，无底圆）：同步中「▶」、暂停「‖」、上次成功「绿色对钩」、上次无需同步「三个小点」、上次失败「红色叉」；刚启动尚未同步时不显示角标 |
-| `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 / `time` 按时间汇总（每 `notifyIntervalMinutes` 分钟弹一次，内容为该时段内成功、无需同步、失败的次数） |
+| `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标（均为透明挖空边框，无底圆）：同步中「▶」、暂停「‖」、上次成功「绿色对钩」、上次无需同步「三个小点」、上次失败「红色叉」；刚启动尚未同步、或结果文件缺失/损坏读不到状态时不显示角标 |
+| `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 / `time` 按时间汇总（每 `notifyIntervalMinutes` 分钟弹一次，内容为该时段内成功、无需同步、失败、结果未知的次数） |
 | `notifyIntervalMinutes` | `60` | `notifyMode=time` 时的汇总间隔（分钟）；也可在托盘「选项 → 同步通知 → 汇总间隔」里改 |
 | `exitPassword` | `""` | 退出密码（**明文**保存在 `config.json`）；设置后点击托盘「退出」需输入正确密码（区分大小写）。留空 = 无需密码。已设置时，在托盘「选项 → 退出密码」修改或清除需先输入当前密码 |
 | `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「选项 → 提交身份」可设） |
@@ -209,7 +209,8 @@ node scripts/auto-sync/probe.mjs
 - **每次运行都会 commit + push 到当前仓库的 `origin`**，默认用本机 git 凭据（SSH key / credential helper）；若在托盘「选项 → GitHub 令牌（拉取/推送）」填了 PAT，则改用该令牌（通过 `http.extraheader` 临时注入，不写入 `.git/config`，也不拼进 remote URL）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
 - **每轮固定顺序：`git pull` → `sync.mjs` → 补推**（`run-sync.mjs` 负责编排）。拉取失败（远端冲突、工作区有未提交改动、超时）会**取消本轮**，不下载也不提交；若是 rebase 冲突，会自动 `rebase --abort` 把仓库还原到拉取前
 - push 失败（超时或远端已有新提交）时，提交留在本地；**下一次同步成功后会自动补推**（`retryPush`）。若补推仍失败，托盘持续显示「待推 N」并提示；也可手动 `git pull --rebase && git push`
-- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不 / 按时间汇总。按时间汇总模式下不再逐次弹：每次同步结束时检查，距上次汇总满 `notifyIntervalMinutes` 分钟才弹一次「在 X–Y 内，共进行了 n 次同步。其中 y 次成功、z 次无需同步、a 次失败。」（窗口内没有同步则不会弹空通知）
+- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不 / 按时间汇总。按时间汇总模式下不再逐次弹：每次同步结束时检查，距上次汇总满 `notifyIntervalMinutes` 分钟才弹一次「在 X–Y 内，共进行了 n 次同步。其中 y 次成功、z 次无需同步、a 次失败。」；有结果未知的轮次时会追加「u 次结果未知」，窗口内没有同步则不会弹空通知
+- **托盘状态不再解析日志正文**：`run-sync.mjs` 每轮结束把 `{status, reason, message}` 原子写入日志目录下的 `sync-<时间>.result.json`（`sync.mjs` 通过中间文件把“是否真的无需同步”传给它），托盘只认这个文件。文件缺失/损坏（例如超时被强杀、脚本崩溃）视为**结果未知**：不显示角标，时间汇总计入“结果未知”，开启 `always` 通知时会弹一条警告。GHA 不设置相关环境变量，行为完全不变
 - 拉取开关、拉取方式（rebase / ff-only）、失败补推都可在托盘「选项」菜单里即时切换，也可直接改 `config.json`（下一轮生效）
 - **步骤设置**（托盘「选项 → 步骤设置」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`

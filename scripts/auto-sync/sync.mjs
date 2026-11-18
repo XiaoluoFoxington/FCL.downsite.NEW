@@ -30,7 +30,7 @@
 // 每个软件一个 commit；全部完成后统一 push。
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -46,6 +46,28 @@ import {
 } from './lib.mjs';
 import { Logger, renderSoftwareTable, newRow, errText, fmtBytes, fmtCST, fmtDur } from './logger.mjs';
 import { planAll } from './plan.mjs';
+
+// ---------- 结构化运行结果（只给本地托盘用；GHA 不设置该环境变量，完全不写） ----------
+// 托盘通过 LOCAL_SYNC_SYNC_RESULT_FILE 指定中间文件，run-sync 读取后汇总成最终结果。
+const SYNC_RESULT_FILE = (process.env.LOCAL_SYNC_SYNC_RESULT_FILE || '').trim();
+
+function writeSyncResult(status, reason, message) {
+  if (!SYNC_RESULT_FILE) return;
+  try {
+    const tmp = `${SYNC_RESULT_FILE}.tmp`;
+    writeFileSync(tmp, JSON.stringify({
+      version: 1,
+      status,
+      reason,
+      message: String(message || ''),
+      endedAt: new Date().toISOString(),
+    }), 'utf8');
+    try { unlinkSync(SYNC_RESULT_FILE); } catch { /* 不存在则忽略 */ }
+    renameSync(tmp, SYNC_RESULT_FILE);
+  } catch {
+    // 结果文件只是托盘的附加信息，写失败不影响同步本身
+  }
+}
 
 // ---------- Git 小工具（不改全局配置，全部 -c 内联；子进程不依赖管道捕获） ----------
 function git(args) {
@@ -432,6 +454,14 @@ async function main() {
     }));
     log.annotate('notice', `线路1自动同步：全部软件已是最新（${rows.length} 个），本次无操作`);
     log.flushSummary();
+    // 注意：探测失败也会走到这里，此时必须算 failure，不能算「无需同步」
+    writeSyncResult(
+      overallFailed ? 'failure' : 'nosync',
+      overallFailed ? 'probe-failed' : 'all-latest',
+      overallFailed
+        ? `预探测存在失败项（成功软件 0/${rows.length}），本次未同步`
+        : `全部内容均为最新（${rows.length} 个），本次无操作`,
+    );
     process.exit(overallFailed ? 1 : 0);
   }
 
@@ -483,6 +513,7 @@ async function main() {
     }));
     log.annotate('error', `线路1自动同步：登录 huang1111 失败 —— ${errText(e)}`);
     log.flushSummary();
+    writeSyncResult('failure', 'login-failed', `登录 huang1111 失败：${errText(e)}`);
     process.exit(1);
   }
 
@@ -625,6 +656,13 @@ async function main() {
     log.annotate('notice', `线路1自动同步完成：${okCount} 个软件，总用时 ${total}`);
   }
   log.flushSummary();
+  const status = overallFailed ? 'failure' : (okCount === 0 ? 'nosync' : 'success');
+  const message = overallFailed
+    ? `存在失败项（成功软件 ${okCount}/${rows.length}）`
+    : (okCount === 0
+      ? `本次无成功同步的版本（成功软件 0/${rows.length}）`
+      : `成功软件 ${okCount}/${rows.length}｜产生提交：${anyCommit ? '是' : '否'}`);
+  writeSyncResult(status, overallFailed ? 'partial-failure' : (okCount === 0 ? 'all-skipped' : 'synced'), message);
   process.exit(overallFailed ? 1 : 0);
 }
 
@@ -633,6 +671,7 @@ async function main() {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((e) => {
     process.stderr.write('脚本异常：' + (e.stack || e.message) + '\n');
+    writeSyncResult('failure', 'uncaught', `脚本异常：${e && (e.message || String(e))}`);
     process.exit(1);
   });
 }
