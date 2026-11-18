@@ -1,9 +1,14 @@
 [
   {
+    "name": "DSH Go 1.2.0",
+    "nextUrl": "/data/down/19/auto/2026/11/18/v1.2.0.json",
+    "tag": "v1.2.0",
+    "default": true
+  },
+  {
     "name": "DSH Go 1.1.0",
     "nextUrl": "/data/down/19/auto/2026/11/15/v1.1.0.json",
-    "tag": "v1.1.0",
-    "default": true
+    "tag": "v1.1.0"
   },
   {
     "name": "DSH Go 1.0.16",
