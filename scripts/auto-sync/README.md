@@ -195,7 +195,7 @@ node scripts/auto-sync/probe.mjs
 | `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标（均为透明挖空边框，无底圆）：同步中「▶」、暂停「‖」、上次成功「绿色对钩」、上次无需同步「三个小点」、上次失败「红色叉」；刚启动尚未同步时不显示角标 |
 | `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 / `time` 按时间汇总（每 `notifyIntervalMinutes` 分钟弹一次，内容为该时段内成功、无需同步、失败的次数） |
 | `notifyIntervalMinutes` | `60` | `notifyMode=time` 时的汇总间隔（分钟）；也可在托盘「选项 → 同步通知 → 汇总间隔」里改 |
-| `exitPassword` | `""` | 退出密码（**明文**保存在 `config.json`）；设置后点击托盘「退出」需输入正确密码。留空 = 无需密码。可在托盘「选项 → 退出密码」设置或清除 |
+| `exitPassword` | `""` | 退出密码（**明文**保存在 `config.json`）；设置后点击托盘「退出」需输入正确密码（区分大小写）。留空 = 无需密码。已设置时，在托盘「选项 → 退出密码」修改或清除需先输入当前密码 |
 | `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「选项 → 提交身份」可设） |
 | `gitUserName` | `""` | `gitIdentityMode=custom` 时的 `user.name` |
 | `gitUserEmail` | `""` | `gitIdentityMode=custom` 时的 `user.email` |
@@ -209,7 +209,7 @@ node scripts/auto-sync/probe.mjs
 - **每次运行都会 commit + push 到当前仓库的 `origin`**，默认用本机 git 凭据（SSH key / credential helper）；若在托盘「选项 → GitHub 令牌（拉取/推送）」填了 PAT，则改用该令牌（通过 `http.extraheader` 临时注入，不写入 `.git/config`，也不拼进 remote URL）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
 - **每轮固定顺序：`git pull` → `sync.mjs` → 补推**（`run-sync.mjs` 负责编排）。拉取失败（远端冲突、工作区有未提交改动、超时）会**取消本轮**，不下载也不提交；若是 rebase 冲突，会自动 `rebase --abort` 把仓库还原到拉取前
 - push 失败（超时或远端已有新提交）时，提交留在本地；**下一次同步成功后会自动补推**（`retryPush`）。若补推仍失败，托盘持续显示「待推 N」并提示；也可手动 `git pull --rebase && git push`
-- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不 / 按时间汇总。按时间汇总模式下不再逐次弹，而是每 `notifyIntervalMinutes` 分钟汇总一次「在 X–Y 内，共进行了 n 次同步。其中 y 次成功、z 次无需同步、a 次失败。」
+- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不 / 按时间汇总。按时间汇总模式下不再逐次弹：每次同步结束时检查，距上次汇总满 `notifyIntervalMinutes` 分钟才弹一次「在 X–Y 内，共进行了 n 次同步。其中 y 次成功、z 次无需同步、a 次失败。」（窗口内没有同步则不会弹空通知）
 - 拉取开关、拉取方式（rebase / ff-only）、失败补推都可在托盘「选项」菜单里即时切换，也可直接改 `config.json`（下一轮生效）
 - **步骤设置**（托盘「选项 → 步骤设置」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
@@ -219,7 +219,7 @@ node scripts/auto-sync/probe.mjs
   `powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -Install`
   （取消用 `-Uninstall`）。原理是在当前用户的 Startup 文件夹里放一个指向 `start.vbs` 的快捷方式
 - 单实例：重复双击 `start.vbs` 不会起第二个托盘
-- **退出密码**：在托盘「选项 → 退出密码」设置后，密码以明文写入 `config.json` 的 `exitPassword`；此后点击「退出」必须输入正确密码（取消或输错都不会退出）
+- **退出密码**：在托盘「选项 → 退出密码」设置后，密码以明文写入 `config.json` 的 `exitPassword`；此后点击「退出」必须输入正确密码（区分大小写，取消或输错都不会退出）。已设置时，修改或清除密码也要先输入当前密码；忘记密码可直接编辑 `config.json` 删掉该字段
 
 ## 数据结构（站内 `data/down/{id}/`）
 

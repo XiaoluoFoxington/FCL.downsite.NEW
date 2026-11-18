@@ -102,6 +102,8 @@ $script:lastResult = ''
 $script:lastResultKind = ''   # '' | success | nosync | failure
 $script:lastElapsedText = ''
 $script:notifyWindowStart = $null
+$script:notifyModeApplied = ''   # 已生效的通知模式；外部改 config.json 后用于重置汇总窗口
+$script:lastSaveOk = $true       # 最近一次 Save-Config 是否成功
 $script:notifyTally = @{ success = 0; nosync = 0; failure = 0 }
 $script:nextRunAt = $null
 $script:paused = $false
@@ -212,7 +214,9 @@ function Save-Config($cfg) {
       $json,
       (New-Object System.Text.UTF8Encoding -ArgumentList $false)
     )
+    $script:lastSaveOk = $true
   } catch {
+    $script:lastSaveOk = $false
     Write-TrayLog "写入 config.json 失败：$($_.Exception.Message)"
   }
 }
@@ -228,12 +232,17 @@ function Test-EffectivePaused {
 
 function Set-InjectedEnv([string]$Name, [string]$Value) {
   if ($Value) {
+    if (-not $script:injectedEnv.ContainsKey($Name)) {
+      # 第一次接管时记下进程里的原值（可能来自系统环境变量），清空时恢复而不是直接删掉
+      $script:injectedEnv[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
+    }
     Set-Item -Path ('Env:' + $Name) -Value $Value
-    $script:injectedEnv[$Name] = $true
-  } elseif ($script:injectedEnv[$Name]) {
-    # 只清理本进程注入过的值，不动用户自己的系统环境变量
-    Remove-Item ('Env:' + $Name) -ErrorAction SilentlyContinue
-    $script:injectedEnv[$Name] = $false
+  } elseif ($script:injectedEnv.ContainsKey($Name)) {
+    # 只恢复/清理本进程接管过的值，不动用户自己的系统环境变量
+    $orig = [string]$script:injectedEnv[$Name]
+    if ($orig) { Set-Item -Path ('Env:' + $Name) -Value $orig }
+    else { Remove-Item ('Env:' + $Name) -ErrorAction SilentlyContinue }
+    $script:injectedEnv.Remove($Name)
   }
 }
 
@@ -631,6 +640,17 @@ function Start-SyncRun {
   # 每轮重新读配置：改 config.json（例如换会话 cookie / token / node 路径）后无需重启托盘即可生效
   $script:cfg = Read-Config
 
+  # 直接编辑 config.json 切换通知模式时，重置汇总窗口，避免拿很久以前的窗口起点算时间范围
+  $modeNow = [string]$script:cfg.notifyMode
+  if ($modeNow -ne $script:notifyModeApplied) {
+    $script:notifyModeApplied = $modeNow
+    Reset-NotifyWindow
+  }
+  # 启动失败也要有下一轮排期：否则 runOnStart 时一次失败（如 node 暂缺）后就再也不会自动重试
+  if (-not $script:nextRunAt) {
+    $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
+  }
+
   # 四个步骤全关 = 暂停：不启动、不弹失败气泡
   if (-not (Test-StepsEnabled)) {
     # 仍排好下一轮，用户重新勾选步骤后无需重启托盘也能恢复自动同步
@@ -668,6 +688,8 @@ function Start-SyncRun {
     Write-TrayLog '启动同步失败：找不到 node'
     $script:lastResultKind = 'failure'
     $script:lastResult = '❌ 无法启动（找不到 Node.js）'
+    $script:lastRunAt = Get-Date
+    $script:lastElapsedText = ''
     Update-IdleStateIcon
     return
   }
@@ -676,6 +698,8 @@ function Start-SyncRun {
     Write-TrayLog "启动同步失败：找不到 $RunnerScript 或 $SyncScript"
     $script:lastResultKind = 'failure'
     $script:lastResult = '❌ 无法启动（脚本缺失）'
+    $script:lastRunAt = Get-Date
+    $script:lastElapsedText = ''
     Update-IdleStateIcon
     return
   }
@@ -708,6 +732,8 @@ function Start-SyncRun {
     $script:running = $false
     $script:lastResultKind = 'failure'
     $script:lastResult = '❌ 启动失败'
+    $script:lastRunAt = Get-Date
+    $script:lastElapsedText = ''
     Update-IdleStateIcon
     Show-Balloon '启动同步失败' $_.Exception.Message 'Error'
     Write-TrayLog "启动同步异常：$($_.Exception.Message)"
@@ -744,7 +770,13 @@ function Get-RunOutcomeKind([int]$ExitCode, [bool]$TimedOut) {
       $text = Get-Content -LiteralPath $script:runLog -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
     }
   } catch { }
-  if ($text -and $text -match '全部软件均已是最新|全部软件已是最新|本次无操作|本次无成功同步的版本|跳过 sync\.mjs') {
+  # 全部已是最新 / 未执行 sync.mjs：本次确实没事可做
+  if ($text -and $text -match '全部软件均已是最新|全部软件已是最新|本次无操作|跳过 sync\.mjs') {
+    return 'nosync'
+  }
+  # 「本次无成功同步的版本」会按软件逐条出现：只有全部软件都没同步成功（成功软件 0/N）才算无需同步，
+  # 否则 A 成功、B 无新版本时会被误判
+  if ($text -and $text -match '本次无成功同步的版本' -and $text -match '成功软件 0/') {
     return 'nosync'
   }
   return 'success'
@@ -977,7 +1009,7 @@ function Confirm-ExitPassword {
   if ([string]::IsNullOrEmpty($pw)) { return $true }
   $value = Show-TokenDialog '退出自动同步' '已设置退出密码，请输入密码后退出。' '' '密码错误或取消则不会退出'
   if ($null -eq $value) { return $false }
-  if ($value -ne $pw) {
+  if ($value -cne $pw) {
     Show-Balloon '密码错误' '退出密码不正确，托盘继续运行。' 'Warning'
     Write-TrayLog '退出密码校验失败'
     return $false
@@ -1466,12 +1498,32 @@ function Build-Menu {
   })))
 
   # ---- 退出密码（明文保存在 config.json）----
+  # 已设置时必须先验证当前密码，否则任何人都能在菜单里把它清空，密码就形同虚设
   $hasExitPassword = -not [string]::IsNullOrEmpty([string]$script:cfg.exitPassword)
   [void]$optItem.DropDownItems.Add((New-MenuItem ('退出密码：' + $(if ($hasExitPassword) { '已设置' } else { '未设置' })) ({
+    $currentCfg = Read-Config
+    $currentPw = [string]$currentCfg.exitPassword
+    if (-not [string]::IsNullOrEmpty($currentPw)) {
+      $old = Show-TokenDialog '退出密码' '已设置退出密码，请先输入当前密码。' '' '密码错误或取消则不会修改'
+      if ($null -eq $old) { return }
+      if ($old -cne $currentPw) {
+        Show-Balloon '密码错误' '当前退出密码不正确，未做修改。' 'Warning'
+        Write-TrayLog '修改退出密码失败：当前密码错误'
+        return
+      }
+    }
     $value = Show-TokenDialog '退出密码' '设置后，点击托盘「退出」需要输入此密码。密码以明文保存在 config.json。' '' '留空并确定 = 取消退出密码（退出时不再验证）'
     if ($null -eq $value) { return }
+    $script:cfg = $currentCfg
     $script:cfg.exitPassword = $value
     Save-Config $script:cfg
+    if (-not $script:lastSaveOk) {
+      # 写盘失败就回滚内存值，避免菜单显示“已设置”但退出时读不到密码
+      $script:cfg.exitPassword = $currentPw
+      Show-Balloon '保存失败' '无法写入 config.json，退出密码未修改。' 'Error'
+      Write-TrayLog '修改退出密码失败：写入 config.json 失败'
+      return
+    }
     Write-TrayLog ('退出密码：' + $(if ($value) { '已设置' } else { '已清除' }))
     if ($value) { Show-Balloon '退出密码已设置' '以后退出托盘需要输入该密码。' 'Info' }
     else { Show-Balloon '退出密码已清除' '退出托盘不再需要密码。' 'Info' }
