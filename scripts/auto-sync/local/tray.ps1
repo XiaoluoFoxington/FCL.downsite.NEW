@@ -5,7 +5,8 @@
 #
 # 特点：
 #   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
-#   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 开机启动 / 打开日志 / 会话剩余天数 / 退出
+#   · 托盘图标角标：同步中「▶」/ 暂停「‖」/ 上次成功「绿色对钩」/ 上次无需同步「三个小点」/ 上次失败「红色叉」
+#   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 选项（通知模式含时间汇总、退出密码等）/ 开机启动 / 打开日志 / 会话剩余天数 / 退出
 #   · 单实例：重复启动会被静默忽略
 #   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
 #   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
@@ -64,7 +65,9 @@ $script:Defaults = [ordered]@{
   stepCommit         = $true   # 步骤开关：生成变更后提交
   stepPush           = $true   # 步骤开关：推送（含补推）
   iconPath           = ''      # 自定义托盘图标（png/jpg/bmp/gif/ico）；留空 = 内置图标
-  notifyMode         = 'always' # always | failure | never；每次同步是否弹通知
+  notifyMode         = 'always' # always | failure | never | time；time = 按时间汇总弹通知
+  notifyIntervalMinutes = 60   # notifyMode = time 时，每多少分钟汇总弹一次
+  exitPassword       = ''      # 退出密码（明文保存在本文件）；留空 = 退出无需密码
   gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
   gitUserEmail       = ''      # gitIdentityMode = custom 时的提交邮箱
@@ -78,6 +81,9 @@ $script:menu = $null
 $script:iconIdle = $null
 $script:iconBusy = $null
 $script:iconPaused = $null
+$script:iconSuccess = $null
+$script:iconNoSync = $null
+$script:iconFail = $null
 $script:iconBitmaps = @()
 $script:iconHandles = @()
 $script:baseIconBitmap = $null
@@ -93,7 +99,10 @@ $script:unpushedBranch = ''
 $script:branchLocal = ''
 $script:lastRunAt = $null
 $script:lastResult = ''
+$script:lastResultKind = ''   # '' | success | nosync | failure
 $script:lastElapsedText = ''
+$script:notifyWindowStart = $null
+$script:notifyTally = @{ success = 0; nosync = 0; failure = 0 }
 $script:nextRunAt = $null
 $script:paused = $false
 $script:sessionText = '会话：未检查'
@@ -175,8 +184,13 @@ function Read-Config {
   $cfg.pullStrategy = $strategy
 
   $mode = ([string]$cfg.notifyMode).Trim().ToLower()
-  if ($mode -ne 'failure' -and $mode -ne 'never') { $mode = 'always' }
+  if ($mode -ne 'failure' -and $mode -ne 'never' -and $mode -ne 'time') { $mode = 'always' }
   $cfg.notifyMode = $mode
+
+  try { $cfg.notifyIntervalMinutes = [math]::Max(1, [double]$cfg.notifyIntervalMinutes) }
+  catch { $cfg.notifyIntervalMinutes = $script:Defaults.notifyIntervalMinutes }
+
+  $cfg.exitPassword = ([string]$cfg.exitPassword).Trim()
 
   $identity = ([string]$cfg.gitIdentityMode).Trim().ToLower()
   if ($identity -ne 'git' -and $identity -ne 'custom') { $identity = 'script' }
@@ -303,7 +317,7 @@ function New-BaseIconBitmap {
   return $bmp
 }
 
-# 在底图右下角叠状态角标：none = 无角标 / dot = 圆点 / pause = 暂停图标
+# 在底图右下角叠状态角标：none = 无角标 / triangle = 同步中 / check = 成功 / dots = 无需同步 / cross = 失败 / pause = 暂停
 function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
   $size = 32
   $bmp = [System.Drawing.Bitmap]::new($size, $size)
@@ -314,19 +328,74 @@ function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
 
   if ($script:baseIconBitmap) { $g.DrawImage($script:baseIconBitmap, 0, 0, $size, $size) }
 
-  if ($Badge -eq 'dot') {
-    $d = 12
-    $x = $size - $d - 1
-    $y = $size - $d - 1
-    # 透明挖空角标四周一圈，替代描边
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+  # 角标统一先透明挖空四周一圈，替代描边 / 底圆
+  function Clear-BadgeArea([System.Drawing.Graphics]$G, [int]$X, [int]$Y, [int]$W, [int]$H) {
+    $G.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
     $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
-    $g.FillEllipse($clear, $x - 2, $y - 2, $d + 4, $d + 4)
+    $G.FillRectangle($clear, $X - 2, $Y - 2, $W + 4, $H + 4)
     $clear.Dispose()
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-    $dot = [System.Drawing.SolidBrush]::new($Color)
-    $g.FillEllipse($dot, $x, $y, $d, $d)
-    $dot.Dispose()
+    $G.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+  }
+
+  if ($Badge -eq 'triangle') {
+    # 向右指的三角形：同步中
+    $w = 11
+    $h = 13
+    $x = $size - $w - 1
+    $y = $size - $h - 1
+    Clear-BadgeArea $g $x $y $w $h
+    $pts = [System.Drawing.Point[]]@(
+      [System.Drawing.Point]::new($x, $y),
+      [System.Drawing.Point]::new($x, $y + $h),
+      [System.Drawing.Point]::new($x + $w, $y + [int]($h / 2))
+    )
+    $brush = [System.Drawing.SolidBrush]::new($Color)
+    $g.FillPolygon($brush, $pts)
+    $brush.Dispose()
+  } elseif ($Badge -eq 'check') {
+    # 绿色对钩：上次同步成功
+    $w = 13
+    $h = 11
+    $x = $size - $w - 1
+    $y = $size - $h - 1
+    Clear-BadgeArea $g $x $y $w $h
+    $pen = [System.Drawing.Pen]::new($Color, 3)
+    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+    $g.DrawLines($pen, [System.Drawing.Point[]]@(
+      [System.Drawing.Point]::new($x + 1, $y + 6),
+      [System.Drawing.Point]::new($x + 5, $y + 10),
+      [System.Drawing.Point]::new($x + 12, $y + 1)
+    ))
+    $pen.Dispose()
+  } elseif ($Badge -eq 'dots') {
+    # 三个小点：上次无需同步
+    $d = 3
+    $gap = 2
+    $w = $d * 3 + $gap * 2
+    $h = $d
+    $x = $size - $w - 1
+    $y = $size - $h - 2
+    Clear-BadgeArea $g $x $y $w $h
+    $brush = [System.Drawing.SolidBrush]::new($Color)
+    for ($i = 0; $i -lt 3; $i++) {
+      $g.FillEllipse($brush, $x + $i * ($d + $gap), $y, $d, $d)
+    }
+    $brush.Dispose()
+  } elseif ($Badge -eq 'cross') {
+    # 红色叉：上次同步失败
+    $w = 11
+    $h = 11
+    $x = $size - $w - 1
+    $y = $size - $h - 1
+    Clear-BadgeArea $g $x $y $w $h
+    $pen = [System.Drawing.Pen]::new($Color, 3)
+    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $g.DrawLine($pen, $x + 1, $y + 1, $x + $w - 1, $y + $h - 1)
+    $g.DrawLine($pen, $x + $w - 1, $y + 1, $x + 1, $y + $h - 1)
+    $pen.Dispose()
   } elseif ($Badge -eq 'pause') {
     # 「||」直接画在右下角，白色填充，不套圆形徽标
     $barW = 4
@@ -334,12 +403,7 @@ function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
     $gap = 2
     $x = $size - ($barW * 2 + $gap) - 1
     $y = $size - $barH - 1
-    # 透明挖空角标四周一圈，替代描边
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
-    $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
-    $g.FillRectangle($clear, $x - 2, $y - 2, ($barW * 2 + $gap) + 4, $barH + 4)
-    $clear.Dispose()
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+    Clear-BadgeArea $g $x $y ($barW * 2 + $gap) $barH
     $bar = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
     $g.FillRectangle($bar, $x, $y, $barW, $barH)
     $g.FillRectangle($bar, $x + $barW + $gap, $y, $barW, $barH)
@@ -361,7 +425,7 @@ function Destroy-IconHandle([IntPtr]$Handle) {
 }
 
 function Update-TrayIcons {
-  $oldIcons = @($script:iconIdle, $script:iconBusy, $script:iconPaused) | Where-Object { $_ }
+  $oldIcons = @($script:iconIdle, $script:iconBusy, $script:iconPaused, $script:iconSuccess, $script:iconNoSync, $script:iconFail) | Where-Object { $_ }
   $oldBitmaps = $script:iconBitmaps
   $oldHandles = $script:iconHandles
   $script:iconBitmaps = @()
@@ -371,8 +435,11 @@ function Update-TrayIcons {
   $script:baseIconBitmap = New-BaseIconBitmap
 
   $script:iconIdle = New-TrayIcon 'none'
-  $script:iconBusy = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(255, 214, 0))
+  $script:iconBusy = New-TrayIcon 'triangle' ([System.Drawing.Color]::FromArgb(255, 214, 0))
   $script:iconPaused = New-TrayIcon 'pause'
+  $script:iconSuccess = New-TrayIcon 'check' ([System.Drawing.Color]::FromArgb(46, 160, 67))
+  $script:iconNoSync = New-TrayIcon 'dots' ([System.Drawing.Color]::White)
+  $script:iconFail = New-TrayIcon 'cross' ([System.Drawing.Color]::FromArgb(218, 54, 51))
 
   # 先让托盘切到新图标，再释放旧图标、HICON 与位图
   Update-TrayIcon $script:trayState
@@ -384,6 +451,9 @@ function Update-TrayIcons {
 function Update-IdleStateIcon {
   if ($script:running) { Update-TrayIcon 'busy' }
   elseif (Test-EffectivePaused) { Update-TrayIcon 'paused' }
+  elseif ($script:lastResultKind -eq 'success') { Update-TrayIcon 'success' }
+  elseif ($script:lastResultKind -eq 'nosync') { Update-TrayIcon 'nosync' }
+  elseif ($script:lastResultKind -eq 'failure') { Update-TrayIcon 'fail' }
   else { Update-TrayIcon 'idle' }
 }
 
@@ -393,6 +463,9 @@ function Update-TrayIcon([string]$State) {
   switch ($State) {
     'busy' { $script:notify.Icon = $script:iconBusy }
     'paused' { $script:notify.Icon = $script:iconPaused }
+    'success' { $script:notify.Icon = $script:iconSuccess }
+    'nosync' { $script:notify.Icon = $script:iconNoSync }
+    'fail' { $script:notify.Icon = $script:iconFail }
     default { $script:notify.Icon = $script:iconIdle } # idle / error：无角标
   }
 }
@@ -436,6 +509,51 @@ function Test-Notify([bool]$IsFailure) {
     'failure' { return $IsFailure }
     default { return $true }
   }
+}
+
+# 每次同步结束是否立即弹结果气泡；time 模式改为按时间汇总
+function Test-RunNotify([bool]$IsFailure) {
+  switch ([string]$script:cfg.notifyMode) {
+    'never' { return $false }
+    'failure' { return $IsFailure }
+    'time' { return $false }
+    default { return $true }
+  }
+}
+
+function Reset-NotifyWindow {
+  $script:notifyWindowStart = Get-Date
+  $script:notifyTally = @{ success = 0; nosync = 0; failure = 0 }
+}
+
+function Format-NotifyRange([datetime]$Start, [datetime]$End) {
+  if ($Start.Date -eq $End.Date) { return $Start.ToString('HH:mm') + '–' + $End.ToString('HH:mm') }
+  return $Start.ToString('MM-dd HH:mm') + '–' + $End.ToString('MM-dd HH:mm')
+}
+
+# time 模式：累计每次同步的结果，每 N 分钟汇总弹一次
+function Add-TimeNotifyResult([string]$Kind) {
+  if ([string]$script:cfg.notifyMode -ne 'time') { return }
+  switch ($Kind) {
+    'success' { $script:notifyTally.success++ }
+    'nosync' { $script:notifyTally.nosync++ }
+    default { $script:notifyTally.failure++ }
+  }
+  if (-not $script:notifyWindowStart) { $script:notifyWindowStart = Get-Date; return }
+  $interval = [double]$script:cfg.notifyIntervalMinutes
+  $now = Get-Date
+  if (($now - $script:notifyWindowStart).TotalMinutes -lt $interval) { return }
+
+  $y = [int]$script:notifyTally.success
+  $z = [int]$script:notifyTally.nosync
+  $a = [int]$script:notifyTally.failure
+  $total = $y + $z + $a
+  if ($total -le 0) { Reset-NotifyWindow; return }
+  $range = Format-NotifyRange $script:notifyWindowStart $now
+  $text = "在 $range 内，共进行了 $total 次同步。其中 $y 次成功、$z 次无需同步、$a 次失败。"
+  if ($a -gt 0) { Show-Balloon '自动同步汇总' $text 'Warning' }
+  else { Show-Balloon '自动同步汇总' $text 'Info' }
+  Reset-NotifyWindow
 }
 
 # ============================ 会话寿命（离线推算，不联网） ============================
@@ -548,11 +666,17 @@ function Start-SyncRun {
   if (-not $script:nodeExe) {
     Show-Balloon '无法启动同步' '未找到 Node.js。请安装 Node.js 18+，或在 config.json 的 nodePath 里写 node.exe 的完整路径。' 'Error'
     Write-TrayLog '启动同步失败：找不到 node'
+    $script:lastResultKind = 'failure'
+    $script:lastResult = '❌ 无法启动（找不到 Node.js）'
+    Update-IdleStateIcon
     return
   }
   if (-not (Test-Path -LiteralPath $RunnerScript) -or -not (Test-Path -LiteralPath $SyncScript)) {
     Show-Balloon '无法启动同步' "找不到同步脚本：$RunnerScript" 'Error'
     Write-TrayLog "启动同步失败：找不到 $RunnerScript 或 $SyncScript"
+    $script:lastResultKind = 'failure'
+    $script:lastResult = '❌ 无法启动（脚本缺失）'
+    Update-IdleStateIcon
     return
   }
 
@@ -582,7 +706,9 @@ function Start-SyncRun {
   } catch {
     $script:proc = $null
     $script:running = $false
-    Update-TrayIcon 'error'
+    $script:lastResultKind = 'failure'
+    $script:lastResult = '❌ 启动失败'
+    Update-IdleStateIcon
     Show-Balloon '启动同步失败' $_.Exception.Message 'Error'
     Write-TrayLog "启动同步异常：$($_.Exception.Message)"
   }
@@ -609,6 +735,21 @@ function Stop-ProcessTree([int]$ProcessId) {
   try { & taskkill.exe /PID $ProcessId /T /F | Out-Null } catch { }
 }
 
+# 从本次运行日志判定结果种类：failure / nosync / success
+function Get-RunOutcomeKind([int]$ExitCode, [bool]$TimedOut) {
+  if ($TimedOut -or $ExitCode -ne 0) { return 'failure' }
+  $text = ''
+  try {
+    if ($script:runLog -and (Test-Path -LiteralPath $script:runLog)) {
+      $text = Get-Content -LiteralPath $script:runLog -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+    }
+  } catch { }
+  if ($text -and $text -match '全部软件均已是最新|全部软件已是最新|本次无操作|本次无成功同步的版本|跳过 sync\.mjs') {
+    return 'nosync'
+  }
+  return 'success'
+}
+
 function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   if ($script:proc) {
     try { $script:proc.Dispose() } catch { }
@@ -617,15 +758,21 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   $script:running = $false
   $script:lastRunAt = Get-Date
 
-  $isFailure = ($TimedOut -or $ExitCode -ne 0)
-  if ($TimedOut) {
-    $script:lastResult = '❌ 超时已终止'
-  } elseif ($ExitCode -eq 2) {
-    $script:lastResult = '❌ 已取消（拉取失败）'
-  } elseif ($ExitCode -eq 0) {
-    $script:lastResult = '✅ 成功'
+  $kind = Get-RunOutcomeKind $ExitCode $TimedOut
+  $script:lastResultKind = $kind
+  $isFailure = ($kind -eq 'failure')
+  if ($isFailure) {
+    if ($TimedOut) {
+      $script:lastResult = '❌ 超时已终止'
+    } elseif ($ExitCode -eq 2) {
+      $script:lastResult = '❌ 已取消（拉取失败）'
+    } else {
+      $script:lastResult = "❌ 失败（退出码 $ExitCode）"
+    }
+  } elseif ($kind -eq 'nosync') {
+    $script:lastResult = '✅ 无需同步'
   } else {
-    $script:lastResult = "❌ 失败（退出码 $ExitCode）"
+    $script:lastResult = '✅ 成功'
   }
 
   $summary = Get-RunSummary $script:runLog $script:runErrLog
@@ -642,7 +789,9 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
 
   Update-IdleStateIcon
 
-  if (Test-Notify $isFailure) {
+  Add-TimeNotifyResult $kind
+
+  if (Test-RunNotify $isFailure) {
     $text = $summary
     if (-not $text) {
       if ($isFailure) { $text = '详见日志：' + $script:runLog }
@@ -821,6 +970,21 @@ function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [st
   return ([string]$value).Trim()
 }
 
+# 退出密码校验：未设置 = 直接允许；设置后输入错误或取消则不退出
+function Confirm-ExitPassword {
+  $script:cfg = Read-Config
+  $pw = [string]$script:cfg.exitPassword
+  if ([string]::IsNullOrEmpty($pw)) { return $true }
+  $value = Show-TokenDialog '退出自动同步' '已设置退出密码，请输入密码后退出。' '' '密码错误或取消则不会退出'
+  if ($null -eq $value) { return $false }
+  if ($value -ne $pw) {
+    Show-Balloon '密码错误' '退出密码不正确，托盘继续运行。' 'Warning'
+    Write-TrayLog '退出密码校验失败'
+    return $false
+  }
+  return $true
+}
+
 function Stop-Tray {
   if ($script:timer) { try { $script:timer.Stop() } catch { } }
   if ($script:appContext) { try { $script:appContext.ExitThread() } catch { } }
@@ -943,6 +1107,10 @@ function Build-Menu {
     $stateText = $(if (Test-StepsEnabled) { '已暂停' } else { '已暂停（步骤全关）' })
     $stateSymbol = '‖'
     $stateColor = $warnColor
+  } elseif ($script:lastResultKind -eq 'nosync') {
+    $stateText = '待命（上次无需同步）'
+    $stateSymbol = '…'
+    $stateColor = $slateColor
   } elseif ($script:lastResult -like '❌*') {
     $stateText = '待命（上次失败）'
     $stateSymbol = '×'
@@ -962,7 +1130,8 @@ function Build-Menu {
     $lastText = '尚未运行'
   }
   $lastColor = $okColor
-  if ($script:lastResult -like '❌*') { $lastColor = $errColor }
+  if ($script:lastResultKind -eq 'failure') { $lastColor = $errColor }
+  elseif ($script:lastResultKind -eq 'nosync') { $lastColor = $slateColor }
   elseif (-not $script:lastRunAt) { $lastColor = $slateColor }
   Add-InfoLine ('   上次　' + $lastText) $lastColor
 
@@ -980,7 +1149,10 @@ function Build-Menu {
 
   $pullText = $(if ($script:cfg.pullBeforeSync) { '拉取 ' + $script:cfg.pullStrategy } else { '拉取关' })
   $notifyText = @{ always = '每次'; failure = '仅失败'; never = '从不' }[[string]$script:cfg.notifyMode]
-  if (-not $notifyText) { $notifyText = '每次' }
+  if (-not $notifyText) {
+    if ([string]$script:cfg.notifyMode -eq 'time') { $notifyText = '每 ' + (Format-Interval ([double]$script:cfg.notifyIntervalMinutes)) }
+    else { $notifyText = '每次' }
+  }
   $retryText = $(if ($script:cfg.retryPush) { '开' } else { '关' })
   $onSteps = 0
   foreach ($k in @('stepPull', 'stepSync', 'stepCommit', 'stepPush')) { if ([bool]$script:cfg[$k]) { $onSteps++ } }
@@ -1161,6 +1333,33 @@ function Build-Menu {
   })
   $nFailure.Checked = ([string]$script:cfg.notifyMode -eq 'failure')
   [void]$notifyItem.DropDownItems.Add($nFailure)
+  $nTimeLabel = '按时间汇总（每 ' + (Format-Interval ([double]$script:cfg.notifyIntervalMinutes)) + '）'
+  $nTime = New-MenuItem $nTimeLabel ({
+    $script:cfg.notifyMode = 'time'
+    Save-Config $script:cfg
+    Reset-NotifyWindow
+    Write-TrayLog ('同步通知：按时间汇总（每 ' + (Format-Interval ([double]$script:cfg.notifyIntervalMinutes)) + '）')
+  })
+  $nTime.Checked = ([string]$script:cfg.notifyMode -eq 'time')
+  [void]$notifyItem.DropDownItems.Add($nTime)
+  [void]$notifyItem.DropDownItems.Add((New-MenuItem ('汇总间隔：' + (Format-Interval ([double]$script:cfg.notifyIntervalMinutes)) + '…') ({
+    try {
+      Add-Type -AssemblyName Microsoft.VisualBasic
+      $answer = [Microsoft.VisualBasic.Interaction]::InputBox('每多少分钟汇总一次同步通知？', '同步通知', [string][int][double]$script:cfg.notifyIntervalMinutes)
+      if ($null -eq $answer -or ([string]$answer).Trim() -eq '') { return }
+      $n = 0
+      if (-not [int]::TryParse(([string]$answer).Trim(), [ref]$n) -or $n -lt 1) {
+        Show-Balloon '输入无效' '请输入大于 0 的分钟数。' 'Warning'
+        return
+      }
+      $script:cfg.notifyIntervalMinutes = $n
+      Save-Config $script:cfg
+      Reset-NotifyWindow
+      Write-TrayLog "同步通知汇总间隔：$n 分钟"
+    } catch {
+      Write-TrayLog "设置通知汇总间隔失败：$($_.Exception.Message)"
+    }
+  })))
   $nNever = New-MenuItem '从不' ({
     $script:cfg.notifyMode = 'never'
     Save-Config $script:cfg
@@ -1266,6 +1465,18 @@ function Build-Menu {
     }
   })))
 
+  # ---- 退出密码（明文保存在 config.json）----
+  $hasExitPassword = -not [string]::IsNullOrEmpty([string]$script:cfg.exitPassword)
+  [void]$optItem.DropDownItems.Add((New-MenuItem ('退出密码：' + $(if ($hasExitPassword) { '已设置' } else { '未设置' })) ({
+    $value = Show-TokenDialog '退出密码' '设置后，点击托盘「退出」需要输入此密码。密码以明文保存在 config.json。' '' '留空并确定 = 取消退出密码（退出时不再验证）'
+    if ($null -eq $value) { return }
+    $script:cfg.exitPassword = $value
+    Save-Config $script:cfg
+    Write-TrayLog ('退出密码：' + $(if ($value) { '已设置' } else { '已清除' }))
+    if ($value) { Show-Balloon '退出密码已设置' '以后退出托盘需要输入该密码。' 'Info' }
+    else { Show-Balloon '退出密码已清除' '退出托盘不再需要密码。' 'Info' }
+  })))
+
   [void]$menu.Items.Add($optItem)
 
   # ---- 开机启动 ----
@@ -1319,6 +1530,7 @@ function Build-Menu {
     Stop-Tray
   })))
   [void]$menu.Items.Add((New-MenuItem '退出' ({
+    if (-not (Confirm-ExitPassword)) { return }
     if ($script:running -and $script:proc) {
       # 正在同步时不强杀，等它跑完再退出托盘
       $script:paused = $true
@@ -1437,6 +1649,7 @@ $script:notify.Add_MouseDoubleClick({
 Write-TrayLog "托盘已启动｜仓库 $RepoRoot｜间隔 $($script:cfg.intervalMinutes) 分钟｜node $script:nodeExe"
 $script:lastCleanDate = (Get-Date).Date
 Remove-OldLogs
+Reset-NotifyWindow
 Update-SessionInfo
 Update-UnpushedState
 Update-Tooltip
@@ -1480,7 +1693,7 @@ if ($script:running) {
 try { $script:notify.Visible = $false; $script:notify.Dispose() } catch { }
 try { $script:menu.Dispose() } catch { }
 # 释放图标 HICON / 位图，避免进程退出前的 GDI 句柄泄漏
-foreach ($i in @($script:iconIdle, $script:iconBusy, $script:iconPaused)) { if ($i) { try { $i.Dispose() } catch { } } }
+foreach ($i in @($script:iconIdle, $script:iconBusy, $script:iconPaused, $script:iconSuccess, $script:iconNoSync, $script:iconFail)) { if ($i) { try { $i.Dispose() } catch { } } }
 foreach ($h in $script:iconHandles) { Destroy-IconHandle $h }
 foreach ($b in $script:iconBitmaps) { if ($b) { try { $b.Dispose() } catch { } } }
 if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
