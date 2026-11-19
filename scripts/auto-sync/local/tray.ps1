@@ -6,7 +6,7 @@
 # 特点：
 #   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
 #   · 托盘图标角标：同步中「▶」/ 暂停「‖」/ 上次成功「绿色对钩」/ 上次无需同步「三个小点」/ 上次失败「红色叉」
-#   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 选项（通知模式含时间汇总、退出密码等）/ 开机启动 / 打开日志 / 会话剩余天数 / 退出
+#   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 选项（通知模式含按次数汇总、退出密码等）/ 开机启动 / 打开日志 / 会话剩余天数 / 退出
 #   · 单实例：重复启动会被静默忽略
 #   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
 #   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
@@ -65,8 +65,8 @@ $script:Defaults = [ordered]@{
   stepCommit         = $true   # 步骤开关：生成变更后提交
   stepPush           = $true   # 步骤开关：推送（含补推）
   iconPath           = ''      # 自定义托盘图标（png/jpg/bmp/gif/ico）；留空 = 内置图标
-  notifyMode         = 'always' # always | failure | never | time；time = 按时间汇总弹通知
-  notifyIntervalMinutes = 60   # notifyMode = time 时，每多少分钟汇总弹一次
+  notifyMode         = 'always' # always | failure | never | count；count = 按次数累积汇总弹通知
+  notifyEveryRuns    = 10      # notifyMode = count 时，每累计多少次同步汇总弹一次
   exitPassword       = ''      # 退出密码（明文保存在本文件）；留空 = 退出无需密码
   gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
@@ -101,8 +101,7 @@ $script:lastRunAt = $null
 $script:lastResult = ''
 $script:lastResultKind = ''   # '' | success | nosync | failure | unknown
 $script:lastElapsedText = ''
-$script:notifyWindowStart = $null
-$script:notifyModeApplied = ''   # 已生效的通知模式；外部改 config.json 后用于重置汇总窗口
+$script:notifyModeApplied = ''   # 已生效的通知模式；外部改 config.json 后用于重置累计计数
 $script:lastSaveOk = $true       # 最近一次 Save-Config 是否成功
 $script:notifyTally = @{ success = 0; nosync = 0; failure = 0; unknown = 0 }
 $script:nextRunAt = $null
@@ -186,11 +185,13 @@ function Read-Config {
   $cfg.pullStrategy = $strategy
 
   $mode = ([string]$cfg.notifyMode).Trim().ToLower()
-  if ($mode -ne 'failure' -and $mode -ne 'never' -and $mode -ne 'time') { $mode = 'always' }
+  # 旧配置里的 time 统一映射为 count（时间窗口改为按次数累积）
+  if ($mode -eq 'time') { $mode = 'count' }
+  if ($mode -ne 'failure' -and $mode -ne 'never' -and $mode -ne 'count') { $mode = 'always' }
   $cfg.notifyMode = $mode
 
-  try { $cfg.notifyIntervalMinutes = [math]::Max(1, [double]$cfg.notifyIntervalMinutes) }
-  catch { $cfg.notifyIntervalMinutes = $script:Defaults.notifyIntervalMinutes }
+  try { $cfg.notifyEveryRuns = [math]::Max(1, [int][double]$cfg.notifyEveryRuns) }
+  catch { $cfg.notifyEveryRuns = $script:Defaults.notifyEveryRuns }
 
   $cfg.exitPassword = ([string]$cfg.exitPassword).Trim()
 
@@ -520,53 +521,45 @@ function Test-Notify([bool]$IsFailure) {
   }
 }
 
-# 每次同步结束是否立即弹结果气泡；time 模式改为按时间汇总
+# 每次同步结束是否立即弹结果气泡；count 模式改为按次数累积汇总
 function Test-RunNotify([bool]$IsFailure) {
   switch ([string]$script:cfg.notifyMode) {
     'never' { return $false }
     'failure' { return $IsFailure }
-    'time' { return $false }
+    'count' { return $false }
     default { return $true }
   }
 }
 
-function Reset-NotifyWindow {
-  $script:notifyWindowStart = Get-Date
+function Reset-NotifyTally {
   $script:notifyTally = @{ success = 0; nosync = 0; failure = 0; unknown = 0 }
 }
 
-function Format-NotifyRange([datetime]$Start, [datetime]$End) {
-  if ($Start.Date -eq $End.Date) { return $Start.ToString('HH:mm') + '–' + $End.ToString('HH:mm') }
-  return $Start.ToString('MM-dd HH:mm') + '–' + $End.ToString('MM-dd HH:mm')
-}
-
-# time 模式：累计每次同步的结果，每 N 分钟汇总弹一次
-function Add-TimeNotifyResult([string]$Kind) {
-  if ([string]$script:cfg.notifyMode -ne 'time') { return }
+# count 模式：累计每次同步的结果，每满 N 次汇总弹一次
+function Add-CountNotifyResult([string]$Kind) {
+  if ([string]$script:cfg.notifyMode -ne 'count') { return }
   switch ($Kind) {
     'success' { $script:notifyTally.success++ }
     'nosync' { $script:notifyTally.nosync++ }
     'failure' { $script:notifyTally.failure++ }
     default { $script:notifyTally.unknown++ }
   }
-  if (-not $script:notifyWindowStart) { $script:notifyWindowStart = Get-Date; return }
-  $interval = [double]$script:cfg.notifyIntervalMinutes
-  $now = Get-Date
-  if (($now - $script:notifyWindowStart).TotalMinutes -lt $interval) { return }
 
   $y = [int]$script:notifyTally.success
   $z = [int]$script:notifyTally.nosync
   $a = [int]$script:notifyTally.failure
   $u = [int]$script:notifyTally.unknown
   $total = $y + $z + $a + $u
-  if ($total -le 0) { Reset-NotifyWindow; return }
-  $range = Format-NotifyRange $script:notifyWindowStart $now
+  $every = [int]$script:cfg.notifyEveryRuns
+  if ($every -lt 1) { $every = 1 }
+  if ($total -lt $every) { return }
+
   $unknownText = ''
   if ($u -gt 0) { $unknownText = "、$u 次结果未知" }
-  $text = "在 $range 内，共进行了 $total 次同步。其中 $y 次成功、$z 次无需同步、$a 次失败$unknownText。"
+  $text = "最近 $total 次同步：$y 次成功、$z 次无需同步、$a 次失败$unknownText。"
   if ($a -gt 0 -or $u -gt 0) { Show-Balloon '自动同步汇总' $text 'Warning' }
   else { Show-Balloon '自动同步汇总' $text 'Info' }
-  Reset-NotifyWindow
+  Reset-NotifyTally
 }
 
 # ============================ 会话寿命（离线推算，不联网） ============================
@@ -644,11 +637,11 @@ function Start-SyncRun {
   # 每轮重新读配置：改 config.json（例如换会话 cookie / token / node 路径）后无需重启托盘即可生效
   $script:cfg = Read-Config
 
-  # 直接编辑 config.json 切换通知模式时，重置汇总窗口，避免拿很久以前的窗口起点算时间范围
+  # 直接编辑 config.json 切换通知模式时，重置累计计数，避免沿用旧模式的计数
   $modeNow = [string]$script:cfg.notifyMode
   if ($modeNow -ne $script:notifyModeApplied) {
     $script:notifyModeApplied = $modeNow
-    Reset-NotifyWindow
+    Reset-NotifyTally
   }
   # 启动失败也要有下一轮排期：否则 runOnStart 时一次失败（如 node 暂缺）后就再也不会自动重试
   if (-not $script:nextRunAt) {
@@ -811,7 +804,7 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
 
   Update-IdleStateIcon
 
-  Add-TimeNotifyResult $kind
+  Add-CountNotifyResult $kind
 
   if (Test-RunNotify $isFailure) {
     $text = $msg
@@ -1180,7 +1173,7 @@ function Build-Menu {
   $pullText = $(if ($script:cfg.pullBeforeSync) { '拉取 ' + $script:cfg.pullStrategy } else { '拉取关' })
   $notifyText = @{ always = '每次'; failure = '仅失败'; never = '从不' }[[string]$script:cfg.notifyMode]
   if (-not $notifyText) {
-    if ([string]$script:cfg.notifyMode -eq 'time') { $notifyText = '每 ' + (Format-Interval ([double]$script:cfg.notifyIntervalMinutes)) }
+    if ([string]$script:cfg.notifyMode -eq 'count') { $notifyText = '每 ' + [int]$script:cfg.notifyEveryRuns + ' 次' }
     else { $notifyText = '每次' }
   }
   $retryText = $(if ($script:cfg.retryPush) { '开' } else { '关' })
@@ -1363,31 +1356,31 @@ function Build-Menu {
   })
   $nFailure.Checked = ([string]$script:cfg.notifyMode -eq 'failure')
   [void]$notifyItem.DropDownItems.Add($nFailure)
-  $nTimeLabel = '按时间汇总（每 ' + (Format-Interval ([double]$script:cfg.notifyIntervalMinutes)) + '）'
-  $nTime = New-MenuItem $nTimeLabel ({
-    $script:cfg.notifyMode = 'time'
+  $nCountLabel = '按次数汇总（每 ' + [int]$script:cfg.notifyEveryRuns + ' 次）'
+  $nCount = New-MenuItem $nCountLabel ({
+    $script:cfg.notifyMode = 'count'
     Save-Config $script:cfg
-    Reset-NotifyWindow
-    Write-TrayLog ('同步通知：按时间汇总（每 ' + (Format-Interval ([double]$script:cfg.notifyIntervalMinutes)) + '）')
+    Reset-NotifyTally
+    Write-TrayLog ('同步通知：按次数汇总（每 ' + [int]$script:cfg.notifyEveryRuns + ' 次）')
   })
-  $nTime.Checked = ([string]$script:cfg.notifyMode -eq 'time')
-  [void]$notifyItem.DropDownItems.Add($nTime)
-  [void]$notifyItem.DropDownItems.Add((New-MenuItem ('汇总间隔：' + (Format-Interval ([double]$script:cfg.notifyIntervalMinutes)) + '…') ({
+  $nCount.Checked = ([string]$script:cfg.notifyMode -eq 'count')
+  [void]$notifyItem.DropDownItems.Add($nCount)
+  [void]$notifyItem.DropDownItems.Add((New-MenuItem ('汇总次数：每 ' + [int]$script:cfg.notifyEveryRuns + ' 次…') ({
     try {
       Add-Type -AssemblyName Microsoft.VisualBasic
-      $answer = [Microsoft.VisualBasic.Interaction]::InputBox('每多少分钟汇总一次同步通知？', '同步通知', [string][int][double]$script:cfg.notifyIntervalMinutes)
+      $answer = [Microsoft.VisualBasic.Interaction]::InputBox('每累计多少次同步汇总弹一次通知？', '同步通知', [string][int]$script:cfg.notifyEveryRuns)
       if ($null -eq $answer -or ([string]$answer).Trim() -eq '') { return }
       $n = 0
       if (-not [int]::TryParse(([string]$answer).Trim(), [ref]$n) -or $n -lt 1) {
-        Show-Balloon '输入无效' '请输入大于 0 的分钟数。' 'Warning'
+        Show-Balloon '输入无效' '请输入大于 0 的次数。' 'Warning'
         return
       }
-      $script:cfg.notifyIntervalMinutes = $n
+      $script:cfg.notifyEveryRuns = $n
       Save-Config $script:cfg
-      Reset-NotifyWindow
-      Write-TrayLog "同步通知汇总间隔：$n 分钟"
+      Reset-NotifyTally
+      Write-TrayLog "同步通知汇总次数：每 $n 次"
     } catch {
-      Write-TrayLog "设置通知汇总间隔失败：$($_.Exception.Message)"
+      Write-TrayLog "设置通知汇总次数失败：$($_.Exception.Message)"
     }
   })))
   $nNever = New-MenuItem '从不' ({
@@ -1699,7 +1692,7 @@ $script:notify.Add_MouseDoubleClick({
 Write-TrayLog "托盘已启动｜仓库 $RepoRoot｜间隔 $($script:cfg.intervalMinutes) 分钟｜node $script:nodeExe"
 $script:lastCleanDate = (Get-Date).Date
 Remove-OldLogs
-Reset-NotifyWindow
+Reset-NotifyTally
 Update-SessionInfo
 Update-UnpushedState
 Update-Tooltip
