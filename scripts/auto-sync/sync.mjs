@@ -68,6 +68,22 @@ function currentBranch() {
   }
 }
 
+// ---------- 机器可读结果（仅本地托盘版） ----------
+// GHA 不设 LOCAL_SYNC_RESULT_FILE，所以对 Actions 完全无副作用；
+// 本地托盘版把路径通过环境变量传进来，托盘据此知道「全部已是最新 / 同步了哪些版本 / 失败原因」，
+// 不再靠 grep 日志里的中文措辞。
+function writeResultFile(payload) {
+  const out = (process.env.LOCAL_SYNC_RESULT_FILE || '').trim();
+  if (!out) return;
+  try {
+    writeFileSync(out, JSON.stringify({ ...payload, finishedAt: new Date().toISOString() }, null, 2));
+  } catch { /* 结果文件写失败不影响同步本身 */ }
+}
+
+function rowItem(r) {
+  return { id: r.id, result: r.result, versions: r.taken || [], pruned: r.pruned || [] };
+}
+
 // ---------- 单个版本同步：下载（如缺）→ 取直链 → 写 JSON ----------
 // 返回 { version, files:[{arch|name,url,size}], jsonRel, title } 或 null（无可用资产）
 // 离线下载成功与否只由 h1.offlineDownload 内部按目录文件列表判定（文件名 + size 精确匹配）
@@ -408,6 +424,8 @@ async function main() {
   const t0 = Date.now();
   let overallFailed = false;
   let anyCommit = false;
+  let pushed = false;
+  const errors = [];
 
   // ================= 阶段 1：预探测候选（与 probe.mjs 共用 plan.mjs） =================
   const phase1 = log.child('阶段 1：预探测候选');
@@ -432,6 +450,18 @@ async function main() {
     }));
     log.annotate('notice', `线路1自动同步：全部软件已是最新（${rows.length} 个），本次无操作`);
     log.flushSummary();
+    writeResultFile({
+      ok: !overallFailed,
+      stage: 'sync',
+      allLatest: true,
+      totalMs: Date.now() - t0,
+      softwareTotal: rows.length,
+      softwareOk: rows.filter((r) => r.result.startsWith('✅')).length,
+      committed: false,
+      pushed: false,
+      items: rows.map(rowItem),
+      errors,
+    });
     process.exit(overallFailed ? 1 : 0);
   }
 
@@ -483,6 +513,19 @@ async function main() {
     }));
     log.annotate('error', `线路1自动同步：登录 huang1111 失败 —— ${errText(e)}`);
     log.flushSummary();
+    errors.push(errText(e));
+    writeResultFile({
+      ok: false,
+      stage: 'login',
+      allLatest: false,
+      totalMs: Date.now() - t0,
+      softwareTotal: rows.length,
+      softwareOk: 0,
+      committed: false,
+      pushed: false,
+      items: rows.map(rowItem),
+      errors,
+    });
     process.exit(1);
   }
 
@@ -513,6 +556,7 @@ async function main() {
           const msg = errText(e);
           vScope.close(`❌ 版本 ${cand.version} 同步失败（重试策略已耗尽）：${msg}`, { kind: 'fail' });
           log.annotate('error', `资源 id=${sw.softwareId} 版本 ${cand.version} 同步失败：${msg}`);
+          errors.push(`id=${sw.softwareId} 版本 ${cand.version}：${msg}`);
         }
       }
 
@@ -573,6 +617,7 @@ async function main() {
         if (row) { row.taken = synced.map((s) => s.version); row.result = `❌ 提交失败：${msg}`; }
         scope.close(`❌ 提交失败：${msg}`, { kind: 'fail' });
         log.annotate('error', `资源 id=${sw.softwareId} 提交失败：${msg}`);
+        errors.push(`id=${sw.softwareId} 提交失败：${msg}`);
       }
     } catch (e) {
       overallFailed = true;
@@ -580,6 +625,7 @@ async function main() {
       if (row) { row.result = `❌ ${msg}`; }
       scope.close(`❌ 处理失败：${msg}`, { kind: 'fail' });
       log.annotate('error', `资源 id=${sw.softwareId} 处理失败：${msg}`);
+      errors.push(`id=${sw.softwareId} 处理失败：${msg}`);
     } finally {
       if (row) row.endedAt = Date.now();
     }
@@ -591,8 +637,9 @@ async function main() {
   const pushT0 = Date.now();
   if (anyCommit) {
     try {
-      const pushed = push(phase3);
-      phase3.close(pushed
+      const didPush = push(phase3);
+      if (didPush) pushed = true;
+      phase3.close(didPush
         ? `✅ 推送完成｜用时 ${fmtDur(Date.now() - pushT0)}`
         : '⏭️ 步骤设置：推送已关闭（提交保留在本地）');
     } catch (e) {
@@ -600,6 +647,7 @@ async function main() {
       const msg = errText(e);
       phase3.close(`❌ push 失败：${msg}`, { kind: 'fail' });
       log.annotate('error', `线路1自动同步 push 失败：${msg}`);
+      errors.push(`push 失败：${msg}`);
     }
   } else {
     phase3.close('⏭️ 本次无提交，跳过 push', { body: false });
@@ -625,6 +673,18 @@ async function main() {
     log.annotate('notice', `线路1自动同步完成：${okCount} 个软件，总用时 ${total}`);
   }
   log.flushSummary();
+  writeResultFile({
+    ok: !overallFailed,
+    stage: 'sync',
+    allLatest: false,
+    totalMs: Date.now() - t0,
+    softwareTotal: rows.length,
+    softwareOk: okCount,
+    committed: anyCommit,
+    pushed,
+    items: rows.map(rowItem),
+    errors,
+  });
   process.exit(overallFailed ? 1 : 0);
 }
 

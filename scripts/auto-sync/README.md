@@ -207,7 +207,7 @@ node scripts/auto-sync/probe.mjs
 - **每次运行都会 commit + push 到当前仓库的 `origin`**，默认用本机 git 凭据（SSH key / credential helper）；若在托盘「选项 → GitHub 令牌（拉取/推送）」填了 PAT，则改用该令牌（通过 `http.extraheader` 临时注入，不写入 `.git/config`，也不拼进 remote URL）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
 - **每轮固定顺序：`git pull` → `sync.mjs` → 补推**（`run-sync.mjs` 负责编排）。拉取失败（远端冲突、工作区有未提交改动、超时）会**取消本轮**，不下载也不提交；若是 rebase 冲突，会自动 `rebase --abort` 把仓库还原到拉取前
 - push 失败（超时或远端已有新提交）时，提交留在本地；**下一次同步成功后会自动补推**（`retryPush`）。若补推仍失败，托盘持续显示「待推 N」并提示；也可手动 `git pull --rebase && git push`
-- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不
+- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不。气泡文字来自本轮的结构化结果 `sync-<时间>.result.json`（与日志同目录）：能区分「全部已是最新」「同步成功 N/M 及具体版本」「登录/拉取/补推失败原因」，而不是从日志里猜；结果文件缺失时才退回日志关键字
 - 拉取开关、拉取方式（rebase / ff-only）、失败补推都可在托盘「选项」菜单里即时切换，也可直接改 `config.json`（下一轮生效）
 - **步骤设置**（托盘「选项 → 步骤设置」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`

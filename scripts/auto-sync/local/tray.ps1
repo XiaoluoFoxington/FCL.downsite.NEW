@@ -88,6 +88,7 @@ $script:proc = $null
 $script:runStartedAt = $null
 $script:runLog = ''
 $script:runErrLog = ''
+$script:runResult = ''
 $script:unpushedCount = 0
 $script:unpushedBranch = ''
 $script:branchLocal = ''
@@ -564,6 +565,9 @@ function Start-SyncRun {
   $script:runLog = Join-Path $runLogDir "sync-$stamp.log"
   $errLog = Join-Path $runLogDir "sync-$stamp.err.log"
   $script:runErrLog = $errLog
+  # 机器可读结果：run-sync/sync 写这个文件，托盘据此得知「已是最新 / 同步了哪些版本 / 失败原因」
+  $script:runResult = Join-Path $runLogDir "sync-$stamp.result.json"
+  $env:LOCAL_SYNC_RESULT_FILE = $script:runResult
 
   try {
     # -NoNewWindow 与重定向是唯一合法组合（-WindowStyle Hidden 与重定向冲突会报错）；
@@ -588,11 +592,61 @@ function Start-SyncRun {
   }
 }
 
-function Get-RunSummary([string]$LogPath, [string]$ErrPath = '') {
+# 读取 run-sync/sync 写出的 result.json；文件不存在或损坏时返回 $null（走日志兜底）
+function Read-RunResult([string]$Path) {
+  if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $null }
+  try {
+    return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
+  } catch {
+    Write-TrayLog "结果文件解析失败：$($_.Exception.Message)"
+    return $null
+  }
+}
+
+# 把结构化结果压成气泡/日志用的一行摘要（不靠日志里的中文措辞）
+function Format-RunResult($r) {
+  if (-not $r) { return '' }
+  $parts = @()
+  $errs = @($r.errors | Where-Object { $_ })
+  if (-not $r.ok) {
+    $parts += '失败'
+    if ([string]$r.stage -eq 'pull') { $parts += '本轮已取消（拉取失败）' }
+    elseif ([string]$r.stage -eq 'login') { $parts += '登录失败' }
+    elseif ([int]$r.softwareTotal -gt 0) { $parts += ('成功 ' + [int]$r.softwareOk + '/' + [int]$r.softwareTotal) }
+    if ($errs.Count -gt 0) { $parts += ('原因：' + [string]$errs[0]) }
+  } elseif ($r.allLatest) {
+    $parts += ('全部内容均为最新（' + [int]$r.softwareTotal + ' 个）')
+  } elseif ($r.syncSkipped) {
+    $parts += '同步步骤已关闭（本轮未执行同步）'
+  } else {
+    $parts += ('同步成功 ' + [int]$r.softwareOk + '/' + [int]$r.softwareTotal)
+    $parts += $(if ($r.committed) { '已提交' } else { '无提交' })
+    if ($r.pushed) { $parts += '已推送' }
+    $changed = @(@($r.items) | Where-Object { $_ -and @($_.versions).Count -gt 0 })
+    if ($changed.Count -gt 0) {
+      $list = ($changed | Select-Object -First 3 | ForEach-Object {
+        '条目 ' + $_.id + '：' + (@($_.versions) -join '、')
+      }) -join '；'
+      if ($changed.Count -gt 3) { $list += ' 等 ' + $changed.Count + ' 个条目' }
+      $parts += $list
+    }
+  }
+  if ($r.retryPush -and -not $r.retryPush.ok) { $parts += '补推失败，提交保留到下次' }
+  return ($parts -join '｜')
+}
+
+function Get-RunSummary([string]$LogPath, [string]$ErrPath = '', [string]$ResultPath = '') {
+  # 优先读结构化结果文件；缺失（旧版脚本 / 进程崩溃）才退回日志关键字
+  $result = Read-RunResult $ResultPath
+  if ($result) {
+    $text = Format-RunResult $result
+    if ($text) { return $text }
+  }
+
   if (-not $LogPath -or -not (Test-Path -LiteralPath $LogPath)) { return '' }
   try {
     $lines = Get-Content -LiteralPath $LogPath -Encoding UTF8 -ErrorAction SilentlyContinue
-    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|全部软件已是最新|登录 huang1111 失败|push 失败|同步失败|拉取失败|已取消|补推' } |
+    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|全部软件已是最新|登录失败|push 失败|同步失败|拉取失败|已取消|补推' } |
       Select-Object -Last 2
     $text = (($hit | ForEach-Object { ([string]$_).Trim() }) -join ' / ')
     if (-not $text -and $ErrPath -and (Test-Path -LiteralPath $ErrPath)) {
@@ -628,7 +682,7 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
     $script:lastResult = "❌ 失败（退出码 $ExitCode）"
   }
 
-  $summary = Get-RunSummary $script:runLog $script:runErrLog
+  $summary = Get-RunSummary $script:runLog $script:runErrLog $script:runResult
   $minutes = [double]$script:cfg.intervalMinutes
   $script:nextRunAt = (Get-Date).AddMinutes($minutes)
 

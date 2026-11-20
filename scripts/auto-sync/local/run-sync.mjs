@@ -22,6 +22,8 @@
 //   LOCAL_SYNC_STEP_COMMIT=0|1         步骤：提交（由 sync.mjs 读取）
 //   LOCAL_SYNC_STEP_PUSH=0|1           步骤：推送（含补推）
 //                                      四项全关 = 暂停，由托盘兜底拦截
+//   LOCAL_SYNC_RESULT_FILE=...         机器可读结果 JSON 的输出路径（托盘注入）；
+//                                      未设置时完全不写文件（GHA 走这条）
 //
 // 退出码：0 成功；1 失败；2 拉取失败已取消
 
@@ -34,6 +36,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..', '..', '..');
 const SYNC_SCRIPT = path.join(ROOT, 'scripts', 'auto-sync', 'sync.mjs');
 
+const RESULT_FILE = (process.env.LOCAL_SYNC_RESULT_FILE || '').trim();
+const RUN_STARTED_AT = new Date().toISOString();
 const PULL_ENABLED = process.env.LOCAL_SYNC_PULL !== '0';
 const PULL_STRATEGY = process.env.LOCAL_SYNC_PULL_STRATEGY === 'ff-only' ? 'ff-only' : 'rebase';
 const PULL_TIMEOUT_MS = toPositiveInt(process.env.LOCAL_SYNC_PULL_TIMEOUT_MS, 10 * 60 * 1000);
@@ -67,6 +71,23 @@ function toPositiveInt(raw, fallback) {
 
 function line(text = '') {
   process.stdout.write(`${text}\n`);
+}
+
+// ---------- 机器可读结果（仅托盘版：LOCAL_SYNC_RESULT_FILE 由 tray.ps1 注入） ----------
+function readSyncResult() {
+  if (!RESULT_FILE) return null;
+  try {
+    return JSON.parse(fs.readFileSync(RESULT_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function writeResult(payload) {
+  if (!RESULT_FILE) return;
+  try {
+    fs.writeFileSync(RESULT_FILE, JSON.stringify({ ...payload, finishedAt: new Date().toISOString() }, null, 2));
+  } catch { /* 结果文件写失败不影响同步本身 */ }
 }
 
 function fmtMs(ms) {
@@ -140,22 +161,22 @@ function pull() {
 
   if (!STEPS.pull) {
     line('（步骤设置：拉取已关闭，跳过）');
-    return true;
+    return { ok: true, skipped: true, strategy: PULL_STRATEGY, ms: 0, error: null };
   }
 
   if (!PULL_ENABLED) {
     line('（pullBeforeSync 已关闭，跳过拉取）');
-    return true;
+    return { ok: true, skipped: true, strategy: PULL_STRATEGY, ms: 0, error: null };
   }
 
   const branch = currentBranch();
   if (!branch) {
     line('❌ 当前处于 detached HEAD，无法安全拉取，已取消本次同步');
-    return false;
+    return { ok: false, skipped: false, strategy: PULL_STRATEGY, ms: 0, error: '当前处于 detached HEAD，无法安全拉取' };
   }
   if (rebaseInProgress()) {
     line('❌ 仓库里有未完成的 rebase，已取消本次同步（不替你 abort，请手动处理）');
-    return false;
+    return { ok: false, skipped: false, strategy: PULL_STRATEGY, ms: 0, error: '仓库里有未完成的 rebase' };
   }
 
   const baseArgs = PULL_STRATEGY === 'ff-only' ? ['pull', '--ff-only'] : ['pull', '--rebase'];
@@ -164,15 +185,19 @@ function pull() {
   const t0 = Date.now();
   const r = git(strategyArgs, { timeout: PULL_TIMEOUT_MS });
 
+  let error = null;
   if (r.error && r.error.code === 'ETIMEDOUT') {
-    line(`❌ git pull 超时（${fmtMs(PULL_TIMEOUT_MS)}），已取消本次同步`);
+    error = `git pull 超时（${fmtMs(PULL_TIMEOUT_MS)}）`;
+    line(`❌ ${error}，已取消本次同步`);
   } else if (r.error) {
-    line(`❌ 无法执行 git pull：${r.error.message}，已取消本次同步`);
+    error = `无法执行 git pull：${r.error.message}`;
+    line(`❌ ${error}，已取消本次同步`);
   } else if (r.status !== 0) {
-    line(`❌ git pull 失败（退出码 ${r.status}），已取消本次同步`);
+    error = `git pull 失败（退出码 ${r.status}）`;
+    line(`❌ ${error}，已取消本次同步`);
   } else {
     line(`✅ 已拉取 ${upstreamRef() || `origin/${branch}`}｜用时 ${fmtMs(Date.now() - t0)}`);
-    return true;
+    return { ok: true, skipped: false, strategy: PULL_STRATEGY, ms: Date.now() - t0, error: null };
   }
 
   // pull --rebase 冲突会停在半截 rebase；既然拉取要取消，顺手把状态回滚干净
@@ -182,41 +207,41 @@ function pull() {
       ? '已回滚未完成的 rebase（工作区恢复到拉取前）'
       : '⚠ 回滚 rebase 失败，请手动检查仓库状态');
   }
-  return false;
+  return { ok: false, skipped: false, strategy: PULL_STRATEGY, ms: Date.now() - t0, error };
 }
 
 function pushLeftovers() {
   if (!STEPS.push) {
     line('');
     line('（步骤设置：推送已关闭，跳过补推）');
-    return 0;
+    return { ok: true, skipped: true, ahead: 0, ms: 0, error: null };
   }
 
   const target = pushTarget();
-  if (!target) return 0;
+  if (!target) return { ok: true, skipped: true, ahead: 0, ms: 0, error: null };
 
   const ahead = aheadCount(currentBranch());
-  if (ahead <= 0) return 0;
+  if (ahead <= 0) return { ok: true, skipped: true, ahead: 0, ms: 0, error: null };
 
   line('');
   line(`========== 本地收尾：补推 ${ahead} 个未推送提交 ==========`);
   const t0 = Date.now();
   const r = git(['push', target.remote, `HEAD:${target.ref}`], { timeout: PUSH_TIMEOUT_MS });
 
+  let error = null;
   if (r.error && r.error.code === 'ETIMEDOUT') {
-    line(`❌ 补推超时（${fmtMs(PUSH_TIMEOUT_MS)}），提交保留到下次同步再补推`);
-    return 1;
+    error = `补推超时（${fmtMs(PUSH_TIMEOUT_MS)}）`;
+  } else if (r.error) {
+    error = `无法执行 git push：${r.error.message}`;
+  } else if (r.status !== 0) {
+    error = `补推失败（退出码 ${r.status}）`;
   }
-  if (r.error) {
-    line(`❌ 无法执行 git push：${r.error.message}，提交保留到下次同步再补推`);
-    return 1;
-  }
-  if (r.status !== 0) {
-    line(`❌ 补推失败（退出码 ${r.status}），提交保留到下次同步再补推`);
-    return 1;
+  if (error) {
+    line(`❌ ${error}，提交保留到下次同步再补推`);
+    return { ok: false, skipped: false, ahead, ms: Date.now() - t0, error };
   }
   line(`✅ 已补推 ${target.remote}/${target.ref}｜用时 ${fmtMs(Date.now() - t0)}`);
-  return 0;
+  return { ok: true, skipped: false, ahead, ms: Date.now() - t0, error: null };
 }
 
 // ============ 主流程 ============
@@ -233,13 +258,28 @@ if (GIT_TOKEN) {
   }
 }
 
-if (!pull()) {
+const pullResult = pull();
+if (!pullResult.ok) {
   line('');
   line('❌ 拉取失败，本次同步已取消（未下载、未提交）');
+  writeResult({
+    ok: false,
+    stage: 'pull',
+    allLatest: false,
+    softwareTotal: 0,
+    softwareOk: 0,
+    committed: false,
+    pushed: false,
+    items: [],
+    errors: [pullResult.error || '拉取失败'],
+    pull: pullResult,
+    startedAt: RUN_STARTED_AT,
+  });
   process.exit(2);
 }
 
 let code = 0;
+let syncError = null;
 if (!STEPS.sync) {
   line('');
   line('（步骤设置：同步已关闭，跳过 sync.mjs）');
@@ -253,10 +293,12 @@ if (!STEPS.sync) {
   });
 
   if (syncRun.error) {
-    line(`❌ 无法启动 sync.mjs：${syncRun.error.message}`);
+    syncError = `无法启动 sync.mjs：${syncRun.error.message}`;
+    line(`❌ ${syncError}`);
     code = 1;
   } else if (syncRun.status === null) {
-    line('❌ sync.mjs 被异常终止（无退出码）');
+    syncError = 'sync.mjs 被异常终止（无退出码）';
+    line(`❌ ${syncError}`);
     code = 1;
   } else {
     code = syncRun.status;
@@ -264,9 +306,36 @@ if (!STEPS.sync) {
 }
 
 // 只有本次成功且推送步骤开启时才补推：失败时把历史提交继续留着，避免故障状态下越推越乱
+let retryResult = null;
 if (code === 0 && STEPS.push && RETRY_PUSH) {
-  const retryCode = pushLeftovers();
-  if (retryCode !== 0) code = retryCode;
+  retryResult = pushLeftovers();
+  if (!retryResult.ok) code = 1;
 }
+
+// 汇总最终结果：sync.mjs 已写过的字段（明细）原样带上，这里补上拉取/补推/整体结论。
+// sync.mjs 没写出结果文件（崩溃 / 未执行）时也能给出可读结论。
+const syncResult = STEPS.sync ? readSyncResult() : null;
+const errors = [];
+if (syncResult && Array.isArray(syncResult.errors)) errors.push(...syncResult.errors);
+if (syncError) errors.push(syncError);
+if (STEPS.sync && !syncResult && !syncError && code !== 0) errors.push('同步脚本未产出结果文件，详见日志');
+if (retryResult && !retryResult.ok && retryResult.error) errors.push(retryResult.error);
+
+writeResult({
+  allLatest: false,
+  softwareTotal: 0,
+  softwareOk: 0,
+  committed: false,
+  pushed: false,
+  items: [],
+  ...(syncResult || {}),
+  ok: code === 0,
+  stage: 'done',
+  syncSkipped: !STEPS.sync,
+  pull: pullResult,
+  retryPush: retryResult || undefined,
+  errors,
+  startedAt: RUN_STARTED_AT,
+});
 
 process.exit(code);
