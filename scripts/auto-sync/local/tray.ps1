@@ -70,6 +70,7 @@ $script:Defaults = [ordered]@{
   iconPath           = ''      # 自定义托盘图标（png/jpg/bmp/gif/ico）；留空 = 内置图标
   notifyMode         = 'always' # always | failure | never | accumulate；同步通知策略
   notifyEveryRuns    = 5       # notifyMode = accumulate 时，每多少次同步汇总提醒一次
+  silentErrors       = $false  # accumulate 时是否静默非周期错误（只写日志/进汇总，不即时弹气泡）
   exitPassword       = ''      # 退出/重新启动密码；留空 = 不校验（明文保存在本文件）
   gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
@@ -177,7 +178,7 @@ function Read-Config {
   }
 
   # 手写 "false"/"0" 这种字符串时也按布尔处理
-  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush')) {
+  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush', 'silentErrors')) {
     $v = $cfg[$k]
     if ($v -is [string]) {
       $s = ([string]$v).Trim().ToLower()
@@ -493,6 +494,11 @@ function Test-Notify([bool]$IsFailure) {
   }
 }
 
+# 累积模式下的「静默错误」：非周期错误只写日志/进汇总，不即时弹气泡
+function Test-SilentError {
+  return ([string]$script:cfg.notifyMode -eq 'accumulate' -and [bool]$script:cfg.silentErrors)
+}
+
 # ============================ 会话寿命（离线推算，不联网） ============================
 
 function Update-SessionInfo {
@@ -554,7 +560,7 @@ function Update-UnpushedState {
       # 推送步骤关着时，未推送是预期状态，别反复弹气泡
       Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '，推送步骤已关闭）')
     } else {
-      if (Test-Notify $true) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
+      if ((Test-Notify $true) -and -not (Test-SilentError)) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
       Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '）')
     }
   }
@@ -731,6 +737,12 @@ function Show-RunNotice([string]$Text, [bool]$IsFailure, [string]$Elapsed = '') 
   else { Show-Balloon '自动同步完成' $body 'Info' }
 }
 
+# 清空累积计数（改累积次数时也要重置，避免用旧计数立刻触发）
+function Reset-AccumulateState {
+  $script:notifyRunCount = 0
+  $script:notifyStats = @{ success = 0; latest = 0; failed = 0 }
+}
+
 # notifyMode = accumulate：攒够 notifyEveryRuns 次再汇总弹一次
 function Update-AccumulatedNotice([string]$Outcome) {
   $every = 0
@@ -748,8 +760,7 @@ function Update-AccumulatedNotice([string]$Outcome) {
   $kind = $(if ($script:notifyStats.failed -gt 0) { 'Warning' } else { 'Info' })
   Show-Balloon '自动同步累积提醒' $text $kind
   Write-TrayLog "累积提醒：$text"
-  $script:notifyRunCount = 0
-  $script:notifyStats = @{ success = 0; latest = 0; failed = 0 }
+  Reset-AccumulateState
 }
 
 # 同步被系统关机/注销打断时，结束后只提醒用户重新操作，不替用户发起关机（避免违背其取消意图）
@@ -1372,12 +1383,23 @@ function Build-Menu {
       }
       $script:cfg.notifyEveryRuns = $n
       Save-Config $script:cfg
-      Write-TrayLog "累积提醒次数：$n"
-      Show-Balloon '累积次数已修改' "之后每 $n 次同步汇总提醒一次。" 'Info'
+      # 计数口径变了，旧计数作废，从下一轮重新累计
+      Reset-AccumulateState
+      Write-TrayLog "累积提醒次数：$n（计数已重置）"
+      Show-Balloon '累积次数已修改' "之后每 $n 次同步汇总提醒一次（已重新计数）。" 'Info'
     } catch {
       Write-TrayLog "设置累积次数失败：$($_.Exception.Message)"
     }
   })))
+
+  # 静默错误：仅累积模式生效，非周期错误（如「有本地提交未推送」）只写日志不弹气泡
+  $nSilent = New-MenuItem '静默错误（仅累积模式）' ({
+    $script:cfg.silentErrors = -not $script:cfg.silentErrors
+    Save-Config $script:cfg
+    Write-TrayLog ('静默错误：' + $(if ($script:cfg.silentErrors) { '开' } else { '关' }))
+  })
+  $nSilent.Checked = [bool]$script:cfg.silentErrors
+  [void]$notifyItem.DropDownItems.Add($nSilent)
   [void]$optItem.DropDownItems.Add($notifyItem)
 
   [void]$optItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))

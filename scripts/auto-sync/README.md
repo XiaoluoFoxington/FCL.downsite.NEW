@@ -194,7 +194,8 @@ node scripts/auto-sync/probe.mjs
 | `stepPush` | `true` | 步骤开关：`git push`（含补推）；关闭时提交只留在本地 |
 | `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标：同步中白色右三角、暂停「‖」、空闲时上次成功绿点 / 已是最新蓝点 / 失败红点（还没跑过则不显示） |
 | `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 / `accumulate` 累积（每 `notifyEveryRuns` 次汇总弹一次） |
-| `notifyEveryRuns` | `5` | `notifyMode=accumulate` 时的累积周期（次）；托盘「选项 → 同步通知 → 累积次数」可改 |
+| `notifyEveryRuns` | `5` | `notifyMode=accumulate` 时的累积周期（次）；托盘「选项 → 同步通知 → 累积次数」可改（改后计数重置） |
+| `silentErrors` | `false` | 仅 `accumulate` 生效：静默非周期错误（如「有本地提交未推送」），只写日志不即时弹气泡 |
 | `exitPassword` | `""` | 退出/重新启动密码，明文保存；留空 = 不校验。托盘「选项 → 退出密码」可设/改/清除 |
 | `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「选项 → 提交身份」可设） |
 | `gitUserName` | `""` | `gitIdentityMode=custom` 时的 `user.name` |
