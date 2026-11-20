@@ -5,7 +5,11 @@
 #
 # 特点：
 #   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
-#   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 开机启动 / 打开日志 / 会话剩余天数 / 退出
+#   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 同步通知（含累积）/
+#              退出密码 / 开机启动 / 打开日志 / 会话剩余天数 / 退出
+#   · 角标：同步中白色右三角、暂停「‖」、空闲时上次成功绿点 / 已是最新蓝点 / 失败红点
+#   · 退出密码：设置后「退出 / 重新启动 / 修改密码」都要先输对密码（明文存 config.json）
+#   · 同步中被系统关机或注销会先阻止，同步结束后提醒重新操作（不自动关机）
 #   · 单实例：重复启动会被静默忽略
 #   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
 #   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
@@ -64,7 +68,10 @@ $script:Defaults = [ordered]@{
   stepCommit         = $true   # 步骤开关：生成变更后提交
   stepPush           = $true   # 步骤开关：推送（含补推）
   iconPath           = ''      # 自定义托盘图标（png/jpg/bmp/gif/ico）；留空 = 内置图标
-  notifyMode         = 'always' # always | failure | never；每次同步是否弹通知
+  notifyMode         = 'always' # always | failure | never | accumulate；同步通知策略
+  notifyEveryRuns    = 5       # notifyMode = accumulate 时，每多少次同步汇总提醒一次
+  silentErrors       = $false  # accumulate 时是否静默非周期错误（只写日志/进汇总，不即时弹气泡）
+  exitPassword       = ''      # 退出/重新启动密码；留空 = 不校验（明文保存在本文件）
   gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
   gitUserEmail       = ''      # gitIdentityMode = custom 时的提交邮箱
@@ -78,6 +85,9 @@ $script:menu = $null
 $script:iconIdle = $null
 $script:iconBusy = $null
 $script:iconPaused = $null
+$script:iconOk = $null
+$script:iconLatest = $null
+$script:iconFail = $null
 $script:iconBitmaps = @()
 $script:iconHandles = @()
 $script:baseIconBitmap = $null
@@ -88,14 +98,22 @@ $script:proc = $null
 $script:runStartedAt = $null
 $script:runLog = ''
 $script:runErrLog = ''
+$script:runResult = ''
 $script:unpushedCount = 0
 $script:unpushedBranch = ''
 $script:branchLocal = ''
 $script:lastRunAt = $null
 $script:lastResult = ''
+$script:lastOutcome = ''   # success | latest | failed | ''（还没跑过）
 $script:lastElapsedText = ''
 $script:nextRunAt = $null
 $script:paused = $false
+$script:exitRequested = $false
+# notifyMode = accumulate 的内存计数（重启托盘后重新计数）
+$script:notifyRunCount = 0
+$script:notifyStats = @{ success = 0; latest = 0; failed = 0 }
+# 同步中被系统关机/注销打断时暂存请求，同步结束后再继续
+$script:pendingSessionEnd = $null
 $script:sessionText = '会话：未检查'
 $script:sessionDaysLeft = $null
 $script:nodeVersion = ''
@@ -160,7 +178,7 @@ function Read-Config {
   }
 
   # 手写 "false"/"0" 这种字符串时也按布尔处理
-  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush')) {
+  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush', 'silentErrors')) {
     $v = $cfg[$k]
     if ($v -is [string]) {
       $s = ([string]$v).Trim().ToLower()
@@ -175,8 +193,11 @@ function Read-Config {
   $cfg.pullStrategy = $strategy
 
   $mode = ([string]$cfg.notifyMode).Trim().ToLower()
-  if ($mode -ne 'failure' -and $mode -ne 'never') { $mode = 'always' }
+  if ($mode -ne 'failure' -and $mode -ne 'never' -and $mode -ne 'accumulate') { $mode = 'always' }
   $cfg.notifyMode = $mode
+
+  try { $cfg.notifyEveryRuns = [math]::Max(1, [int][double]$cfg.notifyEveryRuns) }
+  catch { $cfg.notifyEveryRuns = $script:Defaults.notifyEveryRuns }
 
   $identity = ([string]$cfg.gitIdentityMode).Trim().ToLower()
   if ($identity -ne 'git' -and $identity -ne 'custom') { $identity = 'script' }
@@ -303,7 +324,7 @@ function New-BaseIconBitmap {
   return $bmp
 }
 
-# 在底图右下角叠状态角标：none = 无角标 / dot = 圆点 / pause = 暂停图标
+# 在底图右下角叠状态角标：none = 无角标 / dot = 圆点 / play = 向右三角 / pause = 暂停图标
 function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
   $size = 32
   $bmp = [System.Drawing.Bitmap]::new($size, $size)
@@ -344,6 +365,26 @@ function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
     $g.FillRectangle($bar, $x, $y, $barW, $barH)
     $g.FillRectangle($bar, $x + $barW + $gap, $y, $barW, $barH)
     $bar.Dispose()
+  } elseif ($Badge -eq 'play') {
+    # 向右的白色实心三角，与暂停角标同位置、同风格
+    $w = 9
+    $h = 10
+    $x = $size - $w - 2
+    $y = $size - $h - 1
+    # 透明挖空角标四周一圈，替代描边
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+    $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
+    $g.FillRectangle($clear, $x - 2, $y - 2, $w + 4, $h + 4)
+    $clear.Dispose()
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+    $points = [System.Drawing.Point[]]@(
+      [System.Drawing.Point]::new($x, $y),
+      [System.Drawing.Point]::new($x, $y + $h),
+      [System.Drawing.Point]::new($x + $w, $y + [int][math]::Floor($h / 2))
+    )
+    $brush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
+    $g.FillPolygon($brush, $points)
+    $brush.Dispose()
   }
 
   $g.Dispose()
@@ -361,7 +402,8 @@ function Destroy-IconHandle([IntPtr]$Handle) {
 }
 
 function Update-TrayIcons {
-  $oldIcons = @($script:iconIdle, $script:iconBusy, $script:iconPaused) | Where-Object { $_ }
+  $oldIcons = @($script:iconIdle, $script:iconBusy, $script:iconPaused, $script:iconOk, $script:iconLatest, $script:iconFail) |
+    Where-Object { $_ }
   $oldBitmaps = $script:iconBitmaps
   $oldHandles = $script:iconHandles
   $script:iconBitmaps = @()
@@ -371,8 +413,11 @@ function Update-TrayIcons {
   $script:baseIconBitmap = New-BaseIconBitmap
 
   $script:iconIdle = New-TrayIcon 'none'
-  $script:iconBusy = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(255, 214, 0))
+  $script:iconBusy = New-TrayIcon 'play'
   $script:iconPaused = New-TrayIcon 'pause'
+  $script:iconOk = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(0, 255, 0))
+  $script:iconLatest = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(0, 0, 255))
+  $script:iconFail = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(255, 0, 0))
 
   # 先让托盘切到新图标，再释放旧图标、HICON 与位图
   Update-TrayIcon $script:trayState
@@ -384,7 +429,15 @@ function Update-TrayIcons {
 function Update-IdleStateIcon {
   if ($script:running) { Update-TrayIcon 'busy' }
   elseif (Test-EffectivePaused) { Update-TrayIcon 'paused' }
-  else { Update-TrayIcon 'idle' }
+  else {
+    # 空闲时显示上一次同步结果；还没跑过则无角标
+    switch ([string]$script:lastOutcome) {
+      'success' { Update-TrayIcon 'ok' }
+      'latest' { Update-TrayIcon 'latest' }
+      'failed' { Update-TrayIcon 'failed' }
+      default { Update-TrayIcon 'idle' }
+    }
+  }
 }
 
 function Update-TrayIcon([string]$State) {
@@ -393,7 +446,10 @@ function Update-TrayIcon([string]$State) {
   switch ($State) {
     'busy' { $script:notify.Icon = $script:iconBusy }
     'paused' { $script:notify.Icon = $script:iconPaused }
-    default { $script:notify.Icon = $script:iconIdle } # idle / error：无角标
+    'ok' { $script:notify.Icon = $script:iconOk }
+    'latest' { $script:notify.Icon = $script:iconLatest }
+    'failed' { $script:notify.Icon = $script:iconFail }
+    default { $script:notify.Icon = $script:iconIdle } # idle：无角标
   }
 }
 
@@ -436,6 +492,11 @@ function Test-Notify([bool]$IsFailure) {
     'failure' { return $IsFailure }
     default { return $true }
   }
+}
+
+# 累积模式下的「静默错误」：非周期错误只写日志/进汇总，不即时弹气泡
+function Test-SilentError {
+  return ([string]$script:cfg.notifyMode -eq 'accumulate' -and [bool]$script:cfg.silentErrors)
 }
 
 # ============================ 会话寿命（离线推算，不联网） ============================
@@ -499,7 +560,7 @@ function Update-UnpushedState {
       # 推送步骤关着时，未推送是预期状态，别反复弹气泡
       Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '，推送步骤已关闭）')
     } else {
-      if (Test-Notify $true) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
+      if ((Test-Notify $true) -and -not (Test-SilentError)) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
       Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '）')
     }
   }
@@ -564,6 +625,9 @@ function Start-SyncRun {
   $script:runLog = Join-Path $runLogDir "sync-$stamp.log"
   $errLog = Join-Path $runLogDir "sync-$stamp.err.log"
   $script:runErrLog = $errLog
+  # 机器可读结果：run-sync/sync 写这个文件，托盘据此得知「已是最新 / 同步了哪些版本 / 失败原因」
+  $script:runResult = Join-Path $runLogDir "sync-$stamp.result.json"
+  $env:LOCAL_SYNC_RESULT_FILE = $script:runResult
 
   try {
     # -NoNewWindow 与重定向是唯一合法组合（-WindowStyle Hidden 与重定向冲突会报错）；
@@ -578,21 +642,74 @@ function Start-SyncRun {
       -PassThru
     $script:running = $true
     $script:runStartedAt = Get-Date
-    Update-TrayIcon 'busy'    Write-TrayLog "开始同步（PID $($script:proc.Id)）→ $script:runLog"
+    Update-TrayIcon 'busy'; Write-TrayLog "开始同步（PID $($script:proc.Id)）→ $script:runLog"
   } catch {
     $script:proc = $null
     $script:running = $false
-    Update-TrayIcon 'error'
+    $script:lastOutcome = 'failed'
+    Update-IdleStateIcon
     Show-Balloon '启动同步失败' $_.Exception.Message 'Error'
     Write-TrayLog "启动同步异常：$($_.Exception.Message)"
   }
 }
 
-function Get-RunSummary([string]$LogPath, [string]$ErrPath = '') {
+# 读取 run-sync/sync 写出的 result.json；文件不存在或损坏时返回 $null（走日志兜底）
+function Read-RunResult([string]$Path) {
+  if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $null }
+  try {
+    return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
+  } catch {
+    Write-TrayLog "结果文件解析失败：$($_.Exception.Message)"
+    return $null
+  }
+}
+
+# 把结构化结果压成气泡/日志用的一行摘要（不靠日志里的中文措辞）
+function Format-RunResult($r) {
+  if (-not $r) { return '' }
+  # 空 / 损坏的 JSON 不能当有效结果，否则会显示「同步成功 0/0」
+  $props = $r.PSObject.Properties
+  if (-not $props['ok'] -or -not $props['softwareTotal']) { return '' }
+  $parts = @()
+  $errs = @($r.errors | Where-Object { $_ })
+  if (-not $r.ok) {
+    $parts += '失败'
+    if ([string]$r.stage -eq 'pull') { $parts += '本轮已取消（拉取失败）' }
+    elseif ([string]$r.stage -eq 'login') { $parts += '登录失败' }
+    elseif ([int]$r.softwareTotal -gt 0) { $parts += ('成功 ' + [int]$r.softwareOk + '/' + [int]$r.softwareTotal) }
+    if ($errs.Count -gt 0) { $parts += ('原因：' + [string]$errs[0]) }
+  } elseif ($r.allLatest) {
+    $parts += ('全部内容均为最新（' + [int]$r.softwareTotal + ' 个）')
+  } elseif ($r.syncSkipped) {
+    $parts += '同步步骤已关闭（本轮未执行同步）'
+  } else {
+    $parts += ('同步成功 ' + [int]$r.softwareOk + '/' + [int]$r.softwareTotal)
+    $parts += $(if ($r.committed) { '已提交' } else { '无提交' })
+    if ($r.pushed) { $parts += '已推送' }
+    $changed = @(@($r.items) | Where-Object { $_ -and @($_.versions).Count -gt 0 })
+    if ($changed.Count -gt 0) {
+      $list = ($changed | Select-Object -First 3 | ForEach-Object {
+        '条目 ' + $_.id + '：' + (@($_.versions) -join '、')
+      }) -join '；'
+      if ($changed.Count -gt 3) { $list += ' 等 ' + $changed.Count + ' 个条目' }
+      $parts += $list
+    }
+  }
+  if ($r.retryPush -and -not $r.retryPush.ok) { $parts += '补推失败，提交保留到下次' }
+  return ($parts -join '｜')
+}
+
+function Get-RunSummary([string]$LogPath, [string]$ErrPath = '', $Result = $null) {
+  # 优先用调用方已解析好的结构化结果；缺失（旧版脚本 / 进程崩溃 / JSON 损坏）才退回日志关键字
+  if ($Result) {
+    $text = Format-RunResult $Result
+    if ($text) { return $text }
+  }
+
   if (-not $LogPath -or -not (Test-Path -LiteralPath $LogPath)) { return '' }
   try {
     $lines = Get-Content -LiteralPath $LogPath -Encoding UTF8 -ErrorAction SilentlyContinue
-    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|全部软件已是最新|登录 huang1111 失败|push 失败|同步失败|拉取失败|已取消|补推' } |
+    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|全部软件已是最新|登录失败|push 失败|同步失败|拉取失败|已取消|补推' } |
       Select-Object -Last 2
     $text = (($hit | ForEach-Object { ([string]$_).Trim() }) -join ' / ')
     if (-not $text -and $ErrPath -and (Test-Path -LiteralPath $ErrPath)) {
@@ -607,6 +724,55 @@ function Get-RunSummary([string]$LogPath, [string]$ErrPath = '') {
 
 function Stop-ProcessTree([int]$ProcessId) {
   try { & taskkill.exe /PID $ProcessId /T /F | Out-Null } catch { }
+}
+
+function Show-RunNotice([string]$Text, [bool]$IsFailure, [string]$Elapsed = '') {
+  $body = $Text
+  if (-not $body) {
+    if ($IsFailure) { $body = '详见日志：' + $script:runLog }
+    else { $body = '本次同步成功（无新增内容）' }
+  }
+  $body += $Elapsed
+  if ($IsFailure) { Show-Balloon '自动同步失败' $body 'Error' }
+  else { Show-Balloon '自动同步完成' $body 'Info' }
+}
+
+# 清空累积计数（改累积次数时也要重置，避免用旧计数立刻触发）
+function Reset-AccumulateState {
+  $script:notifyRunCount = 0
+  $script:notifyStats = @{ success = 0; latest = 0; failed = 0 }
+}
+
+# notifyMode = accumulate：攒够 notifyEveryRuns 次再汇总弹一次
+function Update-AccumulatedNotice([string]$Outcome) {
+  $every = 0
+  try { $every = [int][double]$script:cfg.notifyEveryRuns } catch { $every = 0 }
+  if ($every -lt 1) { $every = [int]$script:Defaults.notifyEveryRuns }
+  if ($Outcome -eq 'latest') { $script:notifyStats.latest++ }
+  elseif ($Outcome -eq 'failed') { $script:notifyStats.failed++ }
+  else { $script:notifyStats.success++ }
+  $script:notifyRunCount++
+  if ($script:notifyRunCount -lt $every) { return }
+
+  $x = $script:notifyRunCount
+  $text = "在最近 $x 次内，共进行了 $x 次同步。其中 $($script:notifyStats.success) 次成功、" +
+    "$($script:notifyStats.latest) 次已是最新、$($script:notifyStats.failed) 次失败。"
+  $kind = $(if ($script:notifyStats.failed -gt 0) { 'Warning' } else { 'Info' })
+  Show-Balloon '自动同步累积提醒' $text $kind
+  Write-TrayLog "累积提醒：$text"
+  Reset-AccumulateState
+}
+
+# 同步被系统关机/注销打断时，结束后只提醒用户重新操作，不替用户发起关机（避免违背其取消意图）
+function Resume-PendingSessionEnd {
+  $pending = $script:pendingSessionEnd
+  if (-not $pending) { return }
+  $script:pendingSessionEnd = $null
+  if ($script:exitRequested -or $script:restartRequested) { return }
+
+  $action = $(if ([string]$pending.Reason -eq 'Logoff') { '注销' } else { '关机' })
+  Show-Balloon '同步已完成' ('之前拦截了一次' + $action + '请求。同步已结束，请重新' + $action + '。') 'Warning'
+  Write-TrayLog ('同步已结束：之前拦截的' + $action + '请求不会自动继续，已提醒用户重新操作')
 }
 
 function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
@@ -628,9 +794,22 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
     $script:lastResult = "❌ 失败（退出码 $ExitCode）"
   }
 
-  $summary = Get-RunSummary $script:runLog $script:runErrLog
+  $result = Read-RunResult $script:runResult
+  $summary = Get-RunSummary $script:runLog $script:runErrLog $result
   $minutes = [double]$script:cfg.intervalMinutes
+  # 下一轮从「本次结束」起算，不累积错过的周期
   $script:nextRunAt = (Get-Date).AddMinutes($minutes)
+
+  # 上一次结果 → 空闲角标（成功绿 / 已是最新蓝 / 失败红）
+  if ($isFailure) {
+    $script:lastOutcome = 'failed'
+  } elseif ($result -and $result.allLatest) {
+    $script:lastOutcome = 'latest'
+  } elseif (-not $result -and $summary -match '全部.*最新') {
+    $script:lastOutcome = 'latest'
+  } else {
+    $script:lastOutcome = 'success'
+  }
 
   $elapsedText = ''
   if ($script:runStartedAt) {
@@ -642,20 +821,17 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
 
   Update-IdleStateIcon
 
-  if (Test-Notify $isFailure) {
-    $text = $summary
-    if (-not $text) {
-      if ($isFailure) { $text = '详见日志：' + $script:runLog }
-      else { $text = '本次同步成功（无新增内容）' }
-    }
-    $text += $elapsedText
-    if ($isFailure) { Show-Balloon '自动同步失败' $text 'Error' }
-    else { Show-Balloon '自动同步完成' $text 'Info' }
+  switch ([string]$script:cfg.notifyMode) {
+    'never' { }
+    'failure' { if ($isFailure) { Show-RunNotice $summary $true $elapsedText } }
+    'accumulate' { Update-AccumulatedNotice $script:lastOutcome }
+    default { Show-RunNotice $summary $isFailure $elapsedText }
   }
 
   Write-TrayLog "同步结束：$($script:lastResult)｜$summary"
   Update-SessionInfo
   Update-UnpushedState
+  Resume-PendingSessionEnd
 }
 
 function Invoke-Tick {
@@ -769,7 +945,7 @@ function New-MenuItem([string]$Text, [scriptblock]$OnClick = $null, [bool]$Enabl
   return $item
 }
 
-function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [string]$Hint = '留空并确定 = 清除，改回本机 git 凭据') {
+function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [string]$Hint = '留空并确定 = 清除，改回本机 git 凭据', [switch]$NoTrim) {
   $form = New-Object System.Windows.Forms.Form
   $form.Text = $Title
   $form.FormBorderStyle = 'FixedDialog'
@@ -818,7 +994,20 @@ function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [st
   $value = $tb.Text
   $form.Dispose()
   if ($result -ne [System.Windows.Forms.DialogResult]::OK) { return $null }
+  if ($NoTrim) { return [string]$value }
   return ([string]$value).Trim()
+}
+
+# 退出密码：未设置时直接放行；设置后必须输对（明文存在 config.json）
+function Test-ExitPassword {
+  $expected = [string]$script:cfg.exitPassword
+  if (-not $expected) { return $true }
+  $value = Show-TokenDialog '退出密码' '请输入退出密码（取消 = 不退出）。' '' '密码错误或取消都不会退出' -NoTrim
+  if ($null -eq $value) { return $false }
+  if ($value -ceq $expected) { return $true }
+  Show-Balloon '密码错误' '退出密码不正确，已取消。' 'Warning'
+  Write-TrayLog '操作被拒绝：退出密码错误'
+  return $false
 }
 
 function Stop-Tray {
@@ -979,7 +1168,7 @@ function Build-Menu {
   Add-InfoLine ('   会话　' + $sessionBody) $sessionColor
 
   $pullText = $(if ($script:cfg.pullBeforeSync) { '拉取 ' + $script:cfg.pullStrategy } else { '拉取关' })
-  $notifyText = @{ always = '每次'; failure = '仅失败'; never = '从不' }[[string]$script:cfg.notifyMode]
+  $notifyText = @{ always = '每次'; failure = '仅失败'; never = '从不'; accumulate = '累积' }[[string]$script:cfg.notifyMode]
   if (-not $notifyText) { $notifyText = '每次' }
   $retryText = $(if ($script:cfg.retryPush) { '开' } else { '关' })
   $onSteps = 0
@@ -1168,6 +1357,49 @@ function Build-Menu {
   })
   $nNever.Checked = ([string]$script:cfg.notifyMode -eq 'never')
   [void]$notifyItem.DropDownItems.Add($nNever)
+
+  # 累积：每 notifyEveryRuns 次汇总弹一次
+  $everyRuns = 0
+  try { $everyRuns = [int][double]$script:cfg.notifyEveryRuns } catch { $everyRuns = 0 }
+  if ($everyRuns -lt 1) { $everyRuns = [int]$script:Defaults.notifyEveryRuns }
+  $nAccum = New-MenuItem ('累积（每 ' + $everyRuns + ' 次）') ({
+    $script:cfg.notifyMode = 'accumulate'
+    Save-Config $script:cfg
+    Write-TrayLog '同步通知：累积'
+  })
+  $nAccum.Checked = ([string]$script:cfg.notifyMode -eq 'accumulate')
+  [void]$notifyItem.DropDownItems.Add($nAccum)
+  [void]$notifyItem.DropDownItems.Add((New-MenuItem ('累积次数：' + $everyRuns + ' 次') ({
+    try {
+      Add-Type -AssemblyName Microsoft.VisualBasic
+      $current = [string][int][double]$script:cfg.notifyEveryRuns
+      $answer = [Microsoft.VisualBasic.Interaction]::InputBox(
+        '每进行多少次同步汇总提醒一次（最小 1）', '累积通知', $current)
+      if ($null -eq $answer -or ([string]$answer).Trim() -eq '') { return }
+      $n = 0
+      if (-not [int]::TryParse(([string]$answer).Trim(), [ref]$n) -or $n -lt 1) {
+        Show-Balloon '输入无效' '请输入大于 0 的整数次数。' 'Warning'
+        return
+      }
+      $script:cfg.notifyEveryRuns = $n
+      Save-Config $script:cfg
+      # 计数口径变了，旧计数作废，从下一轮重新累计
+      Reset-AccumulateState
+      Write-TrayLog "累积提醒次数：$n（计数已重置）"
+      Show-Balloon '累积次数已修改' "之后每 $n 次同步汇总提醒一次（已重新计数）。" 'Info'
+    } catch {
+      Write-TrayLog "设置累积次数失败：$($_.Exception.Message)"
+    }
+  })))
+
+  # 静默错误：仅累积模式生效，非周期错误（如「有本地提交未推送」）只写日志不弹气泡
+  $nSilent = New-MenuItem '静默错误（仅累积模式）' ({
+    $script:cfg.silentErrors = -not $script:cfg.silentErrors
+    Save-Config $script:cfg
+    Write-TrayLog ('静默错误：' + $(if ($script:cfg.silentErrors) { '开' } else { '关' }))
+  })
+  $nSilent.Checked = [bool]$script:cfg.silentErrors
+  [void]$notifyItem.DropDownItems.Add($nSilent)
   [void]$optItem.DropDownItems.Add($notifyItem)
 
   [void]$optItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
@@ -1197,6 +1429,20 @@ function Build-Menu {
     Write-TrayLog ('会话 Cookie：' + $(if ($value) { '已更新' } else { '已清除' }))
     if ($value) { Show-Balloon '会话已保存' $script:sessionText 'Info' }
     else { Show-Balloon '会话已清除' '若系统环境变量里有 H1111_SESSION，将回退到它。' 'Info' }
+  })))
+
+  # ---- 退出密码（明文保存在 config.json）----
+  $hasExitPw = -not [string]::IsNullOrEmpty([string]$script:cfg.exitPassword)
+  [void]$optItem.DropDownItems.Add((New-MenuItem ('退出密码：' + $(if ($hasExitPw) { '已设置' } else { '未设置' })) ({
+    # 已设置时，改密码必须先验证旧密码
+    if (-not (Test-ExitPassword)) { return }
+    $value = Show-TokenDialog '设置退出密码' '输入新的退出密码（明文保存在 config.json）。' '' '留空并确定 = 解除密码保护' -NoTrim
+    if ($null -eq $value) { return }
+    $script:cfg.exitPassword = $value
+    Save-Config $script:cfg
+    Write-TrayLog ('退出密码：' + $(if ($value) { '已设置' } else { '已清除' }))
+    if ($value) { Show-Balloon '退出密码已设置' '之后退出或重新启动托盘时需要输入该密码。' 'Info' }
+    else { Show-Balloon '退出密码已清除' '退出不再需要密码。' 'Info' }
   })))
 
   # ---- 提交身份（git user.name / user.email）----
@@ -1313,12 +1559,15 @@ function Build-Menu {
 
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
   [void]$menu.Items.Add((New-MenuItem '重新启动' ({
+    if (-not (Test-ExitPassword)) { return }
     $script:restartRequested = $true
     # 正在同步时不打断，等它跑完再重启
     if ($script:running) { $script:paused = $true }
     Stop-Tray
   })))
   [void]$menu.Items.Add((New-MenuItem '退出' ({
+    if (-not (Test-ExitPassword)) { return }
+    $script:exitRequested = $true
     if ($script:running -and $script:proc) {
       # 正在同步时不强杀，等它跑完再退出托盘
       $script:paused = $true
@@ -1390,6 +1639,25 @@ try {
   })
 } catch {
   Write-TrayLog "注册全局异常处理失败：$($_.Exception.Message)"
+}
+
+# 同步进行中收到关机/注销：先阻止，等同步结束后由 Resume-PendingSessionEnd 继续原请求。
+# 取消 SessionEnding 走的是 WM_QUERYENDSESSION，Windows 会显示「此应用正在阻止关机」。
+try {
+  Add-Type -AssemblyName System
+  [Microsoft.Win32.SystemEvents]::add_SessionEnding({
+    param($sender, $e)
+    if ($script:running) {
+      $e.Cancel = $true
+      $script:pendingSessionEnd = @{ Reason = [string]$e.Reason; At = Get-Date }
+      Write-TrayLog '收到系统关机/注销请求：同步进行中，已阻止，等待同步结束'
+      Show-Balloon '已阻止关机' '同步进行中，完成前不会退出系统。' 'Warning'
+    } else {
+      Write-TrayLog '收到系统关机/注销请求：当前空闲，正常放行'
+    }
+  })
+} catch {
+  Write-TrayLog "注册关机拦截失败：$($_.Exception.Message)"
 }
 
 # 原生进程输出是 UTF-8（node/git），把控制台解码也设为 UTF-8，避免中文变乱码
@@ -1480,7 +1748,9 @@ if ($script:running) {
 try { $script:notify.Visible = $false; $script:notify.Dispose() } catch { }
 try { $script:menu.Dispose() } catch { }
 # 释放图标 HICON / 位图，避免进程退出前的 GDI 句柄泄漏
-foreach ($i in @($script:iconIdle, $script:iconBusy, $script:iconPaused)) { if ($i) { try { $i.Dispose() } catch { } } }
+foreach ($i in @($script:iconIdle, $script:iconBusy, $script:iconPaused, $script:iconOk, $script:iconLatest, $script:iconFail)) {
+  if ($i) { try { $i.Dispose() } catch { } }
+}
 foreach ($h in $script:iconHandles) { Destroy-IconHandle $h }
 foreach ($b in $script:iconBitmaps) { if ($b) { try { $b.Dispose() } catch { } } }
 if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
