@@ -9,7 +9,7 @@
 #              退出密码 / 开机启动 / 打开日志 / 会话剩余天数 / 退出
 #   · 角标：同步中白色右三角、暂停「‖」、空闲时上次成功绿点 / 已是最新蓝点 / 失败红点
 #   · 退出密码：设置后「退出 / 重新启动 / 修改密码」都要先输对密码（明文存 config.json）
-#   · 同步中被系统关机或注销会先阻止，同步结束后自动继续
+#   · 同步中被系统关机或注销会先阻止，同步结束后提醒重新操作（不自动关机）
 #   · 单实例：重复启动会被静默忽略
 #   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
 #   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
@@ -376,7 +376,7 @@ function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
     $g.FillRectangle($clear, $x - 2, $y - 2, $w + 4, $h + 4)
     $clear.Dispose()
     $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-    $points = @(
+    $points = [System.Drawing.Point[]]@(
       [System.Drawing.Point]::new($x, $y),
       [System.Drawing.Point]::new($x, $y + $h),
       [System.Drawing.Point]::new($x + $w, $y + [int][math]::Floor($h / 2))
@@ -636,7 +636,7 @@ function Start-SyncRun {
       -PassThru
     $script:running = $true
     $script:runStartedAt = Get-Date
-    Update-TrayIcon 'busy'    Write-TrayLog "开始同步（PID $($script:proc.Id)）→ $script:runLog"
+    Update-TrayIcon 'busy'; Write-TrayLog "开始同步（PID $($script:proc.Id)）→ $script:runLog"
   } catch {
     $script:proc = $null
     $script:running = $false
@@ -661,6 +661,9 @@ function Read-RunResult([string]$Path) {
 # 把结构化结果压成气泡/日志用的一行摘要（不靠日志里的中文措辞）
 function Format-RunResult($r) {
   if (-not $r) { return '' }
+  # 空 / 损坏的 JSON 不能当有效结果，否则会显示「同步成功 0/0」
+  $props = $r.PSObject.Properties
+  if (-not $props['ok'] -or -not $props['softwareTotal']) { return '' }
   $parts = @()
   $errs = @($r.errors | Where-Object { $_ })
   if (-not $r.ok) {
@@ -690,11 +693,10 @@ function Format-RunResult($r) {
   return ($parts -join '｜')
 }
 
-function Get-RunSummary([string]$LogPath, [string]$ErrPath = '', [string]$ResultPath = '') {
-  # 优先读结构化结果文件；缺失（旧版脚本 / 进程崩溃）才退回日志关键字
-  $result = Read-RunResult $ResultPath
-  if ($result) {
-    $text = Format-RunResult $result
+function Get-RunSummary([string]$LogPath, [string]$ErrPath = '', $Result = $null) {
+  # 优先用调用方已解析好的结构化结果；缺失（旧版脚本 / 进程崩溃 / JSON 损坏）才退回日志关键字
+  if ($Result) {
+    $text = Format-RunResult $Result
     if ($text) { return $text }
   }
 
@@ -750,28 +752,16 @@ function Update-AccumulatedNotice([string]$Outcome) {
   $script:notifyStats = @{ success = 0; latest = 0; failed = 0 }
 }
 
-# 同步被系统关机/注销打断时，结束后继续原请求
+# 同步被系统关机/注销打断时，结束后只提醒用户重新操作，不替用户发起关机（避免违背其取消意图）
 function Resume-PendingSessionEnd {
   $pending = $script:pendingSessionEnd
   if (-not $pending) { return }
   $script:pendingSessionEnd = $null
-  # 用户自己点了退出/重新启动，不再替系统关机
   if ($script:exitRequested -or $script:restartRequested) { return }
 
-  $isLogoff = ([string]$pending.Reason -eq 'Logoff')
-  $action = $(if ($isLogoff) { '注销' } else { '关机' })
-  Write-TrayLog "同步已结束，继续执行被推迟的$action"
-  try {
-    if ($isLogoff) {
-      Show-Balloon '同步已完成' '即将继续注销。' 'Warning'
-      Start-Process shutdown.exe -ArgumentList '/l' -WindowStyle Hidden
-    } else {
-      Show-Balloon '同步已完成' '即将继续关机（10 秒内可执行 shutdown /a 取消）。' 'Warning'
-      Start-Process shutdown.exe -ArgumentList '/s /t 10' -WindowStyle Hidden
-    }
-  } catch {
-    Write-TrayLog "继续$action 失败：$($_.Exception.Message)"
-  }
+  $action = $(if ([string]$pending.Reason -eq 'Logoff') { '注销' } else { '关机' })
+  Show-Balloon '同步已完成' ('之前拦截了一次' + $action + '请求。同步已结束，请重新' + $action + '。') 'Warning'
+  Write-TrayLog ('同步已结束：之前拦截的' + $action + '请求不会自动继续，已提醒用户重新操作')
 }
 
 function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
@@ -794,7 +784,7 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   }
 
   $result = Read-RunResult $script:runResult
-  $summary = Get-RunSummary $script:runLog $script:runErrLog $script:runResult
+  $summary = Get-RunSummary $script:runLog $script:runErrLog $result
   $minutes = [double]$script:cfg.intervalMinutes
   # 下一轮从「本次结束」起算，不累积错过的周期
   $script:nextRunAt = (Get-Date).AddMinutes($minutes)
