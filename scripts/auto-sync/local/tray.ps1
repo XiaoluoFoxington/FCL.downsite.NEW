@@ -5,10 +5,14 @@
 #
 # 特点：
 #   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
-#   · 托盘菜单：立即同步 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 同步通知（含累积）/
+#   · 托盘菜单：立即同步 / 上锁·解锁 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 同步通知（含累积）/
 #              退出密码 / 开机启动 / 打开日志 / 会话剩余天数 / 退出
 #   · 角标：同步中白色右三角、暂停「‖」、空闲时上次成功绿点 / 已是最新蓝点 / 失败红点
-#   · 退出密码：设置后「退出 / 重新启动 / 修改密码」都要先输对密码（明文存 config.json）
+#   · 密码：设置后「退出 / 重新启动 / 修改密码 / 解锁」都要先输对密码（明文存 config.json）
+#   · 上锁：菜单只保留「立即同步」「打开日志」「解锁」，其余（含选项、退出）全部禁用；
+#          上锁前必须先设置密码，锁状态存 config.json，重启托盘后仍然有效
+#   · 成功判据：退出码 + result.json（ok / stage / pull.ok / errors）共同判定，
+#              且「拉取失败」一定算失败，不会因为退出码丢失而被当成成功
 #   · 同步中被系统关机或注销会先阻止，同步结束后提醒重新操作（不自动关机）
 #   · 单实例：重复启动会被静默忽略
 #   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
@@ -71,7 +75,8 @@ $script:Defaults = [ordered]@{
   notifyMode         = 'always' # always | failure | never | accumulate；同步通知策略
   notifyEveryRuns    = 5       # notifyMode = accumulate 时，每多少次同步汇总提醒一次
   silentErrors       = $false  # accumulate 时是否静默非周期错误（只写日志/进汇总，不即时弹气泡）
-  exitPassword       = ''      # 退出/重新启动密码；留空 = 不校验（明文保存在本文件）
+  exitPassword       = ''      # 退出/重新启动/解锁密码；留空 = 不校验（明文保存在本文件）
+  locked             = $false  # 菜单是否上锁（只保留 立即同步/打开日志/解锁）；上锁前需先设置密码
   gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
   gitUserEmail       = ''      # gitIdentityMode = custom 时的提交邮箱
@@ -178,7 +183,7 @@ function Read-Config {
   }
 
   # 手写 "false"/"0" 这种字符串时也按布尔处理
-  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush', 'silentErrors')) {
+  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush', 'silentErrors', 'locked')) {
     $v = $cfg[$k]
     if ($v -is [string]) {
       $s = ([string]$v).Trim().ToLower()
@@ -667,9 +672,9 @@ function Read-RunResult([string]$Path) {
 # 把结构化结果压成气泡/日志用的一行摘要（不靠日志里的中文措辞）
 function Format-RunResult($r) {
   if (-not $r) { return '' }
-  # 空 / 损坏的 JSON 不能当有效结果，否则会显示「同步成功 0/0」
+  # 只有 ok 字段缺失才算无效结果；softwareTotal=0 的「拉取失败」也必须能压出摘要
   $props = $r.PSObject.Properties
-  if (-not $props['ok'] -or -not $props['softwareTotal']) { return '' }
+  if (-not $props['ok']) { return '' }
   $parts = @()
   $errs = @($r.errors | Where-Object { $_ })
   if (-not $r.ok) {
@@ -783,22 +788,43 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   $script:running = $false
   $script:lastRunAt = Get-Date
 
-  $isFailure = ($TimedOut -or $ExitCode -ne 0)
-  if ($TimedOut) {
-    $script:lastResult = '❌ 超时已终止'
-  } elseif ($ExitCode -eq 2) {
-    $script:lastResult = '❌ 已取消（拉取失败）'
-  } elseif ($ExitCode -eq 0) {
-    $script:lastResult = '✅ 成功'
-  } else {
-    $script:lastResult = "❌ 失败（退出码 $ExitCode）"
-  }
-
   $result = Read-RunResult $script:runResult
   $summary = Get-RunSummary $script:runLog $script:runErrLog $result
   $minutes = [double]$script:cfg.intervalMinutes
   # 下一轮从「本次结束」起算，不累积错过的周期
   $script:nextRunAt = (Get-Date).AddMinutes($minutes)
+
+  # 成功判据（任一命中即失败）：
+  #   1) 超时 / 退出码非 0
+  #   2) result.json 里 ok=false、stage=pull、pull.ok=false、retryPush.ok=false 或 errors 非空
+  #      —— 退出码可能拿不到而变成 0，不能只信它
+  #   3) 没有 result.json 时，日志里出现明确的「已取消 / 拉取失败 / 登录失败 / push 失败」
+  $resultFailed = $false
+  if ($result) {
+    if ($null -ne $result.ok -and -not [bool]$result.ok) { $resultFailed = $true }
+    if ([string]$result.stage -eq 'pull') { $resultFailed = $true }
+    if ($result.pull -and $null -ne $result.pull.ok -and -not [bool]$result.pull.ok) { $resultFailed = $true }
+    if ($result.retryPush -and $null -ne $result.retryPush.ok -and -not [bool]$result.retryPush.ok) { $resultFailed = $true }
+    if (@($result.errors | Where-Object { $_ }).Count -gt 0) { $resultFailed = $true }
+  }
+  $logFailed = $false
+  if (-not $result -and $ExitCode -eq 0 -and $script:runLog) {
+    try {
+      $raw = Get-Content -LiteralPath $script:runLog -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($raw -match '本次同步已取消|❌\s*拉取失败|❌\s*登录失败|❌\s*push 失败|❌\s*探测失败') { $logFailed = $true }
+    } catch { }
+  }
+  $isFailure = ($TimedOut -or $ExitCode -ne 0 -or $resultFailed -or $logFailed)
+
+  if ($TimedOut) {
+    $script:lastResult = '❌ 超时已终止'
+  } elseif (($result -and [string]$result.stage -eq 'pull') -or $ExitCode -eq 2) {
+    $script:lastResult = '❌ 已取消（拉取失败）'
+  } elseif ($isFailure) {
+    $script:lastResult = "❌ 失败（退出码 $ExitCode）"
+  } else {
+    $script:lastResult = '✅ 成功'
+  }
 
   # 上一次结果 → 空闲角标（成功绿 / 已是最新蓝 / 失败红）
   if ($isFailure) {
@@ -828,7 +854,7 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
     default { Show-RunNotice $summary $isFailure $elapsedText }
   }
 
-  Write-TrayLog "同步结束：$($script:lastResult)｜$summary"
+  Write-TrayLog "同步结束：$($script:lastResult)（退出码 $ExitCode，结果文件 ok=$($result.ok)）｜$summary"
   Update-SessionInfo
   Update-UnpushedState
   Resume-PendingSessionEnd
@@ -844,7 +870,13 @@ function Invoke-Tick {
     if ($script:running) {
       $p = $script:proc
       if ($p -and $p.HasExited) {
-        Complete-SyncRun ([int]$p.ExitCode) $false
+        # WaitForExit 之后再读 ExitCode；拿不到就当 -1（失败），绝不当成 0（成功）
+        $exit = -1
+        try {
+          $p.WaitForExit()
+          if ($null -ne $p.ExitCode) { $exit = [int]$p.ExitCode }
+        } catch { $exit = -1 }
+        Complete-SyncRun $exit $false
       } elseif ($script:runStartedAt -and $p) {
         $elapsedMin = ((Get-Date) - $script:runStartedAt).TotalMinutes
         if ($elapsedMin -gt [double]$script:cfg.syncTimeoutMinutes) {
@@ -877,6 +909,7 @@ function Update-Tooltip {
   } else {
     $text = '自动同步'
   }
+  if ([bool]$script:cfg.locked) { $text += ' · 已上锁' }
   if ($script:unpushedCount -gt 0) { $text += " · 待推 $($script:unpushedCount)" }
   if ($text.Length -gt 63) { $text = $text.Substring(0, 63) }
   if ($text -ne $script:lastTip) {
@@ -998,16 +1031,37 @@ function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [st
   return ([string]$value).Trim()
 }
 
-# 退出密码：未设置时直接放行；设置后必须输对（明文存在 config.json）
-function Test-ExitPassword {
+# 密码校验：未设置密码时直接放行；设置后必须输对（明文存在 config.json）
+function Test-Password([string]$Title = '密码', [string]$Prompt = '请输入密码（取消 = 取消操作）。') {
   $expected = [string]$script:cfg.exitPassword
   if (-not $expected) { return $true }
-  $value = Show-TokenDialog '退出密码' '请输入退出密码（取消 = 不退出）。' '' '密码错误或取消都不会退出' -NoTrim
+  $value = Show-TokenDialog $Title $Prompt '' '密码错误或取消都不会继续' -NoTrim
   if ($null -eq $value) { return $false }
   if ($value -ceq $expected) { return $true }
-  Show-Balloon '密码错误' '退出密码不正确，已取消。' 'Warning'
-  Write-TrayLog '操作被拒绝：退出密码错误'
+  Show-Balloon '密码错误' '密码不正确，已取消。' 'Warning'
+  Write-TrayLog "操作被拒绝：$Title 密码错误"
   return $false
+}
+
+function Test-ExitPassword {
+  return (Test-Password '退出密码' '请输入退出密码（取消 = 不退出）。')
+}
+
+# 上锁：菜单只保留「立即同步」「打开日志」「解锁」，其余全部禁用；状态存 config.json
+function Set-LockState([bool]$Locked) {
+  if ($Locked -and -not [string]$script:cfg.exitPassword) {
+    Show-Balloon '无法上锁' '请先在「选项 → 退出密码」里设置密码，再上锁。' 'Warning'
+    return
+  }
+  $script:cfg.locked = $Locked
+  Save-Config $script:cfg
+  Write-TrayLog ('菜单' + $(if ($Locked) { '已上锁（仅保留：立即同步 / 打开日志 / 解锁）' } else { '已解锁' }))
+  if ($Locked) {
+    Show-Balloon '已上锁' '除「立即同步」「打开日志」「解锁」外的菜单项均已禁用。' 'Info'
+  } else {
+    Show-Balloon '已解锁' '全部菜单项已恢复可用。' 'Info'
+  }
+  Update-Tooltip
 }
 
 function Stop-Tray {
@@ -1138,6 +1192,9 @@ function Build-Menu {
     $stateColor = $errColor
   }
   Add-InfoLine ('   状态　' + $stateSymbol + ' ' + $stateText) $stateColor
+  if ([bool]$script:cfg.locked) {
+    Add-InfoLine '   锁定　🔒 已上锁（仅可用：立即同步 / 打开日志 / 解锁）' $warnColor
+  }
 
   if ($script:running) { $nextText = '本轮结束后重新排期' }
   elseif (Test-EffectivePaused) { $nextText = '已暂停，不排期' }
@@ -1190,7 +1247,19 @@ function Build-Menu {
   if ($script:running) { $nowText = '立即同步（正在运行）' }
   elseif (-not $anySteps) { $nowText = '立即同步（步骤全关）' }
   $nowItem = New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)
+  $nowItem.Tag = 'lock-allow'   # 上锁后仍可用
   [void]$menu.Items.Add($nowItem)
+
+  # ---- 上锁 / 解锁（上锁后只保留：立即同步 / 打开日志 / 解锁）----
+  if ([bool]$script:cfg.locked) {
+    $unlockItem = New-MenuItem '解锁（输入密码）…' ({
+      if (Test-Password '解锁' '请输入密码（取消 = 保持上锁）。') { Set-LockState $false }
+    })
+    $unlockItem.Tag = 'lock-allow'
+    [void]$menu.Items.Add($unlockItem)
+  } else {
+    [void]$menu.Items.Add((New-MenuItem '上锁（禁用大部分菜单）' ({ Set-LockState $true })))
+  }
 
   $pauseText = '暂停自动同步'
   if ($script:paused) { $pauseText = '继续自动同步' }
@@ -1528,16 +1597,18 @@ function Build-Menu {
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
   # ---- 日志 / 配置 ----
-  [void]$menu.Items.Add((New-MenuItem '打开日志文件夹' ({
+  $openLogDirItem = New-MenuItem '打开日志文件夹' ({
     try {
       # 日志按日期分文件夹，默认打开当天的
       $dir = Get-LogDir
       if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
       Start-Process explorer.exe -ArgumentList ('"' + $dir + '"')
     } catch { }
-  })))
+  })
+  $openLogDirItem.Tag = 'lock-allow'   # 上锁后仍可用
+  [void]$menu.Items.Add($openLogDirItem)
 
-  [void]$menu.Items.Add((New-MenuItem '打开最近日志' ({
+  $openLogItem = New-MenuItem '打开最近日志' ({
     try {
       $logToOpen = $script:runLog
       if (-not $logToOpen -or -not (Test-Path -LiteralPath $logToOpen)) {
@@ -1551,7 +1622,9 @@ function Build-Menu {
         Show-Balloon '暂无日志' '还没有运行过同步。' 'Info'
       }
     } catch { }
-  })))
+  })
+  $openLogItem.Tag = 'lock-allow'   # 上锁后仍可用
+  [void]$menu.Items.Add($openLogItem)
 
   [void]$menu.Items.Add((New-MenuItem '打开配置文件' ({
     try { Start-Process notepad.exe -ArgumentList ('"' + $script:ConfigPath + '"') } catch { }
@@ -1574,6 +1647,15 @@ function Build-Menu {
     }
     Stop-Tray
   })))
+
+  # ---- 上锁：除「立即同步」「打开日志」「解锁」外全部禁用（含概览行与分隔符）----
+  if ([bool]$script:cfg.locked) {
+    foreach ($it in @($menu.Items)) {
+      if ($it -is [System.Windows.Forms.ToolStripSeparator]) { continue }
+      if ([string]$it.Tag -eq 'lock-allow') { continue }
+      try { $it.Enabled = $false } catch { }
+    }
+  }
 }
 
 # ============================ 启动入口 ============================
