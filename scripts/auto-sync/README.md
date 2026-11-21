@@ -197,7 +197,7 @@ node scripts/auto-sync/probe.mjs
 | `notifyEveryRuns` | `5` | `notifyMode=accumulate` 时的累积周期（次）；托盘「选项 → 同步通知 → 累积次数」可改（改后计数重置） |
 | `silentErrors` | `false` | 仅 `accumulate` 生效：静默非周期错误（如「有本地提交未推送」），只写日志不即时弹气泡 |
 | `exitPassword` | `""` | 退出 / 重新启动 / 修改密码 / 解锁的密码，明文保存；留空 = 不校验。托盘「选项 → 退出密码」可设/改/清除 |
-| `locked` | `false` | 菜单是否上锁：上锁后只保留「立即同步」「打开日志」「解锁」，其余菜单项（含选项、退出）全部禁用。上锁前必须先设置 `exitPassword`；锁状态存盘，重启托盘仍有效 |
+| `locked` | `false` | 菜单是否上锁：上锁后只保留「立即同步」「打开日志」「解锁」，其余操作项（含选项、退出）全部禁用；顶部概览信息行没有点击动作、禁用会丢颜色，故保持原样。上锁前必须先设置 `exitPassword`；锁状态存盘，重启托盘仍有效 |
 | `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「选项 → 提交身份」可设） |
 | `gitUserName` | `""` | `gitIdentityMode=custom` 时的 `user.name` |
 | `gitUserEmail` | `""` | `gitIdentityMode=custom` 时的 `user.email` |

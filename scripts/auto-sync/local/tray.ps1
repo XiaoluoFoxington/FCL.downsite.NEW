@@ -9,7 +9,8 @@
 #              退出密码 / 开机启动 / 打开日志 / 会话剩余天数 / 退出
 #   · 角标：同步中白色右三角、暂停「‖」、空闲时上次成功绿点 / 已是最新蓝点 / 失败红点
 #   · 密码：设置后「退出 / 重新启动 / 修改密码 / 解锁」都要先输对密码（明文存 config.json）
-#   · 上锁：菜单只保留「立即同步」「打开日志」「解锁」，其余（含选项、退出）全部禁用；
+#   · 上锁：菜单只保留「立即同步」「打开日志」「解锁」，其余操作项（含选项、退出）全部禁用；
+#          概览信息行没有点击动作、禁用后会丢颜色，故保持启用原样显示；
 #          上锁前必须先设置密码，锁状态存 config.json，重启托盘后仍然有效
 #   · 成功判据：退出码 + result.json（ok / stage / pull.ok / errors）共同判定，
 #              且「拉取失败」一定算失败，不会因为退出码丢失而被当成成功
@@ -1150,10 +1151,12 @@ function Format-IdentityText {
   }
 }
 
-# 概览行统一用彩色文本：ToolStrip 禁用项会忽略 ForeColor，故这些行保持启用但不绑定点击动作
+# 概览行统一用彩色文本：ToolStrip 禁用项会忽略 ForeColor，故这些行保持启用但不绑定点击动作；
+# 上锁时也不能禁用它们（否则整块概览会变灰），用 Tag = 'info' 让上锁逻辑跳过
 function Add-InfoLine([string]$Text, [System.Drawing.Color]$Color) {
   $item = New-MenuItem $Text $null $true
   $item.ForeColor = $Color
+  $item.Tag = 'info'
   [void]$script:menu.Items.Add($item)
 }
 
@@ -1648,11 +1651,13 @@ function Build-Menu {
     Stop-Tray
   })))
 
-  # ---- 上锁：除「立即同步」「打开日志」「解锁」外全部禁用（含概览行与分隔符）----
+  # ---- 上锁：除「立即同步」「打开日志」「解锁」外全部禁用 ----
+  # 概览行（Tag = 'info'）不禁用：它们没有点击动作，且一禁用就会丢颜色
   if ([bool]$script:cfg.locked) {
     foreach ($it in @($menu.Items)) {
       if ($it -is [System.Windows.Forms.ToolStripSeparator]) { continue }
       if ([string]$it.Tag -eq 'lock-allow') { continue }
+      if ([string]$it.Tag -eq 'info') { continue }
       try { $it.Enabled = $false } catch { }
     }
   }
