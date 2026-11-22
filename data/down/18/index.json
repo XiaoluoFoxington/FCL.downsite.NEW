@@ -1,9 +1,14 @@
 [
   {
+    "name": "ZPCL Launcher 1.5.6",
+    "nextUrl": "/data/down/18/auto/2026/11/22/v1.5.6.json",
+    "tag": "v1.5.6",
+    "default": true
+  },
+  {
     "name": "ZPCL Launcher 1.5.5",
     "nextUrl": "/data/down/18/auto/2026/11/21/v1.5.5.json",
-    "tag": "v1.5.5",
-    "default": true
+    "tag": "v1.5.5"
   },
   {
     "name": "ZPCL Launcher 1.5.4",
