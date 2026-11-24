@@ -301,6 +301,7 @@ export function newRow(id, sw = {}) {
     sourceCount: 0,
     releaseCount: 0,
     candidates: [],
+    guarded: [],
     taken: [],
     pruned: [],
     result: '—',

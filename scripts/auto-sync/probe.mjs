@@ -19,11 +19,12 @@ const t0 = Date.now();
 
 async function main() {
   const phase = log.child('阶段：逐软件比对数据源与 GitHub Releases');
-  const { plans, rows, hasCandidates, failed } = await planAll(SOFTWARES, phase, (sw) => newRow(sw.softwareId, sw));
+  const { plans, rows, hasCandidates, failed, guarded } = await planAll(SOFTWARES, phase, (sw) => newRow(sw.softwareId, sw));
   phase.close(
     failed
       ? `⚠️ 探测结束：${rows.length} 个软件（${failed} 个出错）｜有候选 ${plans.length} 个`
-      : `✅ 探测结束：${rows.length} 个软件｜有候选 ${plans.length} 个`,
+      : `✅ 探测结束：${rows.length} 个软件｜有候选 ${plans.length} 个` +
+        (guarded.length ? `｜暂缓 ${guarded.length} 个（发布未满守护时间）` : ''),
     { kind: failed ? 'warn' : 'ok' },
   );
 
@@ -35,6 +36,10 @@ async function main() {
   verdict.line(`有候选软件：${plans.length} / ${SOFTWARES.length}`);
   if (plans.length) {
     verdict.items(plans.map((p) => `id=${p.sw.softwareId}：${p.candidates.map((c) => c.version).join('、')}`));
+  }
+  if (guarded.length) {
+    verdict.line(`不完整守护暂缓 ${guarded.length} 个：` +
+      guarded.map((g) => `id=${g.id} ${g.version}`).join('、'));
   }
   verdict.line(hasCandidates ? '→ 调度 sync job（needs_sync=true）' : '→ 全部最新，不调度 sync job（needs_sync=false）');
   verdict.close(`✅ 判定完成｜用时 ${total}`, { body: false });
@@ -51,7 +56,7 @@ async function main() {
   // ---- 汇总页：详细表 ----
   const extra = [
     `- 触发时间（UTC+8）：${new Date(Date.now() + 8 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 19)}`,
-    `- 软件总数：${SOFTWARES.length}｜有候选：${plans.length}｜探测出错：${failed}`,
+    `- 软件总数：${SOFTWARES.length}｜有候选：${plans.length}｜守护暂缓：${guarded.length}｜探测出错：${failed}`,
     `- 判定：${hasCandidates ? '**有候选 → 调度同步 job**' : '**全部最新 → 跳过同步 job**'}`,
     `- 探测用时：${total}`,
   ];

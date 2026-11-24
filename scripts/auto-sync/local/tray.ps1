@@ -5,15 +5,15 @@
 #
 # 特点：
 #   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
-#   · 托盘菜单：立即同步 / 上锁·解锁 / 暂停恢复 / 更新间隔（预设 + 自定义）/ 同步通知（含累积）/
-#              退出密码 / 开机启动 / 打开日志 / 会话剩余天数 / 退出
-#   · 角标：同步中白色右三角、暂停「‖」、空闲时上次成功绿点 / 已是最新蓝点 / 失败红点
-#   · 密码：设置后「退出 / 重新启动 / 修改密码 / 解锁」都要先输对密码（明文存 config.json）
-#   · 上锁：菜单只保留「立即同步」「打开日志」「解锁」，其余操作项（含选项、退出）全部禁用；
-#          概览信息行没有点击动作、禁用后会丢颜色，故保持启用原样显示；
+#   · 托盘菜单：概览面板 / 立即同步 / 暂停恢复 / 上锁·解锁 / 同步频率（间隔·拉取·补推·步骤）/
+#              通知 / 凭据与身份 / 外观与维护 / 开机启动 / 日志与配置 / 重新启动 / 退出
+#   · 角标：同步中白色右三角、暂停「‖」；空闲时上次成功 = 绿色对钩、上次已是最新 = 绿色实心圆、
+#          上次失败 = 红色叉（还没跑过则不显示）
+#   · 密码：仅用于「上锁 / 解锁 / 修改锁定密码」；退出与重新启动不再校验密码（锁定功能已够用）
+#   · 上锁：菜单精简为「立即同步」「解锁」「打开日志」，其余操作全部隐藏；
 #          上锁前必须先设置密码，锁状态存 config.json，重启托盘后仍然有效
-#   · 成功判据：退出码 + result.json（ok / stage / pull.ok / errors）共同判定，
-#              且「拉取失败」一定算失败，不会因为退出码丢失而被当成成功
+#   · 结果判定：退出码 0 且无错误 = 成功；其中「本轮无任何可同步内容」单独记为「已是最新」；
+#              超时 / 退出码非 0 / result.json 报错 / 拉取失败 / 补推失败 / 日志出现致命错误 = 失败
 #   · 同步中被系统关机或注销会先阻止，同步结束后提醒重新操作（不自动关机）
 #   · 单实例：重复启动会被静默忽略
 #   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
@@ -76,7 +76,7 @@ $script:Defaults = [ordered]@{
   notifyMode         = 'always' # always | failure | never | accumulate；同步通知策略
   notifyEveryRuns    = 5       # notifyMode = accumulate 时，每多少次同步汇总提醒一次
   silentErrors       = $false  # accumulate 时是否静默非周期错误（只写日志/进汇总，不即时弹气泡）
-  exitPassword       = ''      # 退出/重新启动/解锁密码；留空 = 不校验（明文保存在本文件）
+  exitPassword       = ''      # 锁定密码（上锁/解锁用）；留空 = 无法上锁（明文保存在本文件）
   locked             = $false  # 菜单是否上锁（只保留 立即同步/打开日志/解锁）；上锁前需先设置密码
   gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
@@ -330,7 +330,29 @@ function New-BaseIconBitmap {
   return $bmp
 }
 
-# 在底图右下角叠状态角标：none = 无角标 / dot = 圆点 / play = 向右三角 / pause = 暂停图标
+# 角标多边形的「按轮廓外扩」版本：用于按实际内容挖空，而不是挖掉一整块矩形
+function Get-ExpandedPolygon([System.Drawing.PointF[]]$Points, [double]$Pad = 2.0) {
+  $count = $Points.Count
+  if ($count -eq 0) { return $Points }
+  $cx = 0.0; $cy = 0.0
+  foreach ($p in $Points) { $cx += $p.X; $cy += $p.Y }
+  $cx /= $count; $cy /= $count
+  $out = [System.Drawing.PointF[]]::new($count)
+  for ($i = 0; $i -lt $count; $i++) {
+    $p = $Points[$i]
+    $dx = [double]$p.X - $cx
+    $dy = [double]$p.Y - $cy
+    $len = [math]::Sqrt($dx * $dx + $dy * $dy)
+    if ($len -lt 0.001) { $out[$i] = $p; continue }
+    $scale = ($len + $Pad) / $len
+    $out[$i] = [System.Drawing.PointF]::new([single]($cx + $dx * $scale), [single]($cy + $dy * $scale))
+  }
+  return $out
+}
+
+# 在底图右下角叠状态角标：
+#   none = 无角标 / dot = 实心圆 / check = 对钩 / cross = 叉 / play = 向右三角 / pause = 暂停
+# 挖空一律按角标实际轮廓（笔画/多边形）外扩，而不是矩形或外接圆
 function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
   $size = 32
   $bmp = [System.Drawing.Bitmap]::new($size, $size)
@@ -345,7 +367,7 @@ function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
     $d = 12
     $x = $size - $d - 1
     $y = $size - $d - 1
-    # 透明挖空角标四周一圈，替代描边
+    # 透明挖空角标四周一圈，替代描边（圆形按圆周外扩，与实心圆轮廓一致）
     $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
     $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
     $g.FillEllipse($clear, $x - 2, $y - 2, $d + 4, $d + 4)
@@ -354,17 +376,58 @@ function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
     $dot = [System.Drawing.SolidBrush]::new($Color)
     $g.FillEllipse($dot, $x, $y, $d, $d)
     $dot.Dispose()
+  } elseif ($Badge -eq 'check') {
+    # 绿色对钩：先按笔画本身（含外扩）挖空，再画对钩
+    $points = [System.Drawing.PointF[]]@(
+      [System.Drawing.PointF]::new(18.5, 23.5),
+      [System.Drawing.PointF]::new(22.0, 27.0),
+      [System.Drawing.PointF]::new(29.0, 19.0)
+    )
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+    $clearPen = [System.Drawing.Pen]::new([System.Drawing.Color]::Transparent, 7)
+    $clearPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $clearPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $clearPen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+    $g.DrawLines($clearPen, $points)
+    $clearPen.Dispose()
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+    $pen = [System.Drawing.Pen]::new($Color, 3)
+    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+    $g.DrawLines($pen, $points)
+    $pen.Dispose()
+  } elseif ($Badge -eq 'cross') {
+    # 红色叉：按两条笔画本身（含外扩）挖空，再画叉
+    $a = [System.Drawing.PointF]::new(19, 19)
+    $b = [System.Drawing.PointF]::new(29, 29)
+    $c = [System.Drawing.PointF]::new(29, 19)
+    $d = [System.Drawing.PointF]::new(19, 29)
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
+    $clearPen = [System.Drawing.Pen]::new([System.Drawing.Color]::Transparent, 7)
+    $clearPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $clearPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $g.DrawLine($clearPen, $a, $b)
+    $g.DrawLine($clearPen, $c, $d)
+    $clearPen.Dispose()
+    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
+    $pen = [System.Drawing.Pen]::new($Color, 3)
+    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+    $g.DrawLine($pen, $a, $b)
+    $g.DrawLine($pen, $c, $d)
+    $pen.Dispose()
   } elseif ($Badge -eq 'pause') {
-    # 「||」直接画在右下角，白色填充，不套圆形徽标
+    # 「||」直接画在右下角，白色填充，不套圆形徽标；按每根竖条的实际轮廓挖空
     $barW = 4
     $barH = 10
     $gap = 2
     $x = $size - ($barW * 2 + $gap) - 1
     $y = $size - $barH - 1
-    # 透明挖空角标四周一圈，替代描边
     $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
     $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
-    $g.FillRectangle($clear, $x - 2, $y - 2, ($barW * 2 + $gap) + 4, $barH + 4)
+    $g.FillRectangle($clear, $x - 2, $y - 2, $barW + 4, $barH + 4)
+    $g.FillRectangle($clear, $x + $barW + $gap - 2, $y - 2, $barW + 4, $barH + 4)
     $clear.Dispose()
     $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
     $bar = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
@@ -372,22 +435,22 @@ function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
     $g.FillRectangle($bar, $x + $barW + $gap, $y, $barW, $barH)
     $bar.Dispose()
   } elseif ($Badge -eq 'play') {
-    # 向右的白色实心三角，与暂停角标同位置、同风格
+    # 向右的白色实心三角，与暂停角标同位置、同风格；挖空按三角形轮廓外扩
     $w = 9
     $h = 10
     $x = $size - $w - 2
     $y = $size - $h - 1
-    # 透明挖空角标四周一圈，替代描边
+    $points = [System.Drawing.PointF[]]@(
+      [System.Drawing.PointF]::new($x, $y),
+      [System.Drawing.PointF]::new($x, $y + $h),
+      [System.Drawing.PointF]::new($x + $w, $y + [int][math]::Floor($h / 2))
+    )
     $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
     $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
-    $g.FillRectangle($clear, $x - 2, $y - 2, $w + 4, $h + 4)
+    $expanded = Get-ExpandedPolygon $points 2.0
+    $g.FillPolygon($clear, $expanded)
     $clear.Dispose()
     $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-    $points = [System.Drawing.Point[]]@(
-      [System.Drawing.Point]::new($x, $y),
-      [System.Drawing.Point]::new($x, $y + $h),
-      [System.Drawing.Point]::new($x + $w, $y + [int][math]::Floor($h / 2))
-    )
     $brush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
     $g.FillPolygon($brush, $points)
     $brush.Dispose()
@@ -421,9 +484,11 @@ function Update-TrayIcons {
   $script:iconIdle = New-TrayIcon 'none'
   $script:iconBusy = New-TrayIcon 'play'
   $script:iconPaused = New-TrayIcon 'pause'
-  $script:iconOk = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(0, 255, 0))
-  $script:iconLatest = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(0, 0, 255))
-  $script:iconFail = New-TrayIcon 'dot' ([System.Drawing.Color]::FromArgb(255, 0, 0))
+  $okGreen = [System.Drawing.Color]::FromArgb(46, 160, 67)
+  $failRed = [System.Drawing.Color]::FromArgb(218, 54, 51)
+  $script:iconOk = New-TrayIcon 'check' $okGreen       # 上次成功：绿色对钩
+  $script:iconLatest = New-TrayIcon 'dot' $okGreen     # 上次已是最新：绿色实心圆
+  $script:iconFail = New-TrayIcon 'cross' $failRed     # 上次失败：红色叉
 
   # 先让托盘切到新图标，再释放旧图标、HICON 与位图
   Update-TrayIcon $script:trayState
@@ -686,6 +751,14 @@ function Format-RunResult($r) {
     if ($errs.Count -gt 0) { $parts += ('原因：' + [string]$errs[0]) }
   } elseif ($r.allLatest) {
     $parts += ('全部内容均为最新（' + [int]$r.softwareTotal + ' 个）')
+    $guarded = @($r.guarded | Where-Object { $_ })
+    if ($guarded.Count -gt 0) {
+      $gList = ($guarded | Select-Object -First 3 | ForEach-Object {
+        '条目 ' + $_.id + '：' + [string]$_.version
+      }) -join '；'
+      if ($guarded.Count -gt 3) { $gList += ' 等 ' + $guarded.Count + ' 个' }
+      $parts += ('新版本发布未满守护时间，暂缓 ' + $gList)
+    }
   } elseif ($r.syncSkipped) {
     $parts += '同步步骤已关闭（本轮未执行同步）'
   } else {
@@ -700,6 +773,8 @@ function Format-RunResult($r) {
       if ($changed.Count -gt 3) { $list += ' 等 ' + $changed.Count + ' 个条目' }
       $parts += $list
     }
+    $guarded = @($r.guarded | Where-Object { $_ })
+    if ($guarded.Count -gt 0) { $parts += ('另有 ' + $guarded.Count + ' 个新版本发布未满守护时间，暂缓') }
   }
   if ($r.retryPush -and -not $r.retryPush.ok) { $parts += '补推失败，提交保留到下次' }
   return ($parts -join '｜')
@@ -781,6 +856,46 @@ function Resume-PendingSessionEnd {
   Write-TrayLog ('同步已结束：之前拦截的' + $action + '请求不会自动继续，已提醒用户重新操作')
 }
 
+# 本轮结果三态判定（唯一口径，角标 / 菜单 / 通知都用它）：
+#   failed  = 失败：超时、退出码非 0、result.json 报错（ok=false / stage=pull /
+#             pull.ok=false / retryPush.ok=false / errors 非空）、或没有 result.json 时
+#             日志里出现明确的致命失败
+#   latest  = 已是最新：非失败，且本轮没有任何可同步内容（result.allLatest）
+#   success = 成功：非失败，且执行了同步流程（退出码 0 且无错误）
+function Resolve-RunOutcome($Result, [int]$ExitCode, [bool]$TimedOut, [string]$Summary) {
+  $resultFailed = $false
+  if ($Result) {
+    if ($null -ne $Result.ok -and -not [bool]$Result.ok) { $resultFailed = $true }
+    if ([string]$Result.stage -eq 'pull') { $resultFailed = $true }
+    if ($Result.pull -and $null -ne $Result.pull.ok -and -not [bool]$Result.pull.ok) { $resultFailed = $true }
+    if ($Result.retryPush -and $null -ne $Result.retryPush.ok -and -not [bool]$Result.retryPush.ok) { $resultFailed = $true }
+    if (@($Result.errors | Where-Object { $_ }).Count -gt 0) { $resultFailed = $true }
+  }
+  $logFailed = $false
+  if (-not $Result -and $ExitCode -eq 0 -and $script:runLog) {
+    try {
+      $raw = Get-Content -LiteralPath $script:runLog -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+      if ($raw -match '本次同步已取消|❌\s*拉取失败|❌\s*登录失败|❌\s*push 失败|❌\s*探测失败') { $logFailed = $true }
+    } catch { }
+  }
+  $isFailure = ($TimedOut -or $ExitCode -ne 0 -or $resultFailed -or $logFailed)
+
+  if ($isFailure) {
+    if ($TimedOut) {
+      return @{ Outcome = 'failed'; IsFailure = $true; Label = '❌ 超时已终止' }
+    }
+    if (($Result -and [string]$Result.stage -eq 'pull') -or $ExitCode -eq 2) {
+      return @{ Outcome = 'failed'; IsFailure = $true; Label = '❌ 已取消（拉取失败）' }
+    }
+    return @{ Outcome = 'failed'; IsFailure = $true; Label = "❌ 失败（退出码 $ExitCode）" }
+  }
+
+  if (($Result -and [bool]$Result.allLatest) -or (-not $Result -and $Summary -match '全部.*最新')) {
+    return @{ Outcome = 'latest'; IsFailure = $false; Label = '✅ 已是最新（本轮无可同步内容）' }
+  }
+  return @{ Outcome = 'success'; IsFailure = $false; Label = '✅ 成功' }
+}
+
 function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   if ($script:proc) {
     try { $script:proc.Dispose() } catch { }
@@ -795,48 +910,11 @@ function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
   # 下一轮从「本次结束」起算，不累积错过的周期
   $script:nextRunAt = (Get-Date).AddMinutes($minutes)
 
-  # 成功判据（任一命中即失败）：
-  #   1) 超时 / 退出码非 0
-  #   2) result.json 里 ok=false、stage=pull、pull.ok=false、retryPush.ok=false 或 errors 非空
-  #      —— 退出码可能拿不到而变成 0，不能只信它
-  #   3) 没有 result.json 时，日志里出现明确的「已取消 / 拉取失败 / 登录失败 / push 失败」
-  $resultFailed = $false
-  if ($result) {
-    if ($null -ne $result.ok -and -not [bool]$result.ok) { $resultFailed = $true }
-    if ([string]$result.stage -eq 'pull') { $resultFailed = $true }
-    if ($result.pull -and $null -ne $result.pull.ok -and -not [bool]$result.pull.ok) { $resultFailed = $true }
-    if ($result.retryPush -and $null -ne $result.retryPush.ok -and -not [bool]$result.retryPush.ok) { $resultFailed = $true }
-    if (@($result.errors | Where-Object { $_ }).Count -gt 0) { $resultFailed = $true }
-  }
-  $logFailed = $false
-  if (-not $result -and $ExitCode -eq 0 -and $script:runLog) {
-    try {
-      $raw = Get-Content -LiteralPath $script:runLog -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
-      if ($raw -match '本次同步已取消|❌\s*拉取失败|❌\s*登录失败|❌\s*push 失败|❌\s*探测失败') { $logFailed = $true }
-    } catch { }
-  }
-  $isFailure = ($TimedOut -or $ExitCode -ne 0 -or $resultFailed -or $logFailed)
-
-  if ($TimedOut) {
-    $script:lastResult = '❌ 超时已终止'
-  } elseif (($result -and [string]$result.stage -eq 'pull') -or $ExitCode -eq 2) {
-    $script:lastResult = '❌ 已取消（拉取失败）'
-  } elseif ($isFailure) {
-    $script:lastResult = "❌ 失败（退出码 $ExitCode）"
-  } else {
-    $script:lastResult = '✅ 成功'
-  }
-
-  # 上一次结果 → 空闲角标（成功绿 / 已是最新蓝 / 失败红）
-  if ($isFailure) {
-    $script:lastOutcome = 'failed'
-  } elseif ($result -and $result.allLatest) {
-    $script:lastOutcome = 'latest'
-  } elseif (-not $result -and $summary -match '全部.*最新') {
-    $script:lastOutcome = 'latest'
-  } else {
-    $script:lastOutcome = 'success'
-  }
+  # 三态判定统一交给 Resolve-RunOutcome（失败 / 已是最新 / 成功），这里只取结果
+  $verdict = Resolve-RunOutcome $result $ExitCode $TimedOut $summary
+  $isFailure = [bool]$verdict.IsFailure
+  $script:lastResult = [string]$verdict.Label
+  $script:lastOutcome = [string]$verdict.Outcome
 
   $elapsedText = ''
   if ($script:runStartedAt) {
@@ -1044,21 +1122,17 @@ function Test-Password([string]$Title = '密码', [string]$Prompt = '请输入�
   return $false
 }
 
-function Test-ExitPassword {
-  return (Test-Password '退出密码' '请输入退出密码（取消 = 不退出）。')
-}
-
-# 上锁：菜单只保留「立即同步」「打开日志」「解锁」，其余全部禁用；状态存 config.json
+# 上锁：菜单精简为「立即同步」「解锁」「打开日志」，其余操作全部隐藏；状态存 config.json
 function Set-LockState([bool]$Locked) {
   if ($Locked -and -not [string]$script:cfg.exitPassword) {
-    Show-Balloon '无法上锁' '请先在「选项 → 退出密码」里设置密码，再上锁。' 'Warning'
+    Show-Balloon '无法上锁' '请先在「设置 → 外观与维护 → 锁定密码」里设置密码，再上锁。' 'Warning'
     return
   }
   $script:cfg.locked = $Locked
   Save-Config $script:cfg
   Write-TrayLog ('菜单' + $(if ($Locked) { '已上锁（仅保留：立即同步 / 打开日志 / 解锁）' } else { '已解锁' }))
   if ($Locked) {
-    Show-Balloon '已上锁' '除「立即同步」「打开日志」「解锁」外的菜单项均已禁用。' 'Info'
+    Show-Balloon '已上锁' '菜单已精简为「立即同步」「解锁」「打开日志」。' 'Info'
   } else {
     Show-Balloon '已解锁' '全部菜单项已恢复可用。' 'Info'
   }
@@ -1160,6 +1234,41 @@ function Add-InfoLine([string]$Text, [System.Drawing.Color]$Color) {
   [void]$script:menu.Items.Add($item)
 }
 
+function New-SubMenu([string]$Text) {
+  $item = New-Object System.Windows.Forms.ToolStripMenuItem
+  $item.Text = $Text
+  return $item
+}
+
+function Add-MenuSeparator($Parent) {
+  [void]$Parent.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+}
+
+function Open-LogFolder {
+  try {
+    # 日志按日期分文件夹，默认打开当天的
+    $dir = Get-LogDir
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    Start-Process explorer.exe -ArgumentList ('"' + $dir + '"')
+  } catch { }
+}
+
+function Open-LatestLog {
+  try {
+    $logToOpen = $script:runLog
+    if (-not $logToOpen -or -not (Test-Path -LiteralPath $logToOpen)) {
+      # 托盘重启后内存里没有记录，退回到日志目录（含日期子目录）里最新的 sync-*.log
+      $logToOpen = Get-ChildItem -LiteralPath $LogDir -Filter 'sync-*.log' -File -Recurse -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
+    }
+    if ($logToOpen -and (Test-Path -LiteralPath $logToOpen)) {
+      Start-Process notepad.exe -ArgumentList ('"' + $logToOpen + '"')
+    } else {
+      Show-Balloon '暂无日志' '还没有运行过同步。' 'Info'
+    }
+  } catch { }
+}
+
 function Build-Menu {
   $menu = $script:menu
   # Clear() 只是移除引用，不会释放 ToolStripItem 的 GDI 资源；菜单每次打开都重建，必须逐个 Dispose
@@ -1189,10 +1298,14 @@ function Build-Menu {
     $stateText = $(if (Test-StepsEnabled) { '已暂停' } else { '已暂停（步骤全关）' })
     $stateSymbol = '‖'
     $stateColor = $warnColor
-  } elseif ($script:lastResult -like '❌*') {
+  } elseif ($script:lastOutcome -eq 'failed') {
     $stateText = '待命（上次失败）'
     $stateSymbol = '×'
     $stateColor = $errColor
+  } elseif ($script:lastOutcome -eq 'latest') {
+    $stateText = '待命（上次已是最新）'
+    $stateSymbol = '●'
+    $stateColor = $okColor
   }
   Add-InfoLine ('   状态　' + $stateSymbol + ' ' + $stateText) $stateColor
   if ([bool]$script:cfg.locked) {
@@ -1211,7 +1324,7 @@ function Build-Menu {
     $lastText = '尚未运行'
   }
   $lastColor = $okColor
-  if ($script:lastResult -like '❌*') { $lastColor = $errColor }
+  if ($script:lastOutcome -eq 'failed') { $lastColor = $errColor }
   elseif (-not $script:lastRunAt) { $lastColor = $slateColor }
   Add-InfoLine ('   上次　' + $lastText) $lastColor
 
@@ -1249,20 +1362,20 @@ function Build-Menu {
   $anySteps = Test-StepsEnabled
   if ($script:running) { $nowText = '立即同步（正在运行）' }
   elseif (-not $anySteps) { $nowText = '立即同步（步骤全关）' }
-  $nowItem = New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)
-  $nowItem.Tag = 'lock-allow'   # 上锁后仍可用
-  [void]$menu.Items.Add($nowItem)
 
-  # ---- 上锁 / 解锁（上锁后只保留：立即同步 / 打开日志 / 解锁）----
+  # 上锁：只保留「立即同步 / 解锁 / 打开日志」
   if ([bool]$script:cfg.locked) {
-    $unlockItem = New-MenuItem '解锁（输入密码）…' ({
+    [void]$menu.Items.Add((New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)))
+    [void]$menu.Items.Add((New-MenuItem '解锁（输入密码）…' ({
       if (Test-Password '解锁' '请输入密码（取消 = 保持上锁）。') { Set-LockState $false }
-    })
-    $unlockItem.Tag = 'lock-allow'
-    [void]$menu.Items.Add($unlockItem)
-  } else {
-    [void]$menu.Items.Add((New-MenuItem '上锁（禁用大部分菜单）' ({ Set-LockState $true })))
+    })))
+    Add-MenuSeparator $menu
+    [void]$menu.Items.Add((New-MenuItem '打开日志文件夹' ({ Open-LogFolder })))
+    [void]$menu.Items.Add((New-MenuItem '打开最近日志' ({ Open-LatestLog })))
+    return
   }
+
+  [void]$menu.Items.Add((New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)))
 
   $pauseText = '暂停自动同步'
   if ($script:paused) { $pauseText = '继续自动同步' }
@@ -1282,6 +1395,16 @@ function Build-Menu {
       }
     }
   })))
+
+  [void]$menu.Items.Add((New-MenuItem '上锁（仅保留同步与日志）' ({ Set-LockState $true })))
+
+  # ---- 分组子菜单（内容在下方构建，最后统一挂到「设置」）----
+  $settingsItem = New-SubMenu '设置'
+  $freqItem = New-SubMenu '同步频率'
+  $notifyItem = New-SubMenu '同步通知'
+  $credItem = New-SubMenu '凭据与身份'
+  $maintItem = New-SubMenu '外观与维护'
+  $logsItem = New-SubMenu '日志与配置'
 
   # ---- 更新间隔（预设 + 自定义）----
   $intervalItem = New-Object System.Windows.Forms.ToolStripMenuItem
@@ -1313,19 +1436,16 @@ function Build-Menu {
     }
   })
   [void]$intervalItem.DropDownItems.Add($custom)
-  [void]$menu.Items.Add($intervalItem)
+  [void]$freqItem.DropDownItems.Add($intervalItem)
 
-  # ---- 选项（拉取 / 补推 / 通知）----
-  $optItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $optItem.Text = '选项'
-
+  # ---- 同步频率：拉取 / 补推 / 步骤 ----
   $pullItem = New-MenuItem '同步前自动拉取' ({
     $script:cfg.pullBeforeSync = -not $script:cfg.pullBeforeSync
     Save-Config $script:cfg
     Write-TrayLog ('同步前自动拉取：' + $(if ($script:cfg.pullBeforeSync) { '开' } else { '关' }))
   })
   $pullItem.Checked = [bool]$script:cfg.pullBeforeSync
-  [void]$optItem.DropDownItems.Add($pullItem)
+  [void]$freqItem.DropDownItems.Add($pullItem)
 
   $retryItem = New-MenuItem '失败提交下次补推' ({
     $script:cfg.retryPush = -not $script:cfg.retryPush
@@ -1333,7 +1453,7 @@ function Build-Menu {
     Write-TrayLog ('失败提交下次补推：' + $(if ($script:cfg.retryPush) { '开' } else { '关' }))
   })
   $retryItem.Checked = [bool]$script:cfg.retryPush
-  [void]$optItem.DropDownItems.Add($retryItem)
+  [void]$freqItem.DropDownItems.Add($retryItem)
 
   # ---- 步骤设置（全关 = 暂停）----
   $stepsItem = New-Object System.Windows.Forms.ToolStripMenuItem
@@ -1361,7 +1481,7 @@ function Build-Menu {
     $sub.Checked = [bool]$script:cfg[[string]$def.Key]
     [void]$stepsItem.DropDownItems.Add($sub)
   }
-  [void]$optItem.DropDownItems.Add($stepsItem)
+  [void]$freqItem.DropDownItems.Add($stepsItem)
 
   $iconItem = New-Object System.Windows.Forms.ToolStripMenuItem
   $iconItem.Text = '托盘图标：' + $(if ([string]$script:cfg.iconPath) { [System.IO.Path]::GetFileName([string]$script:cfg.iconPath) } else { '内置' })
@@ -1386,7 +1506,7 @@ function Build-Menu {
     Update-TrayIcons
     Write-TrayLog '托盘图标已恢复内置'
   })))
-  [void]$optItem.DropDownItems.Add($iconItem)
+  [void]$maintItem.DropDownItems.Add($iconItem)
 
   $strategyItem = New-Object System.Windows.Forms.ToolStripMenuItem
   $strategyItem.Text = '拉取方式'
@@ -1404,10 +1524,9 @@ function Build-Menu {
   })
   $ffItem.Checked = ([string]$script:cfg.pullStrategy -eq 'ff-only')
   [void]$strategyItem.DropDownItems.Add($ffItem)
-  [void]$optItem.DropDownItems.Add($strategyItem)
+  [void]$freqItem.DropDownItems.Add($strategyItem)
 
-  $notifyItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $notifyItem.Text = '同步通知'
+  # ---- 同步通知 ----
   $nAlways = New-MenuItem '每次同步' ({
     $script:cfg.notifyMode = 'always'
     Save-Config $script:cfg
@@ -1472,13 +1591,11 @@ function Build-Menu {
   })
   $nSilent.Checked = [bool]$script:cfg.silentErrors
   [void]$notifyItem.DropDownItems.Add($nSilent)
-  [void]$optItem.DropDownItems.Add($notifyItem)
 
-  [void]$optItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-
+  # ---- 凭据与身份 ----
   $hasGitToken = -not [string]::IsNullOrWhiteSpace([string]$script:cfg.gitToken)
   $tokenText = 'GitHub 令牌（拉取/推送）：' + $(if ($hasGitToken) { '已配置' } else { '未配置' })
-  [void]$optItem.DropDownItems.Add((New-MenuItem $tokenText ({
+  [void]$credItem.DropDownItems.Add((New-MenuItem $tokenText ({
     $value = Show-TokenDialog 'GitHub 令牌（拉取/推送）' '填入有仓库读写权限的 GitHub PAT（classic: repo；fine-grained: Contents 读写）。' ([string]$script:cfg.gitToken)
     if ($null -eq $value) { return }
     $script:cfg.gitToken = $value
@@ -1491,7 +1608,7 @@ function Build-Menu {
 
   # ---- 会话 Cookie（不必再手改 config.json）----
   $hasSessionCfg = -not [string]::IsNullOrWhiteSpace([string]$script:cfg.session)
-  [void]$optItem.DropDownItems.Add((New-MenuItem ('会话 Cookie：' + $(if ($hasSessionCfg) { '已配置' } else { '未配置' })) ({
+  [void]$credItem.DropDownItems.Add((New-MenuItem ('会话 Cookie：' + $(if ($hasSessionCfg) { '已配置' } else { '未配置' })) ({
     $value = Show-TokenDialog '会话 Cookie' '粘贴 huang1111 的会话 cookie 值（取法见 README「会话 cookie」一节）。' ([string]$script:cfg.session) '留空并确定 = 清除；若系统环境变量 H1111_SESSION 存在则回退到它'
     if ($null -eq $value) { return }
     $script:cfg.session = $value
@@ -1503,18 +1620,18 @@ function Build-Menu {
     else { Show-Balloon '会话已清除' '若系统环境变量里有 H1111_SESSION，将回退到它。' 'Info' }
   })))
 
-  # ---- 退出密码（明文保存在 config.json）----
-  $hasExitPw = -not [string]::IsNullOrEmpty([string]$script:cfg.exitPassword)
-  [void]$optItem.DropDownItems.Add((New-MenuItem ('退出密码：' + $(if ($hasExitPw) { '已设置' } else { '未设置' })) ({
+  # ---- 锁定密码（明文保存在 config.json；只用于上锁/解锁，退出与重启不再校验）----
+  $hasLockPw = -not [string]::IsNullOrEmpty([string]$script:cfg.exitPassword)
+  [void]$maintItem.DropDownItems.Add((New-MenuItem ('锁定密码：' + $(if ($hasLockPw) { '已设置' } else { '未设置' })) ({
     # 已设置时，改密码必须先验证旧密码
-    if (-not (Test-ExitPassword)) { return }
-    $value = Show-TokenDialog '设置退出密码' '输入新的退出密码（明文保存在 config.json）。' '' '留空并确定 = 解除密码保护' -NoTrim
+    if (-not (Test-Password '锁定密码' '请输入当前的锁定密码（取消 = 不修改）。')) { return }
+    $value = Show-TokenDialog '设置锁定密码' '输入新的锁定密码（明文保存在 config.json）。' '' '留空并确定 = 解除密码保护' -NoTrim
     if ($null -eq $value) { return }
     $script:cfg.exitPassword = $value
     Save-Config $script:cfg
-    Write-TrayLog ('退出密码：' + $(if ($value) { '已设置' } else { '已清除' }))
-    if ($value) { Show-Balloon '退出密码已设置' '之后退出或重新启动托盘时需要输入该密码。' 'Info' }
-    else { Show-Balloon '退出密码已清除' '退出不再需要密码。' 'Info' }
+    Write-TrayLog ('锁定密码：' + $(if ($value) { '已设置' } else { '已清除' }))
+    if ($value) { Show-Balloon '锁定密码已设置' '解锁菜单时需要输入该密码；退出与重新启动不再校验。' 'Info' }
+    else { Show-Balloon '锁定密码已清除' '上锁功能将不可用，直到重新设置密码。' 'Info' }
   })))
 
   # ---- 提交身份（git user.name / user.email）----
@@ -1559,13 +1676,13 @@ function Build-Menu {
   })
   $idCustom.Checked = ([string]$script:cfg.gitIdentityMode -eq 'custom')
   [void]$identityItem.DropDownItems.Add($idCustom)
-  [void]$optItem.DropDownItems.Add($identityItem)
+  [void]$credItem.DropDownItems.Add($identityItem)
 
   # ---- 日志保留天数 ----
   $retentionDays = 0
   try { $retentionDays = [int][double]$script:cfg.logRetentionDays } catch { }
   $retentionText = '日志保留：' + $(if ($retentionDays -le 0) { '永久' } else { "$retentionDays 天" })
-  [void]$optItem.DropDownItems.Add((New-MenuItem $retentionText ({
+  [void]$maintItem.DropDownItems.Add((New-MenuItem $retentionText ({
     try {
       Add-Type -AssemblyName Microsoft.VisualBasic
       $answer = [Microsoft.VisualBasic.Interaction]::InputBox('日志保留天数（0 = 永久保留）', '日志设置', [string]([int][double]$script:cfg.logRetentionDays))
@@ -1584,7 +1701,12 @@ function Build-Menu {
     }
   })))
 
-  [void]$menu.Items.Add($optItem)
+  # ---- 组装「设置」子菜单 ----
+  [void]$settingsItem.DropDownItems.Add($freqItem)
+  [void]$settingsItem.DropDownItems.Add($notifyItem)
+  [void]$settingsItem.DropDownItems.Add($credItem)
+  [void]$settingsItem.DropDownItems.Add($maintItem)
+  [void]$menu.Items.Add($settingsItem)
 
   # ---- 开机启动 ----
   $autoItem = New-MenuItem '开机启动' ({
@@ -1599,50 +1721,24 @@ function Build-Menu {
 
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
-  # ---- 日志 / 配置 ----
-  $openLogDirItem = New-MenuItem '打开日志文件夹' ({
-    try {
-      # 日志按日期分文件夹，默认打开当天的
-      $dir = Get-LogDir
-      if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-      Start-Process explorer.exe -ArgumentList ('"' + $dir + '"')
-    } catch { }
-  })
-  $openLogDirItem.Tag = 'lock-allow'   # 上锁后仍可用
-  [void]$menu.Items.Add($openLogDirItem)
-
-  $openLogItem = New-MenuItem '打开最近日志' ({
-    try {
-      $logToOpen = $script:runLog
-      if (-not $logToOpen -or -not (Test-Path -LiteralPath $logToOpen)) {
-        # 托盘重启后内存里没有记录，退回到日志目录（含日期子目录）里最新的 sync-*.log
-        $logToOpen = Get-ChildItem -LiteralPath $script:LogDir -Filter 'sync-*.log' -File -Recurse -ErrorAction SilentlyContinue |
-          Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-      }
-      if ($logToOpen -and (Test-Path -LiteralPath $logToOpen)) {
-        Start-Process notepad.exe -ArgumentList ('"' + $logToOpen + '"')
-      } else {
-        Show-Balloon '暂无日志' '还没有运行过同步。' 'Info'
-      }
-    } catch { }
-  })
-  $openLogItem.Tag = 'lock-allow'   # 上锁后仍可用
-  [void]$menu.Items.Add($openLogItem)
-
-  [void]$menu.Items.Add((New-MenuItem '打开配置文件' ({
+  # ---- 日志与配置 ----
+  [void]$logsItem.DropDownItems.Add((New-MenuItem '打开日志文件夹' ({ Open-LogFolder })))
+  [void]$logsItem.DropDownItems.Add((New-MenuItem '打开最近日志' ({ Open-LatestLog })))
+  Add-MenuSeparator $logsItem
+  [void]$logsItem.DropDownItems.Add((New-MenuItem '打开配置文件' ({
     try { Start-Process notepad.exe -ArgumentList ('"' + $script:ConfigPath + '"') } catch { }
   })))
+  [void]$menu.Items.Add($logsItem)
 
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
   [void]$menu.Items.Add((New-MenuItem '重新启动' ({
-    if (-not (Test-ExitPassword)) { return }
+    # 锁定功能已够用：退出与重新启动不再额外校验密码
     $script:restartRequested = $true
     # 正在同步时不打断，等它跑完再重启
     if ($script:running) { $script:paused = $true }
     Stop-Tray
   })))
   [void]$menu.Items.Add((New-MenuItem '退出' ({
-    if (-not (Test-ExitPassword)) { return }
     $script:exitRequested = $true
     if ($script:running -and $script:proc) {
       # 正在同步时不强杀，等它跑完再退出托盘
@@ -1650,17 +1746,6 @@ function Build-Menu {
     }
     Stop-Tray
   })))
-
-  # ---- 上锁：除「立即同步」「打开日志」「解锁」外全部禁用 ----
-  # 概览行（Tag = 'info'）不禁用：它们没有点击动作，且一禁用就会丢颜色
-  if ([bool]$script:cfg.locked) {
-    foreach ($it in @($menu.Items)) {
-      if ($it -is [System.Windows.Forms.ToolStripSeparator]) { continue }
-      if ([string]$it.Tag -eq 'lock-allow') { continue }
-      if ([string]$it.Tag -eq 'info') { continue }
-      try { $it.Enabled = $false } catch { }
-    }
-  }
 }
 
 # ============================ 启动入口 ============================

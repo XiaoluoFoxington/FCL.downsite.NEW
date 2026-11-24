@@ -9,6 +9,8 @@
 //   1. 取数据源内最新版本（data/down/{id}/index.json 中可解析的版本条目）
 //   2. 若数据源没有版本 → 只取 Release 最新一个
 //   3. 否则 → 落后 Release 多少版本，就把落后的全部下载
+//   4. 不完整守护：发布时间未满 guardMinutes 分钟的版本本轮跳过
+//      （softwares.json 每软件可配，默认 10 分钟，0 = 关闭）
 //
 // 离线下载成功判据（用户确认）：
 //   只看网盘目录（listDir）里是否出现全部期望文件、且每个文件 size 与 GitHub asset 精确相等。
@@ -429,31 +431,37 @@ async function main() {
 
   // ================= 阶段 1：预探测候选（与 probe.mjs 共用 plan.mjs） =================
   const phase1 = log.child('阶段 1：预探测候选');
-  const { plans, rows, failed: probeFailed } = await planAll(SOFTWARES, phase1, (sw) => newRow(sw.softwareId, sw));
+  const { plans, rows, failed: probeFailed, guarded } = await planAll(SOFTWARES, phase1, (sw) => newRow(sw.softwareId, sw));
   overallFailed = overallFailed || probeFailed > 0;
   phase1.close(
     plans.length
       ? `✅ 阶段 1 完成：${rows.length} 个软件｜${plans.length} 个需同步｜用时 ${fmtDur(Date.now() - t0)}`
-      : `✅ 阶段 1 完成：${rows.length} 个软件｜全部已是最新｜用时 ${fmtDur(Date.now() - t0)}`,
+      : `✅ 阶段 1 完成：${rows.length} 个软件｜全部已是最新` +
+        (guarded.length ? `（${guarded.length} 个新版本发布未满守护时间，暂缓）` : '') +
+        `｜用时 ${fmtDur(Date.now() - t0)}`,
   );
 
   // 全部最新 → 不登录、不动网盘，直接结束
   if (!plans.length) {
     const total = fmtDur(Date.now() - t0);
-    log.line(`全部软件均已是最新，无需登录 huang1111，直接结束｜总用时 ${total}`);
+    const guardNote = guarded.length
+      ? `；${guarded.length} 个新版本发布未满守护时间，已暂缓（下一轮重试）`
+      : '';
+    log.line(`全部软件均已是最新，无需登录 huang1111，直接结束${guardNote}｜总用时 ${total}`);
     log.summary(renderSoftwareTable(rows, {
       title: '线路1 自动同步汇总',
       extra: [
-        `- 结果：**全部已是最新，未登录网盘、未产生提交**`,
+        `- 结果：**全部已是最新，未登录网盘、未产生提交**${guarded.length ? `；${guarded.length} 个新版本暂缓（不完整守护）` : ''}`,
         `- 总用时：${total}`,
       ],
     }));
-    log.annotate('notice', `线路1自动同步：全部软件已是最新（${rows.length} 个），本次无操作`);
+    log.annotate('notice', `线路1自动同步：全部软件已是最新（${rows.length} 个），本次无操作${guardNote}`);
     log.flushSummary();
     writeResultFile({
       ok: !overallFailed,
       stage: 'sync',
       allLatest: true,
+      guarded,
       totalMs: Date.now() - t0,
       softwareTotal: rows.length,
       softwareOk: rows.filter((r) => r.result.startsWith('✅')).length,
@@ -677,6 +685,7 @@ async function main() {
     ok: !overallFailed,
     stage: 'sync',
     allLatest: false,
+    guarded,
     totalMs: Date.now() - t0,
     softwareTotal: rows.length,
     softwareOk: okCount,
