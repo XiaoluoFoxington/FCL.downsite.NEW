@@ -15,6 +15,18 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..', '..');
 const SOFTWARES = JSON.parse(readFileSync(join(HERE, 'softwares.json'), 'utf8'));
 
+// ---------- 不完整守护 ----------
+// Release 刚发布时，资产可能还没传齐、直链也可能尚未生效；本轮先跳过，
+// 等发布满 guardMinutes 分钟后再同步（下一轮自动重试）。
+// 每个软件可在 softwares.json 里用 guardMinutes 单独覆盖；0 = 关闭守护。
+export const DEFAULT_GUARD_MINUTES = 10;
+export function guardMinutesOf(sw) {
+  const raw = sw ? sw.guardMinutes : undefined;
+  if (raw === undefined || raw === null || raw === '') return DEFAULT_GUARD_MINUTES;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_GUARD_MINUTES;
+}
+
 // ---------- 版本比较（与前端 js/adapters/download/common.js 一致） ----------
 const VERSION_NUMBER = /\d+/g;
 export function compareVersionsDescending(left, right) {

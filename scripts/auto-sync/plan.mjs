@@ -8,11 +8,13 @@
 //   1. 取数据源内最新版本（data/down/{id}/index.json 中可解析的版本条目）
 //   2. 若数据源没有版本 → 只取 Release 最新一个
 //   3. 否则 → 落后 Release 多少版本，就把落后的全部下载
+//   4. 不完整守护：候选中发布时间未满 guardMinutes 分钟的版本本轮跳过
+//      （softwares.json 每软件可配，默认 10 分钟，0 = 关闭）
 
 import {
   compareVersionsDescending, versionFromTag,
   entrySortKey, isPinnedEntry, parseDataSourceIndex,
-  fetchReleasesPage,
+  fetchReleasesPage, guardMinutesOf,
 } from './lib.mjs';
 import { errText } from './logger.mjs';
 
@@ -24,10 +26,11 @@ const PER_PAGE = 100;
  * @param {object} sw          softwares.json 条目
  * @param {object} scope       logger 作用域（负责输出本次探测的所有日志行）
  * @param {object} row         汇总表行（就地填充事实，供 run 日志与汇总页共用）
- * @returns {Promise<{candidates: Array, entries: Array, dsLatest: string|null, releaseCount: number, versionTotal: number, notes: string[]}>}
+ * @returns {Promise<{candidates: Array, entries: Array, dsLatest: string|null, guarded: Array, releaseCount: number, versionTotal: number, notes: string[]}>}
  */
 export async function planSoftware(sw, scope, row = null) {
   const notes = [];
+  const guardMinutes = guardMinutesOf(sw);
 
   // ---- 1) 数据源基线 ----
   const { latest: dsLatest, entries, versionCount } = parseDataSourceIndex(sw.softwareId);
@@ -48,7 +51,7 @@ export async function planSoftware(sw, scope, row = null) {
   if (!releases.length) {
     scope.close('⏭️ 该仓库没有可用 Release，跳过');
     if (row) row.result = '⏭️ 无 Release';
-    return { candidates: [], entries, dsLatest, releaseCount: 0, versionTotal: 0, notes };
+    return { candidates: [], entries, dsLatest, guarded: [], releaseCount: 0, versionTotal: 0, notes };
   }
 
   // ---- 3) tag → 归一化版本名（去重，保留最新出现的那个 Release）----
@@ -67,31 +70,68 @@ export async function planSoftware(sw, scope, row = null) {
   }
 
   // ---- 4) 算候选 ----
-  let candidates;
+  let candidatesAll;
   if (!dsLatest) {
-    candidates = versioned.slice(0, 1);
-    scope.line(`数据源没有版本 → 只取最新一个：${candidates[0]?.version ?? '（无）'}`);
+    candidatesAll = versioned.slice(0, 1);
+    scope.line(`数据源没有版本 → 只取最新一个：${candidatesAll[0]?.version ?? '（无）'}`);
   } else {
-    candidates = versioned.filter((x) => compareVersionsDescending(dsLatest, x.version) > 0);
+    candidatesAll = versioned.filter((x) => compareVersionsDescending(dsLatest, x.version) > 0);
     scope.line(
-      candidates.length
-        ? `落后 ${candidates.length} 个版本：${candidates.map((c) => c.version).join('、')}`
+      candidatesAll.length
+        ? `落后 ${candidatesAll.length} 个版本：${candidatesAll.map((c) => c.version).join('、')}`
         : `已是最新（数据源 ${dsLatest} ≥ Release 最新 ${versioned[0]?.version ?? '?'}）`,
     );
   }
   // 由旧到新处理：先把老的补上，中途失败也不会留下"新的有、老的没有"的空洞
-  candidates.sort((a, b) => compareVersionsDescending(b.version, a.version));
+  candidatesAll.sort((a, b) => compareVersionsDescending(b.version, a.version));
 
-  if (row) row.candidates = candidates.map((c) => c.version);
+  // ---- 5) 不完整守护：发布未满 guardMinutes 的版本本轮跳过 ----
+  const candidates = [];
+  const guarded = [];
+  if (guardMinutes > 0) {
+    const now = Date.now();
+    for (const x of candidatesAll) {
+      const publishedAt = Date.parse(x.release.published_at || '');
+      const ageMinutes = Number.isFinite(publishedAt) ? (now - publishedAt) / 60000 : Infinity;
+      if (ageMinutes < guardMinutes) {
+        guarded.push({
+          version: x.version,
+          publishedAt: x.release.published_at || null,
+          ageMinutes: Number.isFinite(ageMinutes) ? Math.max(0, Math.round(ageMinutes * 10) / 10) : null,
+        });
+      } else {
+        candidates.push(x);
+      }
+    }
+    if (guarded.length) {
+      scope.line(
+        `🛡 不完整守护（${guardMinutes} 分钟）：` +
+        guarded.map((g) => `${g.version}（发布 ${g.ageMinutes ?? '?'} 分钟）`).join('、') +
+        ' 本轮暂缓',
+      );
+    }
+  } else {
+    candidates.push(...candidatesAll);
+  }
+
+  if (row) {
+    row.candidates = candidates.map((c) => c.version);
+    row.guarded = guarded.map((g) => g.version);
+  }
 
   if (!candidates.length) {
-    scope.close('✅ 已是最新，无需同步');
-    if (row) row.result = '✅ 已是最新';
+    if (guarded.length) {
+      scope.close(`🛡 新版本发布未满 ${guardMinutes} 分钟，本轮暂缓，下一轮自动重试`);
+      if (row) row.result = `🛡 暂缓（发布未满 ${guardMinutes} 分钟）`;
+    } else {
+      scope.close('✅ 已是最新，无需同步');
+      if (row) row.result = '✅ 已是最新';
+    }
   } else {
     scope.close(`✅ 需同步 ${candidates.length} 个版本`);
   }
   return {
-    candidates, entries, dsLatest,
+    candidates, entries, dsLatest, guarded,
     releaseCount: releases.length,
     versionTotal: versioned.length,
     notes,
@@ -100,11 +140,12 @@ export async function planSoftware(sw, scope, row = null) {
 
 /**
  * 依次探测全部软件。单个软件失败不影响其余软件（记 ❌ 后继续）。
- * @returns {Promise<{plans: Array, rows: Array, hasCandidates: boolean, failed: number}>}
+ * @returns {Promise<{plans: Array, rows: Array, hasCandidates: boolean, failed: number, guarded: Array}>}
  */
 export async function planAll(softwares, rootScope, makeRow) {
   const plans = [];
   const rows = [];
+  const guarded = [];
   let failed = 0;
 
   for (const sw of softwares) {
@@ -114,6 +155,7 @@ export async function planAll(softwares, rootScope, makeRow) {
     try {
       const plan = await planSoftware(sw, scope, row);
       if (plan.candidates.length) plans.push({ sw, ...plan });
+      for (const g of plan.guarded) guarded.push({ id: sw.softwareId, ...g });
     } catch (e) {
       failed += 1;
       const msg = errText(e);
@@ -125,5 +167,5 @@ export async function planAll(softwares, rootScope, makeRow) {
     }
   }
 
-  return { plans, rows, hasCandidates: plans.length > 0, failed };
+  return { plans, rows, hasCandidates: plans.length > 0, failed, guarded };
 }

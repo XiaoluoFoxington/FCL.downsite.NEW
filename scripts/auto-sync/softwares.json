@@ -6,7 +6,8 @@
     "mode": "arch",
     "archNames": ["all", "arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
     "fallbackArch": null,
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   },
   {
     "softwareId": 3,
@@ -15,7 +16,8 @@
     "mode": "arch",
     "archNames": ["all", "arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
     "fallbackArch": "all",
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   },
   {
     "softwareId": 4,
@@ -24,13 +26,15 @@
     "mode": "name",
     "archNames": [],
     "fallbackArch": null,
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   },
   {
     "softwareId": 12,
     "githubRepo": "LZZLHY/amcl",
     "mode": "name",
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   },
   {
     "softwareId": 15,
@@ -39,7 +43,8 @@
     "archNames": [],
     "fallbackArch": null,
     "keepLatest": 3,
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   },
   {
     "softwareId": 16,
@@ -48,7 +53,8 @@
     "mode": "name",
     "archNames": [],
     "fallbackArch": null,
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   },
   {
     "softwareId": 17,
@@ -57,7 +63,8 @@
     "mode": "arch",
     "archNames": ["arm64-v8a"],
     "fallbackArch": null,
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   },
   {
     "softwareId": 18,
@@ -66,7 +73,8 @@
     "mode": "arch",
     "archNames": ["all", "arm64-v8a", "armeabi-v7a", "x86", "x86_64"],
     "fallbackArch": "all",
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   },
   {
     "softwareId": 19,
@@ -75,6 +83,7 @@
     "mode": "name",
     "archNames": [],
     "fallbackArch": null,
-    "includePrerelease": false
+    "includePrerelease": false,
+    "guardMinutes": 10
   }
 ]

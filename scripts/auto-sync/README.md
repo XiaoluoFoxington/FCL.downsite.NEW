@@ -168,7 +168,7 @@ node scripts/auto-sync/probe.mjs
 
 - **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
 - **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
-- 托盘图标上的菜单：顶部是彩色概览面板（状态 / 下次倒计时 / 上次结果与用时 / 分支与待推数 / 提交身份 / 会话剩余 / 间隔与选项摘要 / Node 与今日同步次数），下面是 立即同步 / 上锁·解锁 / 暂停·继续 / 更新间隔（15·30·60·120·240·720 分钟 + 自定义）/ 选项（拉取、补推、步骤设置、托盘图标、拉取方式、通知、GitHub 令牌、会话 Cookie、退出密码、提交身份、日志保留）/ 开机启动 / 打开日志 / 打开最近日志 / 打开配置 / 重新启动 / 退出
+- 托盘图标上的菜单：顶部是彩色概览面板（状态 / 下次倒计时 / 上次结果与用时 / 分支与待推数 / 身份 / 会话剩余 / 设置摘要 / 本机 Node 与今日同步次数），下面是 立即同步 / 暂停·继续 / 锁定 / **设置**（同步：间隔、先拉取、自动补推、执行步骤、拉取方式；通知；账号与提交：GitHub 令牌、会话 Cookie、提交身份；更多：托盘图标、锁定密码、日志保留）/ 开机启动 / 日志（日志文件夹、最近日志、配置文件）/ 重启托盘 / 退出
 - **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
 
 ### 配置（首次运行自动生成）
@@ -182,7 +182,7 @@ node scripts/auto-sync/probe.mjs
 | `nodePath` | `""` | 留空自动在 PATH 找；找不到时填 `node.exe` 完整路径 |
 | `session` | `""` | huang1111 会话 cookie；留空则沿用系统环境变量 `H1111_SESSION` |
 | `githubToken` | `""` | GitHub 只读 token；留空则沿用 `GITHUB_TOKEN` / `GH_TOKEN`（匿名限额 60 次/小时） |
-| `gitToken` | `""` | GitHub PAT，仅用于 `git pull`/`push` 鉴权（托盘「选项 → GitHub 令牌（拉取/推送）」可设）；留空则沿用本机 git 凭据 |
+| `gitToken` | `""` | GitHub PAT，仅用于 `git pull`/`push` 鉴权（托盘「设置 → 账号与提交 → GitHub 令牌」可设）；留空则沿用本机 git 凭据 |
 | `syncTimeoutMinutes` | `120` | 单次同步硬超时，超时强杀子进程 |
 | `pullBeforeSync` | `true` | 每轮同步前先 `git pull`；拉取失败则**取消本轮**（不下载、不提交） |
 | `pullStrategy` | `"rebase"` | `rebase`（推荐，能自动把上次未推的提交叠到远端之上）或 `ff-only` |
@@ -192,30 +192,34 @@ node scripts/auto-sync/probe.mjs
 | `stepSync` | `true` | 步骤开关：执行 `sync.mjs`（探测 / 下载 / 写数据） |
 | `stepCommit` | `true` | 步骤开关：生成变更后 `git commit`；关闭时变更留在工作区 |
 | `stepPush` | `true` | 步骤开关：`git push`（含补推）；关闭时提交只留在本地 |
-| `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标：同步中白色右三角、暂停「‖」、空闲时上次成功绿点 / 已是最新蓝点 / 失败红点（还没跑过则不显示） |
+| `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标：同步中白色右三角、暂停「‖」、上次成功绿色对钩、上次已是最新绿色实心圆、上次失败红色叉（还没跑过则不显示）；挖空按角标实际轮廓，不是外接矩形 |
 | `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 / `accumulate` 累积（每 `notifyEveryRuns` 次汇总弹一次） |
-| `notifyEveryRuns` | `5` | `notifyMode=accumulate` 时的累积周期（次）；托盘「选项 → 同步通知 → 累积次数」可改（改后计数重置） |
+| `notifyEveryRuns` | `5` | `notifyMode=accumulate` 时的累积周期（次）；托盘「设置 → 通知 → 汇总间隔」可改（改后计数重置） |
 | `silentErrors` | `false` | 仅 `accumulate` 生效：静默非周期错误（如「有本地提交未推送」），只写日志不即时弹气泡 |
-| `exitPassword` | `""` | 退出 / 重新启动 / 修改密码 / 解锁的密码，明文保存；留空 = 不校验。托盘「选项 → 退出密码」可设/改/清除 |
-| `locked` | `false` | 菜单是否上锁：上锁后只保留「立即同步」「打开日志」「解锁」，其余操作项（含选项、退出）全部禁用；顶部概览信息行没有点击动作、禁用会丢颜色，故保持原样。上锁前必须先设置 `exitPassword`；锁状态存盘，重启托盘仍有效 |
-| `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「选项 → 提交身份」可设） |
+| `exitPassword` | `""` | 锁定密码（明文保存）：只用于「锁定 / 解锁 / 修改密码」，退出与重启托盘不再校验。托盘「设置 → 更多 → 锁定密码」可设/改/清除 |
+| `locked` | `false` | 菜单是否锁定：锁定后只剩「立即同步」「解锁」「日志」，其余项全部隐藏；锁定前必须先设置 `exitPassword`；锁状态存盘，重启托盘仍有效 |
+| `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「设置 → 账号与提交 → 提交身份」可设） |
 | `gitUserName` | `""` | `gitIdentityMode=custom` 时的 `user.name` |
 | `gitUserEmail` | `""` | `gitIdentityMode=custom` 时的 `user.email` |
-| `logRetentionDays` | `90` | 日志保留天数；启动与跨天时删除更早的日期目录，`0` = 永久保留（托盘「选项 → 日志保留」可改） |
+| `logRetentionDays` | `90` | 日志保留天数；启动与跨天时删除更早的日期目录，`0` = 永久保留（托盘「设置 → 更多 → 日志保留」可改） |
 
 > 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。
-> 也可在托盘「选项 → 会话 Cookie」里直接粘贴或清除，保存后立即刷新剩余天数，无需手改 `config.json`。托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
+> 也可在托盘「设置 → 账号与提交 → 会话 Cookie」里直接粘贴或清除，保存后立即刷新剩余天数，无需手改 `config.json`。托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
 
 ### 行为与注意
 
-- **每次运行都会 commit + push 到当前仓库的 `origin`**，默认用本机 git 凭据（SSH key / credential helper）；若在托盘「选项 → GitHub 令牌（拉取/推送）」填了 PAT，则改用该令牌（通过 `http.extraheader` 临时注入，不写入 `.git/config`，也不拼进 remote URL）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
+- **每次运行都会 commit + push 到当前仓库的 `origin`**，默认用本机 git 凭据（SSH key / credential helper）；若在托盘「设置 → 账号与提交 → GitHub 令牌」填了 PAT，则改用该令牌（通过 `http.extraheader` 临时注入，不写入 `.git/config`，也不拼进 remote URL）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
 - **每轮固定顺序：`git pull` → `sync.mjs` → 补推**（`run-sync.mjs` 负责编排）。拉取失败（远端冲突、工作区有未提交改动、超时）会**取消本轮**，不下载也不提交；若是 rebase 冲突，会自动 `rebase --abort` 把仓库还原到拉取前
 - push 失败（超时或远端已有新提交）时，提交留在本地；**下一次同步成功后会自动补推**（`retryPush`）。若补推仍失败，托盘持续显示「待推 N」并提示；也可手动 `git pull --rebase && git push`
-- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「选项 → 同步通知」或 `notifyMode` 改成仅失败 / 从不。气泡文字来自本轮的结构化结果 `sync-<时间>.result.json`（与日志同目录）：能区分「全部已是最新」「同步成功 N/M 及具体版本」「登录/拉取/补推失败原因」，而不是从日志里猜；结果文件缺失时才退回日志关键字
-- **成功/失败的判定**：以子进程退出码为基础（`0` 成功、`2` 拉取失败已取消、其它为失败），再叠加本轮 `result.json` 的 `ok` / `stage` / `pull.ok` / `retryPush.ok` / `errors` —— 任一项表明失败都算失败。所以「日志里明明写了拉取失败」不可能再显示成成功（退出码丢失时也按失败处理）
+- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「设置 → 通知」或 `notifyMode` 改成仅失败 / 从不。气泡文字来自本轮的结构化结果 `sync-<时间>.result.json`（与日志同目录）：能区分「全部已是最新」「同步成功 N/M 及具体版本」「新版本因发布未满守护时间暂缓」「登录/拉取/补推失败原因」，而不是从日志里猜；结果文件缺失时才退回日志关键字
+- **结果判定（唯一口径，托盘角标 / 菜单 / 通知共用）**：
+  - **失败**：超时、退出码非 `0`、`result.json` 报错（`ok=false` / `stage=pull` / `pull.ok=false` / `retryPush.ok=false` / `errors` 非空），或没有 `result.json` 时日志里出现明确的致命失败
+  - **已是最新**：非失败，且本轮没有任何可同步内容（`allLatest=true`，含「新版本发布未满守护时间」的情况）
+  - **成功**：非失败，且执行了同步流程（退出码 `0` 且无错误）
+  - 也就是说：**「已是最新」永远不会被算成失败**；只有真的出错才失败。退出码丢失时若结果文件表明失败，仍按失败处理
 - **同步进行中收到关机/注销请求会被阻止**：系统会提示"此应用正在阻止关机"，同步结束后只弹提醒，由你重新执行关机/注销（不会自动替你关机）
-- 拉取开关、拉取方式（rebase / ff-only）、失败补推都可在托盘「选项」菜单里即时切换，也可直接改 `config.json`（下一轮生效）
-- **步骤设置**（托盘「选项 → 步骤设置」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
+- 拉取开关、拉取方式（rebase / ff-only）、自动补推都可在托盘「设置 → 同步」即时切换，也可直接改 `config.json`（下一轮生效）
+- **执行步骤**（托盘「设置 → 同步 → 执行步骤」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
 - 日志按日期分目录存放：`local/logs/<yyyy>/<MM>/<dd>/sync-<时间>.log`；托盘自身事件写同日目录下的 `tray.log`。这样单目录不会堆积过多文件。双击托盘图标可直接打开**最近一次**同步日志
 - 同步进程完全隐藏运行，**不会弹任何窗口**；只有点「自定义间隔」等菜单项时才会出现小对话框
@@ -253,6 +257,12 @@ probe job（轻量，必跑）──读取 GitHub Releases + 本地 index.json �
 1. 读 `data/down/{id}/index.json` 找**数据源内最新版本**
 2. 数据源**没有**版本 → 只取 GitHub Release 最新一个
 3. 数据源**有**版本 → 落后 Release 多少版本，把落后的**全部**下载（旧的先处理）
+4. **不完整守护**：候选版本中，Release 发布时间距今不足 `guardMinutes` 分钟的**本轮跳过**，
+   等下一轮（或发布满该时长后）再同步。防止刚发布时资产尚未传齐、直链尚未生效导致的半截同步。
+   - 配置在 [`softwares.json`](softwares.json)：每个软件可单独写 `"guardMinutes": N`
+   - 默认 **10 分钟**；写 `0` 关闭该软件的守护
+   - 守护只影响「本轮是否同步」，不算失败；若全部候选都被守护，结果记为「已是最新」（绿色实心圆）
+   - probe 与 sync 共用同一份实现，probe 也会把被守护的版本计入「暂缓」；若没有其他可同步版本，则不调度 sync job
 
 ## 重试策略
 
@@ -375,7 +385,8 @@ commitSoftware(id, versionList, swScope.collectBody(), swScope);
 
 1. 打开 [`softwares.json`](softwares.json)，按现有条目格式追加一行（各字段含义见字段名本身与 [`docs/auto-sync-design.md`](../../docs/auto-sync-design.md)）。
 2. 确认 `githubRepo`、`mode`（`arch` 按架构出条目 / `name` 按文件名出条目）、资产过滤与兜底架构。
-3. 特殊结构（子目录 wrapper、`{name, children}` 内联等）初版**不纳入自动同步**，index.json 手动条目原样透传；其中 `{name, children}` 形态若 `name` 能解析出版本号（如 `v1.0.2`）会参与统一排序，解析不出的需加 `"pinned": true` 才会稳定置顶。
+3. 按需设置 `guardMinutes`（不完整守护，默认 10 分钟，`0` = 关闭）：发布后等多久再同步该软件的新版本。
+4. 特殊结构（子目录 wrapper、`{name, children}` 内联等）初版**不纳入自动同步**，index.json 手动条目原样透传；其中 `{name, children}` 形态若 `name` 能解析出版本号（如 `v1.0.2`）会参与统一排序，解析不出的需加 `"pinned": true` 才会稳定置顶。
 
 ## 故障排查
 
