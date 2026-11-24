@@ -168,7 +168,7 @@ node scripts/auto-sync/probe.mjs
 
 - **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
 - **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
-- 托盘图标上的菜单：顶部是彩色概览面板（状态 / 下次倒计时 / 上次结果与用时 / 分支与待推数 / 身份 / 会话剩余 / 设置摘要 / 本机 Node 与今日同步次数），下面是 立即同步 / 暂停·继续 / 锁定 / **设置**（同步：间隔、先拉取、自动补推、执行步骤、拉取方式；通知；账号与提交：GitHub 令牌、会话 Cookie、提交身份；更多：托盘图标、锁定密码、日志保留）/ 开机启动 / 日志（日志文件夹、最近日志、配置文件）/ 重启托盘 / 退出
+- 托盘图标上的菜单：顶部是彩色概览面板（状态 / 下次倒计时 / 上次结果与用时 / 分支与待推数 / 身份 / 会话剩余 / 设置摘要 / 本机 Node 与今日同步次数），下面是 立即同步 / 暂停·继续 / 锁定 / **设置**（同步：间隔、先拉取、自动补推、执行步骤、拉取方式；网络（Wi-Fi）：同步前自动连接、SSID、密码、优先尝试已保存的密码、连接失败跳过、完成后断开/忘记；通知；账号与提交：GitHub 令牌、会话 Cookie、提交身份；更多：托盘图标、锁定密码、日志保留）/ 开机启动 / 日志（日志文件夹、最近日志、配置文件）/ 重启托盘 / 退出
 - **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
 
 ### 配置（首次运行自动生成）
@@ -202,6 +202,13 @@ node scripts/auto-sync/probe.mjs
 | `gitUserName` | `""` | `gitIdentityMode=custom` 时的 `user.name` |
 | `gitUserEmail` | `""` | `gitIdentityMode=custom` 时的 `user.email` |
 | `logRetentionDays` | `90` | 日志保留天数；启动与跨天时删除更早的日期目录，`0` = 永久保留（托盘「设置 → 更多 → 日志保留」可改） |
+| `wifiAutoConnect` | `false` | 总开关：同步前若本机没有网络，自动连接下方指定的 Wi-Fi（托盘「设置 → 网络（Wi-Fi）」可改） |
+| `wifiSsid` | `""` | 要连接的目标 Wi-Fi 名称（SSID），**明文保存** |
+| `wifiPassword` | `""` | 目标 Wi-Fi 密码，**明文保存**；留空 = 按开放网络连接 |
+| `wifiUseSavedFirst` | `true` | 优先尝试系统里已保存的密码/配置；失败后才用上面的 SSID+密码重写配置并重试（关闭则每次都直接用配置覆盖） |
+| `wifiSkipOnFail` | `true` | 连接失败时是否跳过整次同步（`true` = 本轮不下载、不提交；`false` = 按当前网络继续） |
+| `wifiDisconnectAfter` | `false` | 本轮由托盘自动连接过 Wi-Fi 时，同步完成后（无论成败）是否断开 |
+| `wifiForgetOnDisconnect` | `false` | 断开时是否一并删除该 Wi-Fi 配置（忘记网络，**包括系统里原有的同名配置**）；仅在 `wifiDisconnectAfter=true` 时生效 |
 
 > 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。
 > 也可在托盘「设置 → 账号与提交 → 会话 Cookie」里直接粘贴或清除，保存后立即刷新剩余天数，无需手改 `config.json`。托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
@@ -220,6 +227,7 @@ node scripts/auto-sync/probe.mjs
 - **同步进行中收到关机/注销请求会被阻止**：系统会提示"此应用正在阻止关机"，同步结束后只弹提醒，由你重新执行关机/注销（不会自动替你关机）
 - 拉取开关、拉取方式（rebase / ff-only）、自动补推都可在托盘「设置 → 同步」即时切换，也可直接改 `config.json`（下一轮生效）
 - **执行步骤**（托盘「设置 → 同步 → 执行步骤」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
+- **同步前联网（Wi-Fi）**：开启「设置 → 网络（Wi-Fi）→ 同步前自动连接 Wi-Fi」后，每轮同步前先检查本机能否上外网；**完全上不了外网**时才用 `wifiSsid` / `wifiPassword` 连接指定 Wi-Fi（已有网络不会切换）。默认 `wifiUseSavedFirst=true`：系统里已保存该 Wi-Fi 时先直接用它连接（不改动用户原有配置），连不上再用配置里的密码重写并重试；关掉则每次都直接用配置覆盖。若没配置密码、已保存的密码又连不上，会保留系统原配置（不会用开放网络覆盖）。连接失败且 `wifiSkipOnFail=true` 时**跳过整次**（不下载、不提交）；若本轮由托盘自动连上，同步结束（成功、失败、超时都算）后可按 `wifiDisconnectAfter` 断开，并按 `wifiForgetOnDisconnect` 一并删除该 Wi-Fi 配置。SSID 与密码均以**明文**保存在 `config.json`。Wi-Fi 相关提示遵循「设置 → 通知」的 `notifyMode`：`accumulate` 下按其他错误处理（`silentErrors` 开启时只写日志、不即时弹气泡）。
 - **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
 - 日志按日期分目录存放：`local/logs/<yyyy>/<MM>/<dd>/sync-<时间>.log`；托盘自身事件写同日目录下的 `tray.log`。这样单目录不会堆积过多文件。双击托盘图标可直接打开**最近一次**同步日志
 - 同步进程完全隐藏运行，**不会弹任何窗口**；只有点「自定义间隔」等菜单项时才会出现小对话框
