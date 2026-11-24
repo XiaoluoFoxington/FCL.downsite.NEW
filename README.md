@@ -2,13 +2,13 @@
 
 ## 项目简介
 
-<br />
+![fdn-preview](media/img/fdn-preview/fdn-preview.png)
 
 [《Fold Craft Launcher》](https://github.com/FCL-Team/FoldCraftLauncher)（以下简称"FCL"）非官方公益下载站，由玩家社群自发搭建。
 
 除了 FCL，此站还收录了诸多启动器、渲染器、插件、JRE 等资源，旨在帮助玩家在 Android 设备上更便捷地游玩《Minecraft: Java Edition》。如你所见，这是一个纯静态网站，无需后端，可部署在任何静态文件服务器上。
 
-把名字改一下，可以完全拿来当软件资源站模板用\[doge]。
+把名字改一下，可以完全拿来当软件资源站模板用[doge]。
 
 这是下载站的第 4 次重制。旧版本存档如下，不再维护：
 
@@ -26,14 +26,14 @@
 
 ## 技术栈
 
-| 层面   | 选型                              |
-| ---- | ------------------------------- |
-| 样式   | MDUI + 自制主题增强 + 补丁 + RTL 适配     |
-| 图标   | Material Icons（不用 MDUI 自带那套，太旧） |
-| 脚本   | 原生 JavaScript（ES Module）        |
-| 构建   | 无（纯静态，所见即所得）                    |
-| 部署   | 任意静态文件服务器                       |
-| 自动更新 | GitHub Actions                  |
+| 层面 | 选型 |
+| --- | --- |
+| 样式 | MDUI + 自制主题增强 + 补丁 + RTL 适配 |
+| 图标 | Material Icons（不用 MDUI 自带那套，太旧） |
+| 脚本 | 原生 JavaScript（ES Module） |
+| 构建 | 无（纯静态，所见即所得） |
+| 部署 | 任意静态文件服务器 |
+| 自动更新 | GitHub Actions |
 
 > 具体依赖库及其版本以 [`data/usedProj.json`](data/usedProj.json) 为准。
 
