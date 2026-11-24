@@ -15,8 +15,9 @@
 #   · 结果判定：退出码 0 且无错误 = 成功；其中「本轮无任何可同步内容」单独记为「已是最新」；
 #              超时 / 退出码非 0 / result.json 报错 / 拉取失败 / 补推失败 / 日志出现致命错误 = 失败
 #   · 同步中被系统关机或注销会先阻止，同步结束后提醒重新操作（不自动关机）
-#   · 联网：可配置「同步前无网络时自动连接指定 Wi-Fi」（连接失败可跳过整次；
-#          完成后可断开，断开时可一并忘记该 Wi-Fi 配置）
+#   · 联网：可配置「同步前无网络时自动连接指定 Wi-Fi」（优先用系统已保存的密码，
+#          失败再用配置里的密码重写；连接失败可跳过整次；完成后可断开，
+#          断开时可一并忘记该 Wi-Fi 配置）
 #   · 单实例：重复启动会被静默忽略
 #   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
 #   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
@@ -87,6 +88,7 @@ $script:Defaults = [ordered]@{
   wifiAutoConnect    = $false  # 同步前若没有网络，自动连接指定 Wi-Fi（总开关）
   wifiSsid           = ''      # 目标 Wi-Fi 名称（SSID），明文保存
   wifiPassword       = ''      # 目标 Wi-Fi 密码（明文保存）；留空 = 开放网络
+  wifiUseSavedFirst  = $true   # 优先尝试系统里已保存的密码；失败后再用上面的配置重写并重试
   wifiSkipOnFail     = $true   # 连接失败时跳过整次同步（不下载、不提交）
   wifiDisconnectAfter = $false # 完成后（无论同步成败）断开 Wi-Fi
   wifiForgetOnDisconnect = $false # 断开时一并删除该 Wi-Fi 配置（忘记网络）
@@ -195,7 +197,7 @@ function Read-Config {
 
   # 手写 "false"/"0" 这种字符串时也按布尔处理
   foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush', 'silentErrors', 'locked',
-      'wifiAutoConnect', 'wifiSkipOnFail', 'wifiDisconnectAfter', 'wifiForgetOnDisconnect')) {
+      'wifiAutoConnect', 'wifiUseSavedFirst', 'wifiSkipOnFail', 'wifiDisconnectAfter', 'wifiForgetOnDisconnect')) {
     $v = $cfg[$k]
     if ($v -is [string]) {
       $s = ([string]$v).Trim().ToLower()
@@ -656,6 +658,8 @@ function Update-UnpushedState {
 # 按 wifiDisconnectAfter / wifiForgetOnDisconnect 决定是否断开、是否删除配置。
 
 $script:WifiConnectTimeoutSeconds = 30
+$script:WifiSavedConnectTimeoutSeconds = 12
+$script:WifiNetshTimeoutMs = 15000
 $script:nlm = $null
 
 # 「有没有网络」按能否上外网判断（NLM 的 IPv4/IPv6 Internet 标志），
@@ -673,21 +677,30 @@ function Test-NetworkAvailable {
   }
 }
 
-# 跑一条 netsh 命令（参数原样拼成命令行，便于 name="含空格的 SSID" 这种写法）
-function Invoke-Netsh([string]$ArgLine) {
+# 跑一条 netsh 命令（参数原样拼成命令行，便于 name="含空格的 SSID" 这种写法）。
+# 带超时：netsh 偶尔会卡住，不能让它把托盘 UI 一起拖死。
+function Invoke-Netsh([string]$ArgLine, [int]$TimeoutMs = 0) {
+  if ($TimeoutMs -le 0) { $TimeoutMs = $script:WifiNetshTimeoutMs }
   $tmpOut = [System.IO.Path]::GetTempFileName()
   $tmpErr = $tmpOut + '.err'
   try {
     $p = Start-Process -FilePath (Join-Path $env:WINDIR 'System32\netsh.exe') `
-      -ArgumentList $ArgLine -NoNewWindow -Wait -PassThru `
+      -ArgumentList $ArgLine -NoNewWindow -PassThru `
       -RedirectStandardOutput $tmpOut -RedirectStandardError $tmpErr
+    if (-not $p.WaitForExit($TimeoutMs)) {
+      try { $p.Kill() } catch { }
+      try { [void]$p.WaitForExit(2000) } catch { }
+      return @{ Ok = $false; Code = -1; Output = ("netsh 执行超时（$TimeoutMs 毫秒）") }
+    }
+    $code = -1
+    try { $p.Refresh(); $code = [int]$p.ExitCode } catch { $code = -1 }
     $out = ''
     $err = ''
     try { $out = [System.IO.File]::ReadAllText($tmpOut, [System.Text.Encoding]::Default) } catch { }
     try { $err = [System.IO.File]::ReadAllText($tmpErr, [System.Text.Encoding]::Default) } catch { }
     return @{
-      Ok     = ($p -and $p.ExitCode -eq 0)
-      Code   = $(if ($p) { $p.ExitCode } else { -1 })
+      Ok     = ($code -eq 0)
+      Code   = $code
       Output = (($out.Trim() + "`n" + $err.Trim()).Trim())
     }
   } catch {
@@ -695,6 +708,51 @@ function Invoke-Netsh([string]$ArgLine) {
   } finally {
     try { Remove-Item -LiteralPath $tmpOut -Force -ErrorAction SilentlyContinue } catch { }
     try { Remove-Item -LiteralPath $tmpErr -Force -ErrorAction SilentlyContinue } catch { }
+  }
+}
+
+# 本机无线网卡状态：none = 没有；disabled = 全部被禁用；ok / unknown（查询失败，交给 netsh 报错）
+function Get-WifiAdapterState {
+  try {
+    $adapters = @(Get-NetAdapter -Physical -ErrorAction Stop |
+      Where-Object { $_.PhysicalMediaType -eq 'Native 802.11' })
+    if ($adapters.Count -eq 0) { return 'none' }
+    if (@($adapters | Where-Object { $_.Status -ne 'Disabled' }).Count -eq 0) { return 'disabled' }
+    return 'ok'
+  } catch {
+    return 'unknown'
+  }
+}
+
+# 系统里是否已保存该 SSID 的配置。优先用 CIM（不受系统语言影响），失败再退回 netsh。
+function Test-WlanProfile([string]$Ssid) {
+  try {
+    $profiles = @(Get-CimInstance -Namespace 'root/StandardCimv2' -ClassName 'MSFT_WlanProfile' -ErrorAction Stop)
+    foreach ($p in $profiles) {
+      if ([string]$p.Name -eq $Ssid) { return $true }
+    }
+    return $false
+  } catch { }
+  $r = Invoke-Netsh ('wlan show profiles name="' + $Ssid + '"') 8000
+  return [bool]$r.Ok
+}
+
+# 轮询等待外网就绪（True = 已能上外网）
+function Wait-NetworkReady([int]$Seconds) {
+  $deadline = (Get-Date).AddSeconds($Seconds)
+  while ((Get-Date) -lt $deadline) {
+    Start-Sleep -Milliseconds 700
+    if (Test-NetworkAvailable) { return $true }
+  }
+  return $false
+}
+
+# Wi-Fi 相关提示统一走通知策略：
+#   always / failure → 立即弹；never → 不弹；
+#   accumulate → 按「其他错误」处理（silentErrors 开启时只写日志，不即时弹）
+function Show-WifiNotice([string]$Title, [string]$Text) {
+  if ((Test-Notify $true) -and -not (Test-SilentError)) {
+    Show-Balloon $Title $Text 'Warning'
   }
 }
 
@@ -749,9 +807,33 @@ function Connect-TargetWifi([string]$Ssid, [string]$Password) {
   $ssid = ([string]$Ssid).Trim()
   if (-not $ssid) { return @{ Ok = $false; Error = '未配置 Wi-Fi 名称（SSID）' } }
 
+  # 先排除「没有无线网卡 / 网卡被禁用」这类必然失败，给出可读原因
+  $adapter = Get-WifiAdapterState
+  if ($adapter -eq 'none') { return @{ Ok = $false; Error = '本机没有可用的无线网卡' } }
+  if ($adapter -eq 'disabled') { return @{ Ok = $false; Error = '无线网卡已被禁用，请先在系统里启用' } }
+
+  # 1) 优先尝试系统里已保存的密码/配置：不写配置、不覆盖用户原有设置
+  if ([bool]$script:cfg.wifiUseSavedFirst -and (Test-WlanProfile $ssid)) {
+    Write-TrayLog "Wi-Fi：发现已保存的「$ssid」，优先尝试已保存的密码"
+    $saved = Invoke-Netsh ('wlan connect name="' + $ssid + '" ssid="' + $ssid + '"')
+    if ($saved.Ok) {
+      if (Wait-NetworkReady $script:WifiSavedConnectTimeoutSeconds) {
+        Write-TrayLog "Wi-Fi：已用已保存的密码连接「$ssid」"
+        return @{ Ok = $true; Error = $null }
+      }
+      Write-TrayLog 'Wi-Fi：已保存的密码未能联网，改用配置中的密码重试'
+    } else {
+      Write-TrayLog "Wi-Fi：用已保存的配置连接失败：$($saved.Output)"
+    }
+    # 没配置密码却又连不上：不要用「开放网络」覆盖系统里原有的安全配置
+    if (-not $Password) {
+      return @{ Ok = $false; Error = '已保存的密码无法连接，且未配置 Wi-Fi 密码（已保留系统原配置）' }
+    }
+  }
+
+  # 2) 用 config.json 里的 SSID/密码写入（或覆盖）配置后再连接
   $profilePath = Join-Path ([System.IO.Path]::GetTempPath()) ('auto-sync-wlan-' + [guid]::NewGuid().ToString('N') + '.xml')
   try {
-    # 始终按 config.json 覆盖写入配置：确保密码与配置一致；未填密码则按开放网络写入
     $xml = New-WlanProfileXml $ssid ([string]$Password)
     [System.IO.File]::WriteAllText($profilePath, $xml, (New-Object System.Text.UTF8Encoding -ArgumentList $true))
     $add = Invoke-Netsh ('wlan add profile filename="' + $profilePath + '" user=current')
@@ -764,11 +846,7 @@ function Connect-TargetWifi([string]$Ssid, [string]$Password) {
       return @{ Ok = $false; Error = ('连接命令失败：' + $connect.Output) }
     }
 
-    $deadline = (Get-Date).AddSeconds($script:WifiConnectTimeoutSeconds)
-    while ((Get-Date) -lt $deadline) {
-      Start-Sleep -Milliseconds 700
-      if (Test-NetworkAvailable) { return @{ Ok = $true; Error = $null } }
-    }
+    if (Wait-NetworkReady $script:WifiConnectTimeoutSeconds) { return @{ Ok = $true; Error = $null } }
     return @{ Ok = $false; Error = ("等待网络就绪超时（$($script:WifiConnectTimeoutSeconds) 秒）") }
   } catch {
     return @{ Ok = $false; Error = $_.Exception.Message }
@@ -792,10 +870,10 @@ function Invoke-WifiBeforeSync {
   if (-not $ssid) {
     Write-TrayLog 'Wi-Fi：当前无网络，但未配置 Wi-Fi 名称，无法自动连接'
     if ([bool]$script:cfg.wifiSkipOnFail) {
-      Show-Balloon 'Wi-Fi 未配置' '当前没有网络，且未配置要连接的 Wi-Fi 名称。本次同步已跳过。' 'Warning'
+      Show-WifiNotice 'Wi-Fi 未配置' '当前没有网络，且未配置要连接的 Wi-Fi 名称。本次同步已跳过。'
       return $false
     }
-    Show-Balloon 'Wi-Fi 未配置' '当前没有网络，且未配置要连接的 Wi-Fi 名称。将按当前网络继续同步。' 'Warning'
+    Show-WifiNotice 'Wi-Fi 未配置' '当前没有网络，且未配置要连接的 Wi-Fi 名称。将按当前网络继续同步。'
     return $true
   }
 
@@ -809,10 +887,10 @@ function Invoke-WifiBeforeSync {
 
   Write-TrayLog "Wi-Fi：连接「$ssid」失败：$($r.Error)"
   if ([bool]$script:cfg.wifiSkipOnFail) {
-    Show-Balloon 'Wi-Fi 连接失败' ("无法连接「$ssid」：" + $r.Error + '。本次同步已跳过。') 'Warning'
+    Show-WifiNotice 'Wi-Fi 连接失败' ("无法连接「$ssid」：" + $r.Error + '。本次同步已跳过。')
     return $false
   }
-  Show-Balloon 'Wi-Fi 连接失败' ("无法连接「$ssid」：" + $r.Error + '。将按当前网络继续同步。') 'Warning'
+  Show-WifiNotice 'Wi-Fi 连接失败' ("无法连接「$ssid」：" + $r.Error + '。将按当前网络继续同步。')
   return $true
 }
 
@@ -1771,6 +1849,14 @@ function Build-Menu {
     Save-Config $script:cfg
     Write-TrayLog ('Wi-Fi 密码：' + $(if ($value) { '已更新' } else { '已清除（按开放网络）' }))
   })))
+
+  $wSaved = New-MenuItem '优先尝试已保存的密码' ({
+    $script:cfg.wifiUseSavedFirst = -not $script:cfg.wifiUseSavedFirst
+    Save-Config $script:cfg
+    Write-TrayLog ('优先尝试已保存的密码：' + $(if ($script:cfg.wifiUseSavedFirst) { '开' } else { '关' }))
+  })
+  $wSaved.Checked = [bool]$script:cfg.wifiUseSavedFirst
+  [void]$wifiItem.DropDownItems.Add($wSaved)
 
   [void]$wifiItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
