@@ -5,13 +5,13 @@
 #
 # 特点：
 #   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
-#   · 托盘菜单：概览面板 / 立即同步 / 暂停恢复 / 上锁·解锁 / 同步频率（间隔·拉取·补推·步骤）/
-#              通知 / 凭据与身份 / 外观与维护 / 开机启动 / 日志与配置 / 重新启动 / 退出
+#   · 托盘菜单：概览面板 / 立即同步 / 暂停·继续 / 锁定 / 设置（同步、通知、账号与提交、更多）/
+#              开机启动 / 日志 / 重启托盘 / 退出
 #   · 角标：同步中白色右三角、暂停「‖」；空闲时上次成功 = 绿色对钩、上次已是最新 = 绿色实心圆、
 #          上次失败 = 红色叉（还没跑过则不显示）
-#   · 密码：仅用于「上锁 / 解锁 / 修改锁定密码」；退出与重新启动不再校验密码（锁定功能已够用）
-#   · 上锁：菜单精简为「立即同步」「解锁」「打开日志」，其余操作全部隐藏；
-#          上锁前必须先设置密码，锁状态存 config.json，重启托盘后仍然有效
+#   · 密码：只用于「锁定 / 解锁 / 改密码」；退出与重启托盘不再校验
+#   · 锁定：菜单只剩「立即同步」「解锁」「日志」，其余全部隐藏；
+#          锁定前要先设密码，锁状态存 config.json，重启后仍有效
 #   · 结果判定：退出码 0 且无错误 = 成功；其中「本轮无任何可同步内容」单独记为「已是最新」；
 #              超时 / 退出码非 0 / result.json 报错 / 拉取失败 / 补推失败 / 日志出现致命错误 = 失败
 #   · 同步中被系统关机或注销会先阻止，同步结束后提醒重新操作（不自动关机）
@@ -76,8 +76,8 @@ $script:Defaults = [ordered]@{
   notifyMode         = 'always' # always | failure | never | accumulate；同步通知策略
   notifyEveryRuns    = 5       # notifyMode = accumulate 时，每多少次同步汇总提醒一次
   silentErrors       = $false  # accumulate 时是否静默非周期错误（只写日志/进汇总，不即时弹气泡）
-  exitPassword       = ''      # 锁定密码（上锁/解锁用）；留空 = 无法上锁（明文保存在本文件）
-  locked             = $false  # 菜单是否上锁（只保留 立即同步/打开日志/解锁）；上锁前需先设置密码
+  exitPassword       = ''      # 锁定密码（锁定/解锁用）；留空 = 不能锁定（明文保存在本文件）
+  locked             = $false  # 菜单是否锁定（只剩 立即同步/解锁/日志）；锁定前需先设密码
   gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
   gitUserEmail       = ''      # gitIdentityMode = custom 时的提交邮箱
@@ -650,7 +650,7 @@ function Start-SyncRun {
     # 仍排好下一轮，用户重新勾选步骤后无需重启托盘也能恢复自动同步
     $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
     Write-TrayLog '启动同步被忽略：所有步骤均已关闭（等同于暂停）'
-    Show-Balloon '无法启动同步' '所有步骤均已关闭（等同于暂停）。请在「选项 → 步骤设置」里勾选至少一项。' 'Warning'
+    Show-Balloon '无法启动同步' '所有步骤都已关闭。到「设置 → 同步 → 执行步骤」至少开一项。' 'Warning'
     return
   }
 
@@ -988,7 +988,7 @@ function Update-Tooltip {
   } else {
     $text = '自动同步'
   }
-  if ([bool]$script:cfg.locked) { $text += ' · 已上锁' }
+  if ([bool]$script:cfg.locked) { $text += ' · 已锁定' }
   if ($script:unpushedCount -gt 0) { $text += " · 待推 $($script:unpushedCount)" }
   if ($text.Length -gt 63) { $text = $text.Substring(0, 63) }
   if ($text -ne $script:lastTip) {
@@ -1122,19 +1122,19 @@ function Test-Password([string]$Title = '密码', [string]$Prompt = '请输入�
   return $false
 }
 
-# 上锁：菜单精简为「立即同步」「解锁」「打开日志」，其余操作全部隐藏；状态存 config.json
+# 锁定：菜单只剩「立即同步」「解锁」「日志」；状态存 config.json
 function Set-LockState([bool]$Locked) {
   if ($Locked -and -not [string]$script:cfg.exitPassword) {
-    Show-Balloon '无法上锁' '请先在「设置 → 外观与维护 → 锁定密码」里设置密码，再上锁。' 'Warning'
+    Show-Balloon '无法锁定' '先到「设置 → 更多 → 锁定密码」设个密码。' 'Warning'
     return
   }
   $script:cfg.locked = $Locked
   Save-Config $script:cfg
-  Write-TrayLog ('菜单' + $(if ($Locked) { '已上锁（仅保留：立即同步 / 打开日志 / 解锁）' } else { '已解锁' }))
+  Write-TrayLog ('菜单' + $(if ($Locked) { '已锁定' } else { '已解锁' }))
   if ($Locked) {
-    Show-Balloon '已上锁' '菜单已精简为「立即同步」「解锁」「打开日志」。' 'Info'
+    Show-Balloon '已锁定' '菜单只剩同步、解锁和日志。' 'Info'
   } else {
-    Show-Balloon '已解锁' '全部菜单项已恢复可用。' 'Info'
+    Show-Balloon '已解锁' '菜单已恢复。' 'Info'
   }
   Update-Tooltip
 }
@@ -1309,7 +1309,7 @@ function Build-Menu {
   }
   Add-InfoLine ('   状态　' + $stateSymbol + ' ' + $stateText) $stateColor
   if ([bool]$script:cfg.locked) {
-    Add-InfoLine '   锁定　🔒 已上锁（仅可用：立即同步 / 打开日志 / 解锁）' $warnColor
+    Add-InfoLine '   锁定　🔒 已锁定' $warnColor
   }
 
   if ($script:running) { $nextText = '本轮结束后重新排期' }
@@ -1332,7 +1332,7 @@ function Build-Menu {
   $branchText = $(if ($script:branchLocal) { $script:branchLocal + ' → ' + $branchTarget } else { '（未检测）' }) + '｜待推 ' + $script:unpushedCount
   Add-InfoLine ('   分支　' + $branchText) $(if ($script:unpushedCount -gt 0) { $warnColor } else { $accent })
 
-  Add-InfoLine ('   提交　' + (Format-IdentityText)) $violetColor
+  Add-InfoLine ('   身份　' + (Format-IdentityText)) $violetColor
 
   $sessionBody = ($script:sessionText -replace '^会话：', '')
   $sessionColor = $okColor
@@ -1348,37 +1348,37 @@ function Build-Menu {
   foreach ($k in @('stepPull', 'stepSync', 'stepCommit', 'stepPush')) { if ([bool]$script:cfg[$k]) { $onSteps++ } }
   $intervalText = (Format-Interval ([double]$script:cfg.intervalMinutes)) + '｜' + $pullText + '｜补推 ' + $retryText +
     '｜通知 ' + $notifyText + '｜步骤 ' + $onSteps + '/4'
-  Add-InfoLine ('   间隔　' + $intervalText) $tealColor
+  Add-InfoLine ('   设置　' + $intervalText) $tealColor
 
   $logInfo = Get-TodayLogInfo
   $envText = 'Node ' + $(if ($script:nodeVersion) { $script:nodeVersion } else { '未找到' }) + '｜今日同步 ' + $logInfo.Count + ' 次'
   if ($logInfo.Last) { $envText += '｜最近 ' + $logInfo.Last.ToString('HH:mm') }
-  Add-InfoLine ('   环境　' + $envText) $slateColor
+  Add-InfoLine ('   本机　' + $envText) $slateColor
 
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
   # ---- 操作区 ----
   $nowText = '立即同步'
   $anySteps = Test-StepsEnabled
-  if ($script:running) { $nowText = '立即同步（正在运行）' }
+  if ($script:running) { $nowText = '立即同步（进行中）' }
   elseif (-not $anySteps) { $nowText = '立即同步（步骤全关）' }
 
-  # 上锁：只保留「立即同步 / 解锁 / 打开日志」
+  # 上锁：只保留「立即同步 / 解锁 / 日志」
   if ([bool]$script:cfg.locked) {
     [void]$menu.Items.Add((New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)))
-    [void]$menu.Items.Add((New-MenuItem '解锁（输入密码）…' ({
-      if (Test-Password '解锁' '请输入密码（取消 = 保持上锁）。') { Set-LockState $false }
+    [void]$menu.Items.Add((New-MenuItem '解锁…' ({
+      if (Test-Password '解锁' '请输入密码（取消 = 保持锁定）。') { Set-LockState $false }
     })))
     Add-MenuSeparator $menu
-    [void]$menu.Items.Add((New-MenuItem '打开日志文件夹' ({ Open-LogFolder })))
-    [void]$menu.Items.Add((New-MenuItem '打开最近日志' ({ Open-LatestLog })))
+    [void]$menu.Items.Add((New-MenuItem '日志文件夹' ({ Open-LogFolder })))
+    [void]$menu.Items.Add((New-MenuItem '最近日志' ({ Open-LatestLog })))
     return
   }
 
   [void]$menu.Items.Add((New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)))
 
-  $pauseText = '暂停自动同步'
-  if ($script:paused) { $pauseText = '继续自动同步' }
+  $pauseText = '暂停'
+  if ($script:paused) { $pauseText = '继续' }
   [void]$menu.Items.Add((New-MenuItem $pauseText ({
     $script:paused = -not $script:paused
     if ($script:paused) {
@@ -1396,19 +1396,19 @@ function Build-Menu {
     }
   })))
 
-  [void]$menu.Items.Add((New-MenuItem '上锁（仅保留同步与日志）' ({ Set-LockState $true })))
+  [void]$menu.Items.Add((New-MenuItem '锁定' ({ Set-LockState $true })))
 
   # ---- 分组子菜单（内容在下方构建，最后统一挂到「设置」）----
   $settingsItem = New-SubMenu '设置'
-  $freqItem = New-SubMenu '同步频率'
-  $notifyItem = New-SubMenu '同步通知'
-  $credItem = New-SubMenu '凭据与身份'
-  $maintItem = New-SubMenu '外观与维护'
-  $logsItem = New-SubMenu '日志与配置'
+  $freqItem = New-SubMenu '同步'
+  $notifyItem = New-SubMenu '通知'
+  $credItem = New-SubMenu '账号与提交'
+  $maintItem = New-SubMenu '更多'
+  $logsItem = New-SubMenu '日志'
 
   # ---- 更新间隔（预设 + 自定义）----
   $intervalItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $intervalItem.Text = '更新间隔（当前 ' + (Format-Interval ([double]$script:cfg.intervalMinutes)) + '）'
+  $intervalItem.Text = '间隔：' + (Format-Interval ([double]$script:cfg.intervalMinutes))
   foreach ($preset in @(15, 30, 60, 120, 240, 720)) {
     $sub = New-MenuItem (Format-Interval $preset) $null
     $sub.Tag = [double]$preset
@@ -1439,7 +1439,7 @@ function Build-Menu {
   [void]$freqItem.DropDownItems.Add($intervalItem)
 
   # ---- 同步频率：拉取 / 补推 / 步骤 ----
-  $pullItem = New-MenuItem '同步前自动拉取' ({
+  $pullItem = New-MenuItem '同步前先拉取' ({
     $script:cfg.pullBeforeSync = -not $script:cfg.pullBeforeSync
     Save-Config $script:cfg
     Write-TrayLog ('同步前自动拉取：' + $(if ($script:cfg.pullBeforeSync) { '开' } else { '关' }))
@@ -1447,17 +1447,17 @@ function Build-Menu {
   $pullItem.Checked = [bool]$script:cfg.pullBeforeSync
   [void]$freqItem.DropDownItems.Add($pullItem)
 
-  $retryItem = New-MenuItem '失败提交下次补推' ({
+  $retryItem = New-MenuItem '自动补推' ({
     $script:cfg.retryPush = -not $script:cfg.retryPush
     Save-Config $script:cfg
-    Write-TrayLog ('失败提交下次补推：' + $(if ($script:cfg.retryPush) { '开' } else { '关' }))
+    Write-TrayLog ('自动补推：' + $(if ($script:cfg.retryPush) { '开' } else { '关' }))
   })
   $retryItem.Checked = [bool]$script:cfg.retryPush
   [void]$freqItem.DropDownItems.Add($retryItem)
 
-  # ---- 步骤设置（全关 = 暂停）----
+  # ---- 执行步骤（全关 = 暂停）----
   $stepsItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $stepsItem.Text = '步骤设置（全关 = 暂停）'
+  $stepsItem.Text = '执行步骤'
   $stepDefs = @(
     @{ Key = 'stepPull'; Text = '拉取（git pull）' },
     @{ Key = 'stepSync'; Text = '同步（探测 / 下载 / 写入）' },
@@ -1500,7 +1500,7 @@ function Build-Menu {
       Write-TrayLog "选择托盘图标失败：$($_.Exception.Message)"
     }
   })))
-  [void]$iconItem.DropDownItems.Add((New-MenuItem '恢复内置图标' ({
+  [void]$iconItem.DropDownItems.Add((New-MenuItem '用回内置图标' ({
     $script:cfg.iconPath = ''
     Save-Config $script:cfg
     Update-TrayIcons
@@ -1553,14 +1553,14 @@ function Build-Menu {
   $everyRuns = 0
   try { $everyRuns = [int][double]$script:cfg.notifyEveryRuns } catch { $everyRuns = 0 }
   if ($everyRuns -lt 1) { $everyRuns = [int]$script:Defaults.notifyEveryRuns }
-  $nAccum = New-MenuItem ('累积（每 ' + $everyRuns + ' 次）') ({
+  $nAccum = New-MenuItem ('每 ' + $everyRuns + ' 次汇总一次') ({
     $script:cfg.notifyMode = 'accumulate'
     Save-Config $script:cfg
     Write-TrayLog '同步通知：累积'
   })
   $nAccum.Checked = ([string]$script:cfg.notifyMode -eq 'accumulate')
   [void]$notifyItem.DropDownItems.Add($nAccum)
-  [void]$notifyItem.DropDownItems.Add((New-MenuItem ('累积次数：' + $everyRuns + ' 次') ({
+  [void]$notifyItem.DropDownItems.Add((New-MenuItem ('汇总间隔：' + $everyRuns + ' 次') ({
     try {
       Add-Type -AssemblyName Microsoft.VisualBasic
       $current = [string][int][double]$script:cfg.notifyEveryRuns
@@ -1577,14 +1577,14 @@ function Build-Menu {
       # 计数口径变了，旧计数作废，从下一轮重新累计
       Reset-AccumulateState
       Write-TrayLog "累积提醒次数：$n（计数已重置）"
-      Show-Balloon '累积次数已修改' "之后每 $n 次同步汇总提醒一次（已重新计数）。" 'Info'
+      Show-Balloon '汇总间隔已修改' "之后每 $n 次同步汇总一次（已重新计数）。" 'Info'
     } catch {
       Write-TrayLog "设置累积次数失败：$($_.Exception.Message)"
     }
   })))
 
   # 静默错误：仅累积模式生效，非周期错误（如「有本地提交未推送」）只写日志不弹气泡
-  $nSilent = New-MenuItem '静默错误（仅累积模式）' ({
+  $nSilent = New-MenuItem '零星错误只写日志' ({
     $script:cfg.silentErrors = -not $script:cfg.silentErrors
     Save-Config $script:cfg
     Write-TrayLog ('静默错误：' + $(if ($script:cfg.silentErrors) { '开' } else { '关' }))
@@ -1592,9 +1592,9 @@ function Build-Menu {
   $nSilent.Checked = [bool]$script:cfg.silentErrors
   [void]$notifyItem.DropDownItems.Add($nSilent)
 
-  # ---- 凭据与身份 ----
+  # ---- 账号与提交 ----
   $hasGitToken = -not [string]::IsNullOrWhiteSpace([string]$script:cfg.gitToken)
-  $tokenText = 'GitHub 令牌（拉取/推送）：' + $(if ($hasGitToken) { '已配置' } else { '未配置' })
+  $tokenText = 'GitHub 令牌：' + $(if ($hasGitToken) { '已配置' } else { '未配置' })
   [void]$credItem.DropDownItems.Add((New-MenuItem $tokenText ({
     $value = Show-TokenDialog 'GitHub 令牌（拉取/推送）' '填入有仓库读写权限的 GitHub PAT（classic: repo；fine-grained: Contents 读写）。' ([string]$script:cfg.gitToken)
     if ($null -eq $value) { return }
@@ -1722,16 +1722,16 @@ function Build-Menu {
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 
   # ---- 日志与配置 ----
-  [void]$logsItem.DropDownItems.Add((New-MenuItem '打开日志文件夹' ({ Open-LogFolder })))
-  [void]$logsItem.DropDownItems.Add((New-MenuItem '打开最近日志' ({ Open-LatestLog })))
+  [void]$logsItem.DropDownItems.Add((New-MenuItem '日志文件夹' ({ Open-LogFolder })))
+  [void]$logsItem.DropDownItems.Add((New-MenuItem '最近日志' ({ Open-LatestLog })))
   Add-MenuSeparator $logsItem
-  [void]$logsItem.DropDownItems.Add((New-MenuItem '打开配置文件' ({
+  [void]$logsItem.DropDownItems.Add((New-MenuItem '配置文件' ({
     try { Start-Process notepad.exe -ArgumentList ('"' + $script:ConfigPath + '"') } catch { }
   })))
   [void]$menu.Items.Add($logsItem)
 
   [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-  [void]$menu.Items.Add((New-MenuItem '重新启动' ({
+  [void]$menu.Items.Add((New-MenuItem '重启托盘' ({
     # 锁定功能已够用：退出与重新启动不再额外校验密码
     $script:restartRequested = $true
     # 正在同步时不打断，等它跑完再重启
