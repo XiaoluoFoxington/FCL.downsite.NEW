@@ -15,6 +15,8 @@
 #   · 结果判定：退出码 0 且无错误 = 成功；其中「本轮无任何可同步内容」单独记为「已是最新」；
 #              超时 / 退出码非 0 / result.json 报错 / 拉取失败 / 补推失败 / 日志出现致命错误 = 失败
 #   · 同步中被系统关机或注销会先阻止，同步结束后提醒重新操作（不自动关机）
+#   · 联网：可配置「同步前无网络时自动连接指定 Wi-Fi」（连接失败可跳过整次；
+#          完成后可断开，断开时可一并忘记该 Wi-Fi 配置）
 #   · 单实例：重复启动会被静默忽略
 #   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
 #   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
@@ -82,6 +84,12 @@ $script:Defaults = [ordered]@{
   gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
   gitUserEmail       = ''      # gitIdentityMode = custom 时的提交邮箱
   logRetentionDays   = 90      # 日志保留天数（0 = 永久保留）；启动与跨天时清理更早的日期目录
+  wifiAutoConnect    = $false  # 同步前若没有网络，自动连接指定 Wi-Fi（总开关）
+  wifiSsid           = ''      # 目标 Wi-Fi 名称（SSID），明文保存
+  wifiPassword       = ''      # 目标 Wi-Fi 密码（明文保存）；留空 = 开放网络
+  wifiSkipOnFail     = $true   # 连接失败时跳过整次同步（不下载、不提交）
+  wifiDisconnectAfter = $false # 完成后（无论同步成败）断开 Wi-Fi
+  wifiForgetOnDisconnect = $false # 断开时一并删除该 Wi-Fi 配置（忘记网络）
 }
 
 $script:cfg = $null
@@ -118,6 +126,8 @@ $script:exitRequested = $false
 # notifyMode = accumulate 的内存计数（重启托盘后重新计数）
 $script:notifyRunCount = 0
 $script:notifyStats = @{ success = 0; latest = 0; failed = 0 }
+# 本轮是否由托盘自动连接了 Wi-Fi（用于完成后按配置断开/忘记）
+$script:wifiConnectedThisRun = $false
 # 同步中被系统关机/注销打断时暂存请求，同步结束后再继续
 $script:pendingSessionEnd = $null
 $script:sessionText = '会话：未检查'
@@ -184,7 +194,8 @@ function Read-Config {
   }
 
   # 手写 "false"/"0" 这种字符串时也按布尔处理
-  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush', 'silentErrors', 'locked')) {
+  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush', 'silentErrors', 'locked',
+      'wifiAutoConnect', 'wifiSkipOnFail', 'wifiDisconnectAfter', 'wifiForgetOnDisconnect')) {
     $v = $cfg[$k]
     if ($v -is [string]) {
       $s = ([string]$v).Trim().ToLower()
@@ -637,6 +648,195 @@ function Update-UnpushedState {
   }
 }
 
+# ============================ Wi-Fi 自动连接（同步前联网） ============================
+#
+# 仅 Windows 托盘版使用：同步前发现「当前没有任何网络」时，按 config.json 里的
+# wifiSsid / wifiPassword 用 netsh 连接指定 Wi-Fi，再继续同步。
+# 连接成功后记下本轮「由托盘连接」这一事实；同步结束（无论成败）由 Complete-WifiSession
+# 按 wifiDisconnectAfter / wifiForgetOnDisconnect 决定是否断开、是否删除配置。
+
+$script:WifiConnectTimeoutSeconds = 30
+$script:nlm = $null
+
+# 「有没有网络」按能否上外网判断（NLM 的 IPv4/IPv6 Internet 标志），
+# 避免仅有虚拟网卡/本地连接时误判为有网；NLM 不可用时退回「任一网络可用」。
+function Test-NetworkAvailable {
+  try {
+    if (-not $script:nlm) { $script:nlm = New-Object -ComObject HNetCfg.NLM }
+    $flags = [int]$script:nlm.GetConnectivity()
+    # NLM_CONNECTIVITY_IPV4_INTERNET = 0x100，NLM_CONNECTIVITY_IPV6_INTERNET = 0x200
+    return (($flags -band 0x300) -ne 0)
+  } catch {
+    $script:nlm = $null
+    try { return [System.Net.NetworkInformation.NetworkInterface]::GetIsNetworkAvailable() }
+    catch { return $true } # 检测失败时当作有网，避免误连/误跳过
+  }
+}
+
+# 跑一条 netsh 命令（参数原样拼成命令行，便于 name="含空格的 SSID" 这种写法）
+function Invoke-Netsh([string]$ArgLine) {
+  $tmpOut = [System.IO.Path]::GetTempFileName()
+  $tmpErr = $tmpOut + '.err'
+  try {
+    $p = Start-Process -FilePath (Join-Path $env:WINDIR 'System32\netsh.exe') `
+      -ArgumentList $ArgLine -NoNewWindow -Wait -PassThru `
+      -RedirectStandardOutput $tmpOut -RedirectStandardError $tmpErr
+    $out = ''
+    $err = ''
+    try { $out = [System.IO.File]::ReadAllText($tmpOut, [System.Text.Encoding]::Default) } catch { }
+    try { $err = [System.IO.File]::ReadAllText($tmpErr, [System.Text.Encoding]::Default) } catch { }
+    return @{
+      Ok     = ($p -and $p.ExitCode -eq 0)
+      Code   = $(if ($p) { $p.ExitCode } else { -1 })
+      Output = (($out.Trim() + "`n" + $err.Trim()).Trim())
+    }
+  } catch {
+    return @{ Ok = $false; Code = -1; Output = $_.Exception.Message }
+  } finally {
+    try { Remove-Item -LiteralPath $tmpOut -Force -ErrorAction SilentlyContinue } catch { }
+    try { Remove-Item -LiteralPath $tmpErr -Force -ErrorAction SilentlyContinue } catch { }
+  }
+}
+
+# 生成 WLAN 配置 XML：有密码按 WPA2-PSK/AES，无密码按开放网络
+function New-WlanProfileXml([string]$Ssid, [string]$Password) {
+  $ssidXml = [System.Security.SecurityElement]::Escape($Ssid)
+  if ($Password) {
+    $keyXml = [System.Security.SecurityElement]::Escape($Password)
+    $security = @"
+      <authEncryption>
+        <authentication>WPA2PSK</authentication>
+        <encryption>AES</encryption>
+        <useOneX>false</useOneX>
+      </authEncryption>
+      <sharedKey>
+        <keyType>passPhrase</keyType>
+        <protected>false</protected>
+        <keyMaterial>$keyXml</keyMaterial>
+      </sharedKey>
+"@
+  } else {
+    $security = @"
+      <authEncryption>
+        <authentication>open</authentication>
+        <encryption>none</encryption>
+        <useOneX>false</useOneX>
+      </authEncryption>
+"@
+  }
+  return @"
+<?xml version="1.0"?>
+<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+  <name>$ssidXml</name>
+  <SSIDConfig>
+    <SSID>
+      <name>$ssidXml</name>
+    </SSID>
+  </SSIDConfig>
+  <connectionType>ESS</connectionType>
+  <connectionMode>manual</connectionMode>
+  <MSM>
+    <security>
+$security
+    </security>
+  </MSM>
+</WLANProfile>
+"@
+}
+
+# 连接指定 Wi-Fi 并等待网络就绪；返回 @{ Ok; Error }
+function Connect-TargetWifi([string]$Ssid, [string]$Password) {
+  $ssid = ([string]$Ssid).Trim()
+  if (-not $ssid) { return @{ Ok = $false; Error = '未配置 Wi-Fi 名称（SSID）' } }
+
+  $profilePath = Join-Path ([System.IO.Path]::GetTempPath()) ('auto-sync-wlan-' + [guid]::NewGuid().ToString('N') + '.xml')
+  try {
+    # 始终按 config.json 覆盖写入配置：确保密码与配置一致；未填密码则按开放网络写入
+    $xml = New-WlanProfileXml $ssid ([string]$Password)
+    [System.IO.File]::WriteAllText($profilePath, $xml, (New-Object System.Text.UTF8Encoding -ArgumentList $true))
+    $add = Invoke-Netsh ('wlan add profile filename="' + $profilePath + '" user=current')
+    if (-not $add.Ok) {
+      return @{ Ok = $false; Error = ('写入 Wi-Fi 配置失败：' + $add.Output) }
+    }
+
+    $connect = Invoke-Netsh ('wlan connect name="' + $ssid + '" ssid="' + $ssid + '"')
+    if (-not $connect.Ok) {
+      return @{ Ok = $false; Error = ('连接命令失败：' + $connect.Output) }
+    }
+
+    $deadline = (Get-Date).AddSeconds($script:WifiConnectTimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+      Start-Sleep -Milliseconds 700
+      if (Test-NetworkAvailable) { return @{ Ok = $true; Error = $null } }
+    }
+    return @{ Ok = $false; Error = ("等待网络就绪超时（$($script:WifiConnectTimeoutSeconds) 秒）") }
+  } catch {
+    return @{ Ok = $false; Error = $_.Exception.Message }
+  } finally {
+    try { Remove-Item -LiteralPath $profilePath -Force -ErrorAction SilentlyContinue } catch { }
+  }
+}
+
+# 同步开始前：无网络时按配置连接指定 Wi-Fi。
+# 返回 $true = 可以继续本次同步；$false = 按配置跳过整次。
+function Invoke-WifiBeforeSync {
+  $script:wifiConnectedThisRun = $false
+  if (-not [bool]$script:cfg.wifiAutoConnect) { return $true }
+
+  if (Test-NetworkAvailable) {
+    Write-TrayLog 'Wi-Fi：当前已有网络连接，跳过自动连接'
+    return $true
+  }
+
+  $ssid = ([string]$script:cfg.wifiSsid).Trim()
+  if (-not $ssid) {
+    Write-TrayLog 'Wi-Fi：当前无网络，但未配置 Wi-Fi 名称，无法自动连接'
+    if ([bool]$script:cfg.wifiSkipOnFail) {
+      Show-Balloon 'Wi-Fi 未配置' '当前没有网络，且未配置要连接的 Wi-Fi 名称。本次同步已跳过。' 'Warning'
+      return $false
+    }
+    Show-Balloon 'Wi-Fi 未配置' '当前没有网络，且未配置要连接的 Wi-Fi 名称。将按当前网络继续同步。' 'Warning'
+    return $true
+  }
+
+  Write-TrayLog "Wi-Fi：当前无网络，尝试连接「$ssid」"
+  $r = Connect-TargetWifi $ssid ([string]$script:cfg.wifiPassword)
+  if ($r.Ok) {
+    $script:wifiConnectedThisRun = $true
+    Write-TrayLog "Wi-Fi：已连接「$ssid」"
+    return $true
+  }
+
+  Write-TrayLog "Wi-Fi：连接「$ssid」失败：$($r.Error)"
+  if ([bool]$script:cfg.wifiSkipOnFail) {
+    Show-Balloon 'Wi-Fi 连接失败' ("无法连接「$ssid」：" + $r.Error + '。本次同步已跳过。') 'Warning'
+    return $false
+  }
+  Show-Balloon 'Wi-Fi 连接失败' ("无法连接「$ssid」：" + $r.Error + '。将按当前网络继续同步。') 'Warning'
+  return $true
+}
+
+# 同步结束后（无论成败）：本轮由托盘连接过 Wi-Fi 时，按配置断开 / 忘记
+function Complete-WifiSession {
+  if (-not $script:wifiConnectedThisRun) { return }
+  $script:wifiConnectedThisRun = $false
+  if (-not [bool]$script:cfg.wifiDisconnectAfter) {
+    Write-TrayLog 'Wi-Fi：本轮由托盘自动连接，按设置保持连接'
+    return
+  }
+
+  $ssid = ([string]$script:cfg.wifiSsid).Trim()
+  $d = Invoke-Netsh 'wlan disconnect'
+  if ($d.Ok) { Write-TrayLog "Wi-Fi：已断开「$ssid」" }
+  else { Write-TrayLog "Wi-Fi：断开失败：$($d.Output)" }
+
+  if ([bool]$script:cfg.wifiForgetOnDisconnect -and $ssid) {
+    $f = Invoke-Netsh ('wlan delete profile name="' + $ssid + '"')
+    if ($f.Ok) { Write-TrayLog "Wi-Fi：已忘记「$ssid」" }
+    else { Write-TrayLog "Wi-Fi：删除配置失败：$($f.Output)" }
+  }
+}
+
 # ============================ 同步进程 ============================
 
 function Start-SyncRun {
@@ -688,6 +888,18 @@ function Start-SyncRun {
     return
   }
 
+  # 同步前联网：无网络时按配置连接指定 Wi-Fi；失败且配置为跳过时，本轮不下载也不提交
+  if (-not (Invoke-WifiBeforeSync)) {
+    $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
+    $script:lastRunAt = Get-Date
+    $script:lastOutcome = 'failed'
+    $script:lastResult = '⏭ 已跳过（Wi-Fi 未连接）'
+    $script:lastElapsedText = ''
+    Update-IdleStateIcon
+    Write-TrayLog '本轮同步已跳过：Wi-Fi 连接失败（按设置跳过整次）'
+    return
+  }
+
   $runLogDir = Get-LogDir
   if (-not (Test-Path -LiteralPath $runLogDir)) {
     New-Item -ItemType Directory -Path $runLogDir -Force | Out-Null
@@ -721,6 +933,8 @@ function Start-SyncRun {
     Update-IdleStateIcon
     Show-Balloon '启动同步失败' $_.Exception.Message 'Error'
     Write-TrayLog "启动同步异常：$($_.Exception.Message)"
+    # 启动失败也算「本轮结束」：按配置把刚连上的 Wi-Fi 断开/忘记
+    Complete-WifiSession
   }
 }
 
@@ -897,6 +1111,8 @@ function Resolve-RunOutcome($Result, [int]$ExitCode, [bool]$TimedOut, [string]$S
 }
 
 function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
+  # 先收尾 Wi-Fi：本轮由托盘自动连接过时，按配置断开 / 忘记（成功、失败、超时都执行）
+  Complete-WifiSession
   if ($script:proc) {
     try { $script:proc.Dispose() } catch { }
   }
@@ -1057,7 +1273,7 @@ function New-MenuItem([string]$Text, [scriptblock]$OnClick = $null, [bool]$Enabl
   return $item
 }
 
-function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [string]$Hint = '留空并确定 = 清除，改回本机 git 凭据', [switch]$NoTrim) {
+function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [string]$Hint = '留空并确定 = 清除，改回本机 git 凭据', [switch]$NoTrim, [switch]$Plain) {
   $form = New-Object System.Windows.Forms.Form
   $form.Text = $Title
   $form.FormBorderStyle = 'FixedDialog'
@@ -1075,7 +1291,7 @@ function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [st
   $tb = New-Object System.Windows.Forms.TextBox
   $tb.Location = New-Object System.Drawing.Point(14, 62)
   $tb.Size = New-Object System.Drawing.Size(392, 24)
-  $tb.UseSystemPasswordChar = $true
+  $tb.UseSystemPasswordChar = -not $Plain
   $tb.Text = [string]$Current
   $form.Controls.Add($tb)
 
@@ -1346,8 +1562,9 @@ function Build-Menu {
   $retryText = $(if ($script:cfg.retryPush) { '开' } else { '关' })
   $onSteps = 0
   foreach ($k in @('stepPull', 'stepSync', 'stepCommit', 'stepPush')) { if ([bool]$script:cfg[$k]) { $onSteps++ } }
+  $wifiText = $(if ($script:cfg.wifiAutoConnect) { '开' } else { '关' })
   $intervalText = (Format-Interval ([double]$script:cfg.intervalMinutes)) + '｜' + $pullText + '｜补推 ' + $retryText +
-    '｜通知 ' + $notifyText + '｜步骤 ' + $onSteps + '/4'
+    '｜通知 ' + $notifyText + '｜步骤 ' + $onSteps + '/4｜Wi-Fi ' + $wifiText
   Add-InfoLine ('   设置　' + $intervalText) $tealColor
 
   $logInfo = Get-TodayLogInfo
@@ -1526,6 +1743,61 @@ function Build-Menu {
   [void]$strategyItem.DropDownItems.Add($ffItem)
   [void]$freqItem.DropDownItems.Add($strategyItem)
 
+  # ---- Wi-Fi：同步前无网络时自动连接指定热点 ----
+  $wifiItem = New-SubMenu '网络（Wi-Fi）'
+
+  $wAuto = New-MenuItem '同步前自动连接 Wi-Fi' ({
+    $script:cfg.wifiAutoConnect = -not $script:cfg.wifiAutoConnect
+    Save-Config $script:cfg
+    Write-TrayLog ('同步前自动连接 Wi-Fi：' + $(if ($script:cfg.wifiAutoConnect) { '开' } else { '关' }))
+  })
+  $wAuto.Checked = [bool]$script:cfg.wifiAutoConnect
+  [void]$wifiItem.DropDownItems.Add($wAuto)
+
+  $ssidText = ([string]$script:cfg.wifiSsid).Trim()
+  [void]$wifiItem.DropDownItems.Add((New-MenuItem ('Wi-Fi 名称：' + $(if ($ssidText) { $ssidText } else { '未设置' })) ({
+    $value = Show-TokenDialog 'Wi-Fi 名称（SSID）' '输入要自动连接的 Wi-Fi 名称。' ([string]$script:cfg.wifiSsid) '留空并确定 = 清除；取消 = 不修改' -NoTrim -Plain
+    if ($null -eq $value) { return }
+    $script:cfg.wifiSsid = ([string]$value).Trim()
+    Save-Config $script:cfg
+    Write-TrayLog ('Wi-Fi 名称：' + $(if ($script:cfg.wifiSsid) { [string]$script:cfg.wifiSsid } else { '已清除' }))
+  })))
+
+  $hasWifiPw = -not [string]::IsNullOrEmpty([string]$script:cfg.wifiPassword)
+  [void]$wifiItem.DropDownItems.Add((New-MenuItem ('Wi-Fi 密码：' + $(if ($hasWifiPw) { '已设置' } else { '无（开放网络）' })) ({
+    $value = Show-TokenDialog 'Wi-Fi 密码' '输入要自动连接的 Wi-Fi 密码（明文保存在 config.json）。' ([string]$script:cfg.wifiPassword) '留空并确定 = 无密码（按开放网络连接）' -NoTrim
+    if ($null -eq $value) { return }
+    $script:cfg.wifiPassword = $value
+    Save-Config $script:cfg
+    Write-TrayLog ('Wi-Fi 密码：' + $(if ($value) { '已更新' } else { '已清除（按开放网络）' }))
+  })))
+
+  [void]$wifiItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+
+  $wSkip = New-MenuItem '连接失败时跳过本次同步' ({
+    $script:cfg.wifiSkipOnFail = -not $script:cfg.wifiSkipOnFail
+    Save-Config $script:cfg
+    Write-TrayLog ('Wi-Fi 连接失败时跳过本次同步：' + $(if ($script:cfg.wifiSkipOnFail) { '开' } else { '关' }))
+  })
+  $wSkip.Checked = [bool]$script:cfg.wifiSkipOnFail
+  [void]$wifiItem.DropDownItems.Add($wSkip)
+
+  $wDisconnect = New-MenuItem '完成后断开 Wi-Fi' ({
+    $script:cfg.wifiDisconnectAfter = -not $script:cfg.wifiDisconnectAfter
+    Save-Config $script:cfg
+    Write-TrayLog ('完成后断开 Wi-Fi：' + $(if ($script:cfg.wifiDisconnectAfter) { '开' } else { '关' }))
+  })
+  $wDisconnect.Checked = [bool]$script:cfg.wifiDisconnectAfter
+  [void]$wifiItem.DropDownItems.Add($wDisconnect)
+
+  $wForget = New-MenuItem '断开时一并忘记该 Wi-Fi' ({
+    $script:cfg.wifiForgetOnDisconnect = -not $script:cfg.wifiForgetOnDisconnect
+    Save-Config $script:cfg
+    Write-TrayLog ('断开时一并忘记：' + $(if ($script:cfg.wifiForgetOnDisconnect) { '开' } else { '关' }))
+  })
+  $wForget.Checked = [bool]$script:cfg.wifiForgetOnDisconnect
+  [void]$wifiItem.DropDownItems.Add($wForget)
+
   # ---- 同步通知 ----
   $nAlways = New-MenuItem '每次同步' ({
     $script:cfg.notifyMode = 'always'
@@ -1703,6 +1975,7 @@ function Build-Menu {
 
   # ---- 组装「设置」子菜单 ----
   [void]$settingsItem.DropDownItems.Add($freqItem)
+  [void]$settingsItem.DropDownItems.Add($wifiItem)
   [void]$settingsItem.DropDownItems.Add($notifyItem)
   [void]$settingsItem.DropDownItems.Add($credItem)
   [void]$settingsItem.DropDownItems.Add($maintItem)
