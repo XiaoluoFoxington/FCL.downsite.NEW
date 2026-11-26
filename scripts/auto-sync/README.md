@@ -18,7 +18,7 @@
 - `config.mjs`：环境变量与常量（**改配置看这里**）
 - `softwares.json`：软件映射表（**有哪些软件看这里**）
 - `tools/refresh-session.mjs`：**手动工具**（非 GHA 运行）——从浏览器提取会话 cookie，供更新 secret
-- `local/`：**Windows 托盘版外壳**（`tray.ps1` / `start.vbs` / `session-status.mjs` / `run-sync.mjs`），复用 `sync.mjs` 全流程，不重复实现
+- `local/`：**Windows 托盘版 `fdn-autosync-tray`**（`start.vbs` → `tray.ps1` 宿主 → `main.mjs` 本地业务 → `sync.mjs` 共享业务），只是外壳，不重复实现同步逻辑；协议与配置结构见 [`local/PROTOCOL.md`](local/PROTOCOL.md)
 
 > ⚠️ 2026-10 日志全量重构：旧的可变全局 `ctx`（`ctx.log` / `ctx.group` / `ctx.sum` …）**已整体删除**。
 > 需要打日志的函数改为**接收作用域或回调**，再也没有「猴补丁替换全局 log」这种写法。
@@ -162,79 +162,215 @@ node scripts/auto-sync/probe.mjs
 > ⚠️ 不要把 token 写进仓库里的任何文件（`.env`、脚本、`config.mjs` 都不要）。
 > `config.mjs` 只从环境变量读，仓库里永远不落凭据。
 
-## 本地版（Windows 托盘，常驻自动同步）
+## 本地版（Windows 托盘 `fdn-autosync-tray`）
 
-不想依赖 GitHub Actions 时，可以在自己的 Windows 电脑上跑同一条流水线。
+不想依赖 GitHub Actions 时，可以在自己的 Windows 电脑上跑同一条流水线。**只支持 Windows 10/11**，
+依赖 **Node.js**（开发实测 24）与 **git**（都在 PATH 里；也可在配置里指定 Node 路径）。
 
-- **只支持 Windows 10/11**；依赖 **Node.js 18+** 与 **git**（都在 PATH 里）
-- **直接双击 [`local/start.vbs`](local/start.vbs)**：无黑框、无窗口，通知区域出现一个下载图标
-- 托盘图标上的菜单：顶部是彩色概览面板（状态 / 下次倒计时 / 上次结果与用时 / 分支与待推数 / 身份 / 会话剩余 / 设置摘要 / 本机 Node 与今日同步次数），下面是 立即同步 / 暂停·继续 / 锁定 / **设置**（同步：间隔、先拉取、自动补推、执行步骤、拉取方式；网络（Wi-Fi）：同步前自动连接、SSID、密码、优先尝试已保存的密码、连接失败跳过、完成后断开/忘记；通知；账号与提交：GitHub 令牌、会话 Cookie、提交身份；更多：托盘图标、锁定密码、日志保留）/ 开机启动 / 日志（日志文件夹、最近日志、配置文件）/ 重启托盘 / 退出
-- **跑的就是 [`sync.mjs`](sync.mjs) 本体**（预探测 → 登录 → 离线下载 → 直链 → 写 JSON → 分软件提交 → push），本地版只是外壳，不存在第二套同步逻辑
+### 进程模型
+
+```text
+start.vbs（wscript，无窗口）
+  └─ powershell tray.ps1           宿主：托盘图标 / 菜单 / 详细状态 / 设置窗口 / Toast / 开机自启
+       └─ node main.mjs            本地业务：唯一调度器 + 唯一状态机（配置 / 状态 / Git / WiFi / 日志 / 通知）
+            └─ node sync.mjs       共享同步业务：与 GHA 完全同一份实现，按轮启动
+```
+
+- 宿主（PowerShell）**不做业务**：不读 Git、不跑同步、不读写 `config.json`/`state.json`，只做窗口与 Windows 集成
+- 业务（Node）**不做 UI**：只发状态、发命令，需要打开文件夹/弹通知/改快捷方式时委托宿主
+- 两者用**标准输入输出 JSON Lines** 通信，协议见 [`local/PROTOCOL.md`](local/PROTOCOL.md)
+- **双击 [`local/start.vbs`](local/start.vbs)** 即可启动；单实例，重复双击不会起第二个
+
+### 托盘菜单
+
+未锁定时：
+
+```text
+fdn-autosync-tray
+────────────
+自启动后已同步：12 次
+当前状态：空闲 / 同步中（Sync） / 已暂停
+会话：剩 57 天（或「即将到期」「已失效，请更新 H1111_SESSION」）
+上次同步：2026-11-26 20:30:18
+上次结果：成功 · 用时 18 秒
+下次同步：2026-11-26 20:40:18
+────────────
+立即同步（同步中禁用）
+暂停自动同步 / 恢复自动同步
+锁定
+────────────
+查看详细状态
+浏览 >（项目目录 / 下载数据目录 / 自动同步目录 / 最新日志 / 日志文件夹）
+────────────
+配置文件
+日志文件夹
+配置…
+开机自启动
+修复自启动（仅在配置已开启但快捷方式不见了时出现）
+重启
+退出
+```
+
+- 状态区是**只读**信息（灰显不可点），文本由 Node 排版好（本地时区、中文），宿主原样显示
+- 还没跑过任何一轮时显示「尚未同步」/「上次结果：—」，**不会虚构**上次时间
+
+**锁定**后菜单变成：`fdn-autosync-tray（已锁定）` + 同样的状态摘要 + **查看详细状态** + 立即同步 + 解锁 + 浏览日志文件夹。
+锁定**不隐藏状态、不影响定时同步、不影响图标角标**，只是把「改配置/暂停/重启/退出/开目录」等操作挡住；
+权限由宿主隐藏菜单项 **和** Node 侧二次校验双保险（Node 收到越权命令一律拒绝并回 `locked`）。
+
+「查看详细状态」是**只读**窗口（只有「关闭」按钮）：当前状态与阶段、运行次数、上次开始/结束/耗时、上次结果与简短错误、
+各结果累计次数、下次同步时间（暂停时如实显示「未安排（已暂停）」），且**不含任何 Token / Cookie / 密码**。
+
+### 图标与角标
+
+底图与角标分开处理：底图来自 `local/assets/default.ico` 或你在设置窗口选的图片（会**复制**到 `local/assets/`，
+不依赖原始路径）；角标画在右下角、约底图 50%，**沿角标实际轮廓挖透明**（不是挖方块），带抗锯齿。
+
+角标优先级：**同步中**（白色右三角）＞ **已暂停**（白色 ‖）＞ **最近结果**（成功=绿勾 / 已是最新=绿点 / 失败或内部错误=红叉）＞ 无。
+合成结果按「底图哈希 + 角标 + 尺寸集合」缓存在 `local/cache/icons/`，状态变化时直接复用缓存；
+输出 16/20/24/32/40/48/64 多尺寸 ICO（传统 32bpp DIB 条目，.NET 的 `Icon` 可直接读）。
 
 ### 配置（首次运行自动生成）
 
-`local/config.json`（已在 `.gitignore` 里，**不会入库**）：
+`local/config.json`（**已在 `.gitignore` 里，不会入库**）。旧版扁平配置（`intervalMinutes`/`session`/`gitToken`/…）
+会在首次启动时**自动迁移**到下面的结构，迁移前把原文件备份成 `config.json.legacy-<时间>`，凭据原样保留。
 
-| 字段 | 默认 | 说明 |
-|---|---|---|
-| `intervalMinutes` | `60` | 自动同步间隔（分钟），也可在托盘菜单里改 |
-| `runOnStart` | `true` | 托盘启动后是否立即同步一次 |
-| `nodePath` | `""` | 留空自动在 PATH 找；找不到时填 `node.exe` 完整路径 |
-| `session` | `""` | huang1111 会话 cookie；留空则沿用系统环境变量 `H1111_SESSION` |
-| `githubToken` | `""` | GitHub 只读 token；留空则沿用 `GITHUB_TOKEN` / `GH_TOKEN`（匿名限额 60 次/小时） |
-| `gitToken` | `""` | GitHub PAT，仅用于 `git pull`/`push` 鉴权（托盘「设置 → 账号与提交 → GitHub 令牌」可设）；留空则沿用本机 git 凭据 |
-| `syncTimeoutMinutes` | `120` | 单次同步硬超时，超时强杀子进程 |
-| `pullBeforeSync` | `true` | 每轮同步前先 `git pull`；拉取失败则**取消本轮**（不下载、不提交） |
-| `pullStrategy` | `"rebase"` | `rebase`（推荐，能自动把上次未推的提交叠到远端之上）或 `ff-only` |
-| `pullTimeoutMinutes` | `10` | pull 超过这个时长视为失败，取消本轮同步 |
-| `retryPush` | `true` | 上次 push 失败留下的本地提交，在下一次**同步成功**后自动补推 |
-| `stepPull` | `true` | 步骤开关：同步前 `git pull` |
-| `stepSync` | `true` | 步骤开关：执行 `sync.mjs`（探测 / 下载 / 写数据） |
-| `stepCommit` | `true` | 步骤开关：生成变更后 `git commit`；关闭时变更留在工作区 |
-| `stepPush` | `true` | 步骤开关：`git push`（含补推）；关闭时提交只留在本地 |
-| `iconPath` | `""` | 自定义托盘图标（png/jpg/bmp/gif/ico）；留空用内置图标。右下角状态角标：同步中白色右三角、暂停「‖」、上次成功绿色对钩、上次已是最新绿色实心圆、上次失败红色叉（还没跑过则不显示）；挖空按角标实际轮廓，不是外接矩形 |
-| `notifyMode` | `"always"` | 同步通知：`always` 每次 / `failure` 仅失败 / `never` 从不 / `accumulate` 累积（每 `notifyEveryRuns` 次汇总弹一次） |
-| `notifyEveryRuns` | `5` | `notifyMode=accumulate` 时的累积周期（次）；托盘「设置 → 通知 → 汇总间隔」可改（改后计数重置） |
-| `silentErrors` | `false` | 仅 `accumulate` 生效：静默非周期错误（如「有本地提交未推送」），只写日志不即时弹气泡 |
-| `exitPassword` | `""` | 锁定密码（明文保存）：只用于「锁定 / 解锁 / 修改密码」，退出与重启托盘不再校验。托盘「设置 → 更多 → 锁定密码」可设/改/清除 |
-| `locked` | `false` | 菜单是否锁定：锁定后只剩「立即同步」「解锁」「日志」，其余项全部隐藏；锁定前必须先设置 `exitPassword`；锁状态存盘，重启托盘仍有效 |
-| `gitIdentityMode` | `"script"` | 提交身份：`script` = 脚本默认 `github-actions[bot]` / `git` = 沿用本机 git 配置 / `custom` = 使用下面两项（托盘「设置 → 账号与提交 → 提交身份」可设） |
-| `gitUserName` | `""` | `gitIdentityMode=custom` 时的 `user.name` |
-| `gitUserEmail` | `""` | `gitIdentityMode=custom` 时的 `user.email` |
-| `logRetentionDays` | `90` | 日志保留天数；启动与跨天时删除更早的日期目录，`0` = 永久保留（托盘「设置 → 更多 → 日志保留」可改） |
-| `wifiAutoConnect` | `false` | 总开关：同步前若本机没有网络，自动连接下方指定的 Wi-Fi（托盘「设置 → 网络（Wi-Fi）」可改） |
-| `wifiSsid` | `""` | 要连接的目标 Wi-Fi 名称（SSID），**明文保存** |
-| `wifiPassword` | `""` | 目标 Wi-Fi 密码，**明文保存**；留空 = 按开放网络连接 |
-| `wifiUseSavedFirst` | `true` | 优先尝试系统里已保存的密码/配置；失败后才用上面的 SSID+密码重写配置并重试（关闭则每次都直接用配置覆盖） |
-| `wifiSkipOnFail` | `true` | 连接失败时是否跳过整次同步（`true` = 本轮不下载、不提交；`false` = 按当前网络继续） |
-| `wifiDisconnectAfter` | `false` | 本轮由托盘自动连接过 Wi-Fi 时，同步完成后（无论成败）是否断开 |
-| `wifiForgetOnDisconnect` | `false` | 断开时是否一并删除该 Wi-Fi 配置（忘记网络，**包括系统里原有的同名配置**）；仅在 `wifiDisconnectAfter=true` 时生效 |
+```json
+{
+  "version": 1,
+  "runtime": { "nodePath": "", "syncTimeoutMinutes": 120, "pullTimeoutMinutes": 10, "pushTimeoutMinutes": 5 },
+  "startup": { "enabled": false, "runOnStart": true },
+  "scheduler": { "intervalMinutes": 10, "catchUpOnWake": true },
+  "wifi": { "enabled": false, "ssid": "", "password": "", "useSavedFirst": true, "alwaysConnect": false,
+            "skipOnFailure": true, "disconnectAfter": false, "disconnectEvenOnFailure": true, "forgetOnDisconnect": false },
+  "stages": {
+    "pull":   { "enabled": true, "strategy": "rebase" },
+    "sync":   { "enabled": true },
+    "commit": { "enabled": true, "identityMode": "gha", "userName": "", "userEmail": "" },
+    "push":   { "enabled": true }
+  },
+  "credentials": { "H1111_SESSION": "", "H1111_USER": "", "H1111_PASSWORD": "", "GH_TOKEN": "", "PUSH_TOKEN": "" },
+  "notifications": {
+    "mode": "standard",
+    "standard": { "success": true, "up-to-date": false, "failure": true, "internal-error": true },
+    "cumulative": { "everyRuns": 7, "internalErrorMode": "always" }
+  },
+  "appearance": { "iconPath": null },
+  "logging": { "retentionDays": 90 },
+  "security": { "lockPassword": "" }
+}
+```
 
-> 会话 cookie 的取法见上文「会话 cookie」一节（`node scripts/auto-sync/tools/refresh-session.mjs`）。
-> 也可在托盘「设置 → 账号与提交 → 会话 Cookie」里直接粘贴或清除，保存后立即刷新剩余天数，无需手改 `config.json`。托盘会离线推算「还剩多少天」，剩余 ≤10 天时弹气泡提醒。
+| 分组 | 字段 | 默认 | 说明 |
+|---|---|---|---|
+| runtime | `nodePath` | `""` | 留空 = 在 PATH 找 `node`；找不到宿主会明确提示 |
+| runtime | `syncTimeoutMinutes` | `120` | 单轮同步硬超时，超时杀整棵子进程树并记为失败 |
+| runtime | `pullTimeoutMinutes` / `pushTimeoutMinutes` | `10` / `5` | Pull / Push 超时 |
+| startup | `enabled` | `false` | 开机自启动（**真实状态以 Startup 文件夹里的快捷方式为准**） |
+| startup | `runOnStart` | `true` | 托盘启动后是否立即同步一次 |
+| scheduler | `intervalMinutes` | `10` | **本轮结束后等待**的分钟数（12:00 开始、12:01 结束、间隔 10 → 下一轮 12:11） |
+| scheduler | `catchUpOnWake` | `true` | 休眠唤醒后发现错过计划时**最多补跑一轮**（不连续补） |
+| wifi | `enabled` 等 | 关 | WiFi 管理总开关与策略，见下文「同步前联网」 |
+| stages.pull | `enabled` / `strategy` | 开 / `rebase` | 是否同步前拉取、策略 `rebase` 或 `ff-only` |
+| stages.sync | `enabled` | 开 | 是否执行 `sync.mjs`（关掉 = 只跑 Git 阶段，调试用） |
+| stages.commit | `enabled` / `identityMode` / `userName` / `userEmail` | 开 / `gha` | 身份：`gha` = `github-actions[bot]`（与 GHA 一致）/ `default` = 本机 git 配置 / `custom` = 下面两项（只作用于本仓库提交，不写 `--global`） |
+| stages.push | `enabled` | 开 | 是否推送；关掉时提交只留在本地 |
+| credentials | `H1111_SESSION` | `""` | huang1111 会话 cookie（取法见上文「会话 cookie」） |
+| credentials | `H1111_USER` / `H1111_PASSWORD` | `""` | 回退用的账号密码（站点已改交互式验证，基本用不上） |
+| credentials | `GH_TOKEN` | `""` | GitHub 只读 token（把 API 限额从 60 次/时提到 5000 次/时） |
+| credentials | `PUSH_TOKEN` | `""` | 仅用于 `git pull/push` 鉴权；留空 = 沿用本机 git 凭据 |
+| notifications | `mode` | `standard` | `standard` 每次按勾选项通知 / `cumulative` 每 N 次汇总一次 |
+| notifications | `standard.*` | 成功/失败/内部错误开，已是最新关 | 四类结果各自是否通知 |
+| notifications | `cumulative.everyRuns` / `internalErrorMode` | `7` / `always` | 汇总周期；内部错误是否始终单独提示 |
+| appearance | `iconPath` | `null` | 自定义底图（相对 `local/` 的路径，如 `assets/user-icon.png`）；`null` = 默认 |
+| logging | `retentionDays` | `90` | 日志保留天数，`0` = 永久保留（只清理本程序自己的日志） |
+| security | `lockPassword` | `""` | 托盘锁定密码（明文，可迁移）；为空时**不允许锁定** |
+
+> **明文凭据是用户明确要求的便携性权衡**：配置目录整体复制到另一台机器就能继续用，不绑 Windows 账户、不用 DPAPI。
+> 代价是能读这个文件的人也能读到 Token。程序因此做了这些事：`config.json` 在 `.gitignore` 里、
+> 启动时用 `icacls` 尽量收紧 ACL、凭据只在环境变量与本进程里出现（不进日志 / 状态 / Toast / 命令行参数 / Git URL）。
+
+### 六个阶段与结果判定
+
+```text
+Prepare（检查网络，必要时连 WiFi）
+  → Pull（fetch + rebase/ff-only，工作区脏则跳过，不覆盖你的改动）
+  → Sync（调用 sync.mjs 本体：探测 → 登录 → 离线下载 → 直链 → 写 data/down JSON）
+  → Commit（逐软件提交 data/down/<id>，不碰其它文件）
+  → Push（推送；永不 --force）
+  → Finish（按配置断开 / 忘记 WiFi，**无论成败都会执行**）
+```
+
+结果只有四类，**只看结构化结果，不解析日志猜**：
+
+- `success`：有新内容/新版本，且本轮提交或推送成功
+- `up-to-date`：检查成功但没有需要更新的内容
+- `failure`：网络 / 远端 / 网盘 API / Git 等普通业务失败（含用户取消，取消绝不记成成功）
+- `internal-error`：程序自身异常、配置或状态损坏、关键依赖缺失
 
 ### 行为与注意
 
-- **每次运行都会 commit + push 到当前仓库的 `origin`**，默认用本机 git 凭据（SSH key / credential helper）；若在托盘「设置 → 账号与提交 → GitHub 令牌」填了 PAT，则改用该令牌（通过 `http.extraheader` 临时注入，不写入 `.git/config`，也不拼进 remote URL）。请确保当前目录是**你要同步的那个仓库**的克隆，且分支正确
-- **每轮固定顺序：`git pull` → `sync.mjs` → 补推**（`run-sync.mjs` 负责编排）。拉取失败（远端冲突、工作区有未提交改动、超时）会**取消本轮**，不下载也不提交；若是 rebase 冲突，会自动 `rebase --abort` 把仓库还原到拉取前
-- push 失败（超时或远端已有新提交）时，提交留在本地；**下一次同步成功后会自动补推**（`retryPush`）。若补推仍失败，托盘持续显示「待推 N」并提示；也可手动 `git pull --rebase && git push`
-- **每次同步结束都会弹气泡**（成功、失败、取消都弹，带用时）；可在托盘菜单「设置 → 通知」或 `notifyMode` 改成仅失败 / 从不。气泡文字来自本轮的结构化结果 `sync-<时间>.result.json`（与日志同目录）：能区分「全部已是最新」「同步成功 N/M 及具体版本」「新版本因发布未满守护时间暂缓」「登录/拉取/补推失败原因」，而不是从日志里猜；结果文件缺失时才退回日志关键字
-- **结果判定（唯一口径，托盘角标 / 菜单 / 通知共用）**：
-  - **失败**：超时、退出码非 `0`、`result.json` 报错（`ok=false` / `stage=pull` / `pull.ok=false` / `retryPush.ok=false` / `errors` 非空），或没有 `result.json` 时日志里出现明确的致命失败
-  - **已是最新**：非失败，且本轮没有任何可同步内容（`allLatest=true`，含「新版本发布未满守护时间」的情况）
-  - **成功**：非失败，且执行了同步流程（退出码 `0` 且无错误）
-  - 也就是说：**「已是最新」永远不会被算成失败**；只有真的出错才失败。退出码丢失时若结果文件表明失败，仍按失败处理
-- **同步进行中收到关机/注销请求会被阻止**：系统会提示"此应用正在阻止关机"，同步结束后只弹提醒，由你重新执行关机/注销（不会自动替你关机）
-- 拉取开关、拉取方式（rebase / ff-only）、自动补推都可在托盘「设置 → 同步」即时切换，也可直接改 `config.json`（下一轮生效）
-- **执行步骤**（托盘「设置 → 同步 → 执行步骤」）：拉取 / 同步 / 提交 / 推送可分别开关，按固定顺序执行；**四项全关等同于暂停**，自动同步不会启动。`stepCommit` 关闭时只写数据不提交，`stepPush` 关闭时只提交不推送（用于本地验证而不改动远端）。
-- **同步前联网（Wi-Fi）**：开启「设置 → 网络（Wi-Fi）→ 同步前自动连接 Wi-Fi」后，每轮同步前先检查本机能否上外网；**完全上不了外网**时才用 `wifiSsid` / `wifiPassword` 连接指定 Wi-Fi（已有网络不会切换）。默认 `wifiUseSavedFirst=true`：系统里已保存该 Wi-Fi 时先直接用它连接（不改动用户原有配置），连不上再用配置里的密码重写并重试；关掉则每次都直接用配置覆盖。若没配置密码、已保存的密码又连不上，会保留系统原配置（不会用开放网络覆盖）。连接失败且 `wifiSkipOnFail=true` 时**跳过整次**（不下载、不提交）；若本轮由托盘自动连上，同步结束（成功、失败、超时都算）后可按 `wifiDisconnectAfter` 断开，并按 `wifiForgetOnDisconnect` 一并删除该 Wi-Fi 配置。SSID 与密码均以**明文**保存在 `config.json`。Wi-Fi 相关提示遵循「设置 → 通知」的 `notifyMode`：`accumulate` 下按其他错误处理（`silentErrors` 开启时只写日志、不即时弹气泡）。
-- **不要和 GitHub Actions 的定时任务同时开启**，两边都可能提交 `data/down`，容易互相顶掉。用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
-- 日志按日期分目录存放：`local/logs/<yyyy>/<MM>/<dd>/sync-<时间>.log`；托盘自身事件写同日目录下的 `tray.log`。这样单目录不会堆积过多文件。双击托盘图标可直接打开**最近一次**同步日志
-- 同步进程完全隐藏运行，**不会弹任何窗口**；只有点「自定义间隔」等菜单项时才会出现小对话框
-- 开机自启：托盘菜单勾选「开机启动」，或执行
-  `powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -Install`
-  （取消用 `-Uninstall`）。原理是在当前用户的 Startup 文件夹里放一个指向 `start.vbs` 的快捷方式
-- 单实例：重复双击 `start.vbs` 不会起第二个托盘
+- **跑的就是 [`sync.mjs`](sync.mjs) 本体**。托盘只把它当子进程调用，并通过环境变量
+  `LOCAL_SYNC_STEP_COMMIT=0` / `LOCAL_SYNC_STEP_PUSH=0` 让它只写数据文件，提交与推送由托盘的 Commit/Push 阶段按本地配置来做；
+  结构化结果走 `LOCAL_SYNC_RESULT_FILE`。GHA 不设置这些变量，行为完全不变
+- **Push 失败不回滚本地提交**：提交本身就是待推送内容的持久化来源。下一轮先看本地是否 ahead，
+  远端有新提交就按策略 Pull（冲突则停下记录，不擅自选 ours/theirs），然后重新 Push。
+  所以「本轮 push 失败」不会丢数据，下一轮会自动补推（自动化回归见 `local/test/integration-runner.test.mjs`）
+- **绝不覆盖你的工作区**：不 `reset --hard`、不 `clean -fd`、不 `push --force`、不改 remote URL、不改全局 git 配置。
+  工作区有未提交修改时跳过自动 Pull；检测到未完成的 merge/rebase/cherry-pick 会停下让你手动处理
+- 提交消息格式与 GHA 一致（`[GHA] 新增：内容：数据源：资源id-<id>：<版本列表>呜~`），正文说明本轮资源与时间
+- **暂停**只取消下一轮定时器，不会打断正在跑的同步；暂停期间仍可「立即同步」，跑完仍不排下一轮。
+  同步中再次点「立即同步」会被拒绝（不会起第二个任务）
+- **通知**：标准模式下按四类结果勾选项弹 Toast（Windows 原生，失败退化为气泡）；累积模式每 N 次发一条汇总。
+  **通知发送成功才清零累积计数**，发送失败不改同步结果
+- **锁定**只限制 UI 操作，不是系统级安全边界（能读文件/结束进程的人照样能绕过）；**锁定后仍能看状态、
+  仍能立即同步、仍能解锁、仍能开日志文件夹**，但不能改配置/暂停/重启/退出/开项目目录
+- 日志：`local/logs/<yyyy>/<MM>/<dd>/run.log`（业务）、同目录 `tray.log`（宿主 + 子进程 stderr）；
+  行格式 `[时间] [级别] [模块] 消息`，写入前统一脱敏（凭据、`ghp_...`、`Bearer ...`、`cloudreve-session` 一律变 `***`）
+- 状态：`local/state.json`（少量必要数据：锁定/暂停/运行次数/上次结果/下次时间/累计统计），原子保存，损坏会备份并恢复默认
+- 开机自启：菜单勾选或执行
+  `powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -Install`（取消用 `-Uninstall`）。
+  原理是在当前用户 Startup 文件夹放一个指向 `start.vbs` 的快捷方式；程序目录搬走后菜单里会出现「修复自启动」
+- **不要和 GitHub Actions 的定时任务同时开启**：两边都可能提交 `data/down`，容易互相顶掉。
+  用本地版时请先停用 `.github/workflows/auto-sync.yml` 的 `schedule`
+- 程序目录可整体搬迁（配置 / 状态 / 日志 / 图标都在 `local/` 内，路径全部按脚本自身位置推导）；
+  搬完重新勾一次开机自启即可
+
+### 设置窗口
+
+托盘菜单「配置…」打开原生 WinForms 窗口（锁定状态下不可打开），分页：
+
+| 页 | 内容 |
+|---|---|
+| 部署 | 开机自启动、托盘外观（选择图片 / 重置默认图标）、启动后立即同步一次 |
+| 准备阶段 | WiFi 总开关、SSID、密码、优先用系统已保存密码、总是尝试连接、失败跳过整次 |
+| Pull | 跳过 Pull、策略 rebase / ff-only |
+| Sync | 跳过 Sync、`H1111_SESSION`、`H1111_USER`、`H1111_PASSWORD` |
+| Commit | 跳过 Commit、身份（GHA / 默认 / 自定义）、自定义用户名与邮箱 |
+| Push | 跳过 Push、`PUSH_TOKEN` |
+| 结束阶段 | 同步后断开 WiFi、失败也断开、断开后忘记配置 |
+| 通知 | 标准 / 累积、四类结果勾选、累积次数、内部错误始终提示 |
+| 其他 | 同步间隔、日志保留天数、锁定密码、`GH_TOKEN`、Node 路径、各阶段超时 |
+
+保存时由 Node 校验并**原子**写入（唯一写配置的进程），校验失败会保留窗口里的输入让你改；
+本轮正在跑的同步用的是**开始时的配置快照**，改配置只影响下一轮。
+
+### 开发与测试
+
+```bash
+# 本地业务（不弹窗口、不开托盘）——开发联调用
+node scripts/auto-sync/local/main.mjs        # 由 tray.ps1 通过 stdin/stdout 驱动
+
+# 自动化测试（无需网络、不碰真实仓库）
+# 注意：Node 24 的 node --test 不再接受目录参数，用 glob 或进入目录后不带参数
+node --test "scripts/auto-sync/local/test/**/*.test.mjs"
+```
+
+- 测试覆盖：配置默认值/校验/迁移/原子保存、状态记账、调度器间隔与暂停/唤醒、通知文案与计数、
+  **Git push 失败恢复（临时 bare 仓库 + pre-receive 钩子）**、工作区保护、锁定权限矩阵、协议编码、图标缓存键与 ICO 结构、WiFi 输出解析
+- 联调钩子（正常运行时不要设置）：`FDN_LOCAL_DIR` 把本机运行数据重定向到别处、`FDN_REPO_ROOT` 把 Git/同步业务指向另一个仓库
+- 宿主调试：`powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -NoTray`
+  不创建托盘图标、只跑协议循环（用于协议联调，不会和正在用的托盘抢通知区）
 
 ## 数据结构（站内 `data/down/{id}/`）
 

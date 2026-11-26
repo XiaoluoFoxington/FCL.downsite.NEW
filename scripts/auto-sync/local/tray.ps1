@@ -1,2301 +1,2218 @@
-﻿# tray.ps1 — 自动同步 · Windows 本地托盘版
-#
-# 作用：常驻系统托盘，按自定义间隔在后台运行 `scripts/auto-sync/sync.mjs` 的**完整流程**
-#      （预探测 → 登录网盘 → 离线下载 → 取直链 → 写 data/down JSON → 分软件提交 → push）。
-#
-# 特点：
-#   · 全程无窗口：同步在隐藏子进程中运行，输出只进日志文件；只有点菜单时才弹出小对话框
-#   · 托盘菜单：概览面板 / 立即同步 / 暂停·继续 / 锁定 / 设置（同步、通知、账号与提交、更多）/
-#              开机启动 / 日志 / 重启托盘 / 退出
-#   · 角标：同步中白色右三角、暂停「‖」；空闲时上次成功 = 绿色对钩、上次已是最新 = 绿色实心圆、
-#          上次失败 = 红色叉（还没跑过则不显示）
-#   · 密码：只用于「锁定 / 解锁 / 改密码」；退出与重启托盘不再校验
-#   · 锁定：菜单只剩「立即同步」「解锁」「日志」，其余全部隐藏；
-#          锁定前要先设密码，锁状态存 config.json，重启后仍有效
-#   · 结果判定：退出码 0 且无错误 = 成功；其中「本轮无任何可同步内容」单独记为「已是最新」；
-#              超时 / 退出码非 0 / result.json 报错 / 拉取失败 / 补推失败 / 日志出现致命错误 = 失败
-#   · 同步中被系统关机或注销会先阻止，同步结束后提醒重新操作（不自动关机）
-#   · 联网：可配置「同步前无网络时自动连接指定 Wi-Fi」（优先用系统已保存的密码，
-#          失败再用配置里的密码重写；连接失败可跳过整次；完成后可断开，
-#          断开时可一并忘记该 Wi-Fi 配置）
-#   · 单实例：重复启动会被静默忽略
-#   · 日志：scripts/auto-sync/local/logs/yyyy/MM/dd/（每次同步一个 sync-*.log，托盘自身写 tray.log）
-#   · 配置：scripts/auto-sync/local/config.json（首次运行自动生成，**不入库**）
-#
-# 用法（详见 scripts/auto-sync/README.md「本地版（Windows 托盘）」）：
-#   直接双击 start.vbs 即可（无窗口）。开机自启可在托盘菜单里勾选，或执行
-#     powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -Install
-#   取消开机自启：
-#     powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -Uninstall
-#
-# ⚠ 本地版会真的 commit + push 到当前仓库的 origin。请确保：
-#   · 本机 git 已配置可推送的凭据（SSH key 或 credential helper）
-#   · 与 GitHub Actions 的自动同步不要同时开启，否则两边可能互相顶掉
-#
-# 依赖：Windows PowerShell 5.1+（系统自带）、Node.js 18+、git。
+﻿#Requires -Version 5.1
+<#
+.SYNOPSIS
+    fdn-autosync-tray 托盘宿主（薄宿主：只做 Windows 集成，不做业务）。
 
+.DESCRIPTION
+    进程模型（PROTOCOL.md §1）：
+
+        start.vbs (wscript, 无窗口)
+          └─ powershell.exe -File tray.ps1     ← 本文件：托盘图标 / 菜单 / 窗口 / Toast / 自启动
+               └─ node main.mjs                ← 本地业务（唯一调度器 + 唯一状态机，唯一读写配置/状态）
+
+    职责边界：
+      * 本脚本不做业务：不读 Git、不跑同步、不读写 config.json / state.json。
+        （唯一例外：启动 Node 前只从 config.json 读取 runtime.nodePath 一个字段。）
+      * 与 Node 通过 stdin/stdout 的 JSON Lines 通信，每行一个 JSON 对象（UTF-8）。
+      * Node 的 stdout 只放协议消息；stderr 由本脚本追加写入 tray.log。
+      * 宿主写出的 JSON 一律把非 ASCII 转成 \uXXXX，避免编码方向性歧义（PROTOCOL.md §3.4）。
+
+    参数：
+      -Install      创建当前用户 Startup 快捷方式（指向 start.vbs）后退出
+      -Uninstall    删除该快捷方式后退出
+      -NoTray       开发/自测模式：不建 NotifyIcon、不建菜单，但仍完整跑协议循环，
+                    收到的每条消息都写进 tray.log
+      -VerboseLog   额外记录 DEBUG 级日志
+
+    环境变量（仅联调用，正常运行时不要设置）：
+      FDN_TRAY_NODE_ARGS   覆盖传给 node 的参数（默认 <脚本目录>\main.mjs），
+                           例如用桩脚本替换 main.mjs 做协议冒烟测试。
+
+    注意：本文件必须保存为 UTF-8 with BOM（Windows PowerShell 5.1 才不会把中文读成乱码）。
+#>
+[CmdletBinding()]
 param(
-  [switch]$Install,
-  [switch]$Uninstall
+    [switch]$Install,
+    [switch]$Uninstall,
+    [switch]$NoTray,
+    [switch]$VerboseLog
 )
 
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 
-# ============================ 路径与默认配置 ============================
+# ============================ 全局状态 ============================
 
-$ScriptDir = $PSScriptRoot
-if (-not $ScriptDir) { $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
-$RepoRoot = (Resolve-Path (Join-Path $ScriptDir '..\..\..')).Path
-$SyncScript = Join-Path $RepoRoot 'scripts\auto-sync\sync.mjs'
-$RunnerScript = Join-Path $ScriptDir 'run-sync.mjs'
-$SessionScript = Join-Path $ScriptDir 'session-status.mjs'
-$ConfigPath = Join-Path $ScriptDir 'config.json'
-$LogDir = Join-Path $ScriptDir 'logs'
-$StartupDir = [Environment]::GetFolderPath('Startup')
-if (-not $StartupDir) {
-  # 少数环境拿不到特殊文件夹时退回默认位置
-  $StartupDir = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'Microsoft\Windows\Start Menu\Programs\Startup'
+$script:AppName = 'fdn-autosync-tray'
+$script:LogTag = '宿主'
+$script:VerboseLogEnabled = [bool]$VerboseLog
+$script:NoTrayMode = [bool]$NoTray
+
+# 路径（全部由脚本自身位置推导，支持中文/空格/可移动目录）
+$script:ScriptDir = $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($script:ScriptDir)) {
+    $script:ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 }
-$StartupShortcut = Join-Path $StartupDir '自动同步.lnk'
-$LegacyStartupShortcut = Join-Path $StartupDir '线路1自动同步.lnk'
+$script:ConfigPath = Join-Path $script:ScriptDir 'config.json'
+$script:StatePath = Join-Path $script:ScriptDir 'state.json'
+$script:LogsDir = Join-Path $script:ScriptDir 'logs'
+$script:AssetsDir = Join-Path $script:ScriptDir 'assets'
+$script:DefaultIconPath = Join-Path $script:AssetsDir 'default.ico'
+$script:SettingsScriptPath = Join-Path $script:ScriptDir 'settings.ps1'
+$script:StartVbsPath = Join-Path $script:ScriptDir 'start.vbs'
+$script:MainScriptPath = Join-Path $script:ScriptDir 'main.mjs'
 
-$script:Defaults = [ordered]@{
-  intervalMinutes    = 60      # 同步间隔（分钟）
-  runOnStart         = $true   # 托盘启动后立即同步一次
-  nodePath           = ''      # 留空 = 自动在 PATH 里找 node
-  session            = ''      # huang1111 会话 cookie；留空则读环境变量 H1111_SESSION
-  githubToken        = ''      # GitHub 只读 token（建议配，避免 60 次/小时的匿名限额）
-  gitToken           = ''      # GitHub PAT（仅用于 git pull/push 鉴权）；留空 = 沿用本机 git 凭据
-  syncTimeoutMinutes = 120     # 单次同步硬超时，超时终止子进程
-  pullBeforeSync     = $true   # 每轮同步前先 git pull
-  pullStrategy       = 'rebase' # rebase | ff-only
-  pullTimeoutMinutes = 10      # pull 超过这个时长算失败，取消本轮同步
-  retryPush          = $true   # 上次 push 失败留下的提交，下一次同步成功后补推
-  stepPull           = $true   # 步骤开关：同步前拉取
-  stepSync           = $true   # 步骤开关：执行 sync.mjs（探测 / 下载 / 写数据）
-  stepCommit         = $true   # 步骤开关：生成变更后提交
-  stepPush           = $true   # 步骤开关：推送（含补推）
-  iconPath           = ''      # 自定义托盘图标（png/jpg/bmp/gif/ico）；留空 = 内置图标
-  notifyMode         = 'always' # always | failure | never | accumulate；同步通知策略
-  notifyEveryRuns    = 5       # notifyMode = accumulate 时，每多少次同步汇总提醒一次
-  silentErrors       = $false  # accumulate 时是否静默非周期错误（只写日志/进汇总，不即时弹气泡）
-  exitPassword       = ''      # 锁定密码（锁定/解锁用）；留空 = 不能锁定（明文保存在本文件）
-  locked             = $false  # 菜单是否锁定（只剩 立即同步/解锁/日志）；锁定前需先设密码
-  gitIdentityMode    = 'script' # script = github-actions[bot]（脚本默认）｜git = 本机 git 配置｜custom = 自定义
-  gitUserName        = ''      # gitIdentityMode = custom 时的提交用户名
-  gitUserEmail       = ''      # gitIdentityMode = custom 时的提交邮箱
-  logRetentionDays   = 90      # 日志保留天数（0 = 永久保留）；启动与跨天时清理更早的日期目录
-  wifiAutoConnect    = $false  # 同步前若没有网络，自动连接指定 Wi-Fi（总开关）
-  wifiSsid           = ''      # 目标 Wi-Fi 名称（SSID），明文保存
-  wifiPassword       = ''      # 目标 Wi-Fi 密码（明文保存）；留空 = 开放网络
-  wifiUseSavedFirst  = $true   # 优先尝试系统里已保存的密码；失败后再用上面的配置重写并重试
-  wifiSkipOnFail     = $true   # 连接失败时跳过整次同步（不下载、不提交）
-  wifiDisconnectAfter = $false # 完成后（无论同步成败）断开 Wi-Fi
-  wifiForgetOnDisconnect = $false # 断开时一并删除该 Wi-Fi 配置（忘记网络）
-}
+# 启动项（当前用户 Startup 文件夹）
+$script:StartupShortcutName = 'fdn-autosync-tray.lnk'
+$script:LegacyShortcutNames = @('自动同步.lnk', '线路1自动同步.lnk')
+$script:StartupDir = ''
+$script:StartupShortcut = ''
+$script:AutostartExists = $false
 
-$script:cfg = $null
-$script:nodeExe = $null
-$script:notify = $null
-$script:menu = $null
-$script:iconIdle = $null
-$script:iconBusy = $null
-$script:iconPaused = $null
-$script:iconOk = $null
-$script:iconLatest = $null
-$script:iconFail = $null
-$script:iconBitmaps = @()
-$script:iconHandles = @()
-$script:baseIconBitmap = $null
-$script:trayState = 'idle'
+# Node 子进程与协议
+$script:NodeProcess = $null
+$script:NodeExe = ''
+$script:NodeArguments = ''
+$script:Bridge = $null
+$script:NodeExitHandled = $false
+$script:NodeExited = $false
+$script:SeenFirstState = $false
+$script:IdSeq = 0
+$script:AckTable = $null
+$script:State = $null
+$script:AutostartStatusSent = $false
+$script:PendingConfigFlagsRefresh = $false
+$script:ConfigFlagsRequestId = ''
+$script:ConfigFlagsRequestAt = $null
+$script:ConfigStartupEnabled = $null
+$script:ConfigHasLockPassword = $null
+$script:ConfigFlagsKnown = $false
 
-$script:running = $false
-$script:proc = $null
-$script:runStartedAt = $null
-$script:runLog = ''
-$script:runErrLog = ''
-$script:runResult = ''
-$script:unpushedCount = 0
-$script:unpushedBranch = ''
-$script:branchLocal = ''
-$script:lastRunAt = $null
-$script:lastResult = ''
-$script:lastOutcome = ''   # success | latest | failed | ''（还没跑过）
-$script:lastElapsedText = ''
-$script:nextRunAt = $null
-$script:paused = $false
-$script:exitRequested = $false
-# notifyMode = accumulate 的内存计数（重启托盘后重新计数）
-$script:notifyRunCount = 0
-$script:notifyStats = @{ success = 0; latest = 0; failed = 0 }
-# 本轮是否由托盘自动连接了 Wi-Fi（用于完成后按配置断开/忘记）
-$script:wifiConnectedThisRun = $false
-# 同步中被系统关机/注销打断时暂存请求，同步结束后再继续
-$script:pendingSessionEnd = $null
-$script:sessionText = '会话：未检查'
-$script:sessionDaysLeft = $null
-$script:nodeVersion = ''
-$script:lastCleanDate = $null
-$script:restartRequested = $false
-$script:lastTip = ''
-$script:injectedEnv = @{}
-$script:timer = $null
-$script:appContext = $null
+# UI 对象
+$script:NotifyIcon = $null
+$script:Menu = $null
+$script:CurrentIcon = $null
+$script:PumpTimer = $null
+$script:AppContext = $null
+$script:PumpInProgress = $false
+$script:Stopping = $false
+$script:CloseIntent = ''
+$script:ToastReady = $null
+$script:ToastAppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+$script:ExitCode = 0
 
-# ============================ 基础工具 ============================
+# 编码（全程 UTF-8 无 BOM；日志文件也用它）
+$script:Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
-# 日志按日期嵌套：logs/yyyy/MM/dd/，避免单目录堆积过多文件
-function Get-LogDir([datetime]$Date = (Get-Date)) {
-  return (Join-Path $LogDir (Join-Path $Date.ToString('yyyy') (Join-Path $Date.ToString('MM') $Date.ToString('dd'))))
-}
+# ============================ 日志 ============================
 
-function Write-TrayLog([string]$Message) {
-  try {
-    $dir = Get-LogDir
-    if (-not (Test-Path -LiteralPath $dir)) {
-      New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    }
-    $line = '[{0}] {1}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Message
-    # 显式 UTF-8 无 BOM：避免 PowerShell 5.1 的 Add-Content 在追加时重复写 BOM
-    [System.IO.File]::AppendAllText(
-      (Join-Path $dir 'tray.log'),
-      $line + "`r`n",
-      (New-Object System.Text.UTF8Encoding -ArgumentList $false)
+function Write-TrayLog {
+    param(
+        [string]$Message,
+        [ValidateSet('DEBUG', 'INFO', 'WARN', 'ERROR')][string]$Level = 'INFO'
     )
-  } catch { }
-}
-
-function Read-Config {
-  $cfg = @{}
-  foreach ($k in $script:Defaults.Keys) { $cfg[$k] = $script:Defaults[$k] }
-  if (Test-Path -LiteralPath $ConfigPath) {
     try {
-      $obj = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
-      foreach ($k in $script:Defaults.Keys) {
-        $prop = $obj.PSObject.Properties[$k]
-        if ($prop -and $null -ne $prop.Value) { $cfg[$k] = $prop.Value }
-      }
-    } catch {
-      Write-TrayLog "config.json 解析失败：$($_.Exception.Message)"
-      # 托盘运行中用户可能正编辑配置文件（比如粘贴新 cookie），不要用默认值把内存里的配置冲掉；
-      # 首次启动就损坏时返回默认值（不覆盖用户的文件，便于其自行修复）
-      if ($script:cfg) { return $script:cfg }
+        if ($Level -eq 'DEBUG' -and -not $script:VerboseLogEnabled) { return }
+        $now = Get-Date
+        $dir = Join-Path $script:LogsDir $now.ToString('yyyy')
+        $dir = Join-Path $dir $now.ToString('MM')
+        $dir = Join-Path $dir $now.ToString('dd')
+        if (-not [System.IO.Directory]::Exists($dir)) { [void][System.IO.Directory]::CreateDirectory($dir) }
+        $file = Join-Path $dir 'tray.log'
+        # 注意：必须用 InvariantCulture。部分中文区域设置把「:」当成时间分隔符，
+        # 用默认区域格式化 'HH:mm:ss' 会输出「20时36时15」这种畸形时间。
+        $stamp = $now.ToString('yyyy-MM-dd HH:mm:ss.fff', [System.Globalization.CultureInfo]::InvariantCulture)
+        $line = '[' + $stamp + '] [' + $Level + '] [' + $script:LogTag + '] ' + $Message
+        [System.IO.File]::AppendAllText($file, $line + "`r`n", $script:Utf8NoBom)
     }
-  } else {
-    Save-Config $cfg
-  }
-  # 配置里手改出 0/负数/非数字时兜底，避免变成“立刻再跑一次”的死循环
-  try {
-    $cfg.intervalMinutes = [math]::Max(1, [double]$cfg.intervalMinutes)
-    $cfg.syncTimeoutMinutes = [math]::Max(1, [double]$cfg.syncTimeoutMinutes)
-    $cfg.pullTimeoutMinutes = [math]::Max(1, [double]$cfg.pullTimeoutMinutes)
-  } catch {
-    $cfg.intervalMinutes = $script:Defaults.intervalMinutes
-    $cfg.syncTimeoutMinutes = $script:Defaults.syncTimeoutMinutes
-    $cfg.pullTimeoutMinutes = $script:Defaults.pullTimeoutMinutes
-  }
-
-  # 手写 "false"/"0" 这种字符串时也按布尔处理
-  foreach ($k in @('runOnStart', 'pullBeforeSync', 'retryPush', 'stepPull', 'stepSync', 'stepCommit', 'stepPush', 'silentErrors', 'locked',
-      'wifiAutoConnect', 'wifiUseSavedFirst', 'wifiSkipOnFail', 'wifiDisconnectAfter', 'wifiForgetOnDisconnect')) {
-    $v = $cfg[$k]
-    if ($v -is [string]) {
-      $s = ([string]$v).Trim().ToLower()
-      $cfg[$k] = -not ($s -eq 'false' -or $s -eq '0' -or $s -eq 'no' -or $s -eq 'off' -or $s -eq '')
-    } else {
-      $cfg[$k] = [bool]$v
+    catch {
+        # 日志写失败绝不能影响托盘本身
     }
-  }
-
-  $strategy = ([string]$cfg.pullStrategy).Trim().ToLower()
-  if ($strategy -ne 'ff-only') { $strategy = 'rebase' }
-  $cfg.pullStrategy = $strategy
-
-  $mode = ([string]$cfg.notifyMode).Trim().ToLower()
-  if ($mode -ne 'failure' -and $mode -ne 'never' -and $mode -ne 'accumulate') { $mode = 'always' }
-  $cfg.notifyMode = $mode
-
-  try { $cfg.notifyEveryRuns = [math]::Max(1, [int][double]$cfg.notifyEveryRuns) }
-  catch { $cfg.notifyEveryRuns = $script:Defaults.notifyEveryRuns }
-
-  $identity = ([string]$cfg.gitIdentityMode).Trim().ToLower()
-  if ($identity -ne 'git' -and $identity -ne 'custom') { $identity = 'script' }
-  $cfg.gitIdentityMode = $identity
-
-  try { $cfg.logRetentionDays = [math]::Max(0, [int][double]$cfg.logRetentionDays) }
-  catch { $cfg.logRetentionDays = $script:Defaults.logRetentionDays }
-
-  return $cfg
 }
 
-function Save-Config($cfg) {
-  try {
-    $obj = [ordered]@{}
-    foreach ($k in $script:Defaults.Keys) { $obj[$k] = $cfg[$k] }
-    $json = $obj | ConvertTo-Json -Depth 4
-    [System.IO.File]::WriteAllText(
-      $ConfigPath,
-      $json,
-      (New-Object System.Text.UTF8Encoding -ArgumentList $false)
-    )
-  } catch {
-    Write-TrayLog "写入 config.json 失败：$($_.Exception.Message)"
-  }
+# 日志里截断 + 去掉连续空白，避免一条日志被撑爆
+function Format-TextForLog {
+    param([string]$Text, [int]$MaxLength = 300)
+    if ([string]::IsNullOrEmpty($Text)) { return '' }
+    $clean = $Text -replace '[\r\n\t]+', ' '
+    if ($clean.Length -gt $MaxLength) { $clean = $clean.Substring(0, $MaxLength) + '…' }
+    return $clean
 }
 
-# 步骤开关：四个全关等同于暂停
-function Test-StepsEnabled {
-  return ([bool]$script:cfg.stepPull -or [bool]$script:cfg.stepSync -or [bool]$script:cfg.stepCommit -or [bool]$script:cfg.stepPush)
+# -NoTray 下把每条收到的消息都落到 INFO，便于协议联调；正常运行时降到 DEBUG
+function Write-ProtocolLog {
+    param([string]$Text)
+    if ($script:NoTrayMode) { Write-TrayLog $Text 'INFO' }
+    else { Write-TrayLog $Text 'DEBUG' }
 }
 
-function Test-EffectivePaused {
-  return ([bool]$script:paused -or -not (Test-StepsEnabled))
+# ============================ 协议 JSON ============================
+
+# PROTOCOL.md §3.4：ConvertTo-Json 后把非 ASCII 转成 \uXXXX，写出方向永远只有 ASCII
+function ConvertTo-ProtocolJson {
+    param($Object)
+    $json = $Object | ConvertTo-Json -Depth 12 -Compress
+    if ([string]::IsNullOrEmpty($json)) { return '{}' }
+    return [regex]::Replace($json, '[^\x00-\x7F]', { param($m) '\u{0:x4}' -f [int][char]$m.Value })
 }
 
-function Set-InjectedEnv([string]$Name, [string]$Value) {
-  if ($Value) {
-    Set-Item -Path ('Env:' + $Name) -Value $Value
-    $script:injectedEnv[$Name] = $true
-  } elseif ($script:injectedEnv[$Name]) {
-    # 只清理本进程注入过的值，不动用户自己的系统环境变量
-    Remove-Item ('Env:' + $Name) -ErrorAction SilentlyContinue
-    $script:injectedEnv[$Name] = $false
-  }
+function New-MessageId {
+    param([string]$Prefix)
+    $script:IdSeq = $script:IdSeq + 1
+    return ($Prefix + '-' + $script:IdSeq)
 }
 
-function Resolve-NodeExe {
-  $configured = [string]$script:cfg.nodePath
-  if ($configured) {
-    if (Test-Path -LiteralPath $configured) { return (Resolve-Path -LiteralPath $configured).Path }
-    $cmd = Get-Command $configured -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
-  }
-  foreach ($name in @('node.exe', 'node')) {
-    $cmd = Get-Command $name -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($cmd) { return $cmd.Source }
-  }
-  return $null
-}
-
-# ============================ 托盘图标（自定义图片 + 右下角状态圆点） ============================
-
-function Resolve-IconFile([string]$Configured) {
-  $p = ([string]$Configured).Trim()
-  if (-not $p) { return '' }
-  if (-not [System.IO.Path]::IsPathRooted($p)) { $p = Join-Path $RepoRoot $p }
-  return $p
-}
-
-function Get-CustomIconImage([string]$Path) {
-  if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $null }
-  try {
-    if ([System.IO.Path]::GetExtension($Path).ToLowerInvariant() -eq '.ico') {
-      $ico = New-Object System.Drawing.Icon($Path, 32, 32)
-      $img = $ico.ToBitmap()
-      $ico.Dispose()
-      return $img
-    }
-    return [System.Drawing.Image]::FromFile($Path)
-  } catch {
-    Write-TrayLog "读取自定义图标失败：$($_.Exception.Message)"
-    return $null
-  }
-}
-
-# 底图：自定义图片等比缩放居中；没有图片时用内置的蓝圆 + 下载箭头
-function New-BaseIconBitmap {
-  $size = 32
-  $bmp = [System.Drawing.Bitmap]::new($size, $size)
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-  $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
-  $g.Clear([System.Drawing.Color]::Transparent)
-
-  $img = Get-CustomIconImage (Resolve-IconFile $script:cfg.iconPath)
-  if ($img) {
-    try {
-      $scale = [math]::Min($size / $img.Width, $size / $img.Height)
-      $w = [math]::Max(1, [int][math]::Round($img.Width * $scale))
-      $h = [math]::Max(1, [int][math]::Round($img.Height * $scale))
-      $g.DrawImage($img, [int](($size - $w) / 2), [int](($size - $h) / 2), $w, $h)
-    } catch {
-      Write-TrayLog "绘制自定义图标失败：$($_.Exception.Message)"
-    } finally {
-      $img.Dispose()
-    }
-  } else {
-    $brush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(38, 132, 255))
-    $g.FillEllipse($brush, 1, 1, $size - 2, $size - 2)
-    $brush.Dispose()
-
-    $pen = [System.Drawing.Pen]::new([System.Drawing.Color]::White, 3)
-    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $g.DrawLine($pen, 16, 7, 16, 20)   # 竖线
-    $g.DrawLine($pen, 10, 14, 16, 20)  # 左斜
-    $g.DrawLine($pen, 22, 14, 16, 20)  # 右斜
-    $g.DrawLine($pen, 9, 25, 23, 25)   # 底部横线
-    $pen.Dispose()
-  }
-
-  $g.Dispose()
-  return $bmp
-}
-
-# 角标多边形的「按轮廓外扩」版本：用于按实际内容挖空，而不是挖掉一整块矩形
-function Get-ExpandedPolygon([System.Drawing.PointF[]]$Points, [double]$Pad = 2.0) {
-  $count = $Points.Count
-  if ($count -eq 0) { return $Points }
-  $cx = 0.0; $cy = 0.0
-  foreach ($p in $Points) { $cx += $p.X; $cy += $p.Y }
-  $cx /= $count; $cy /= $count
-  $out = [System.Drawing.PointF[]]::new($count)
-  for ($i = 0; $i -lt $count; $i++) {
-    $p = $Points[$i]
-    $dx = [double]$p.X - $cx
-    $dy = [double]$p.Y - $cy
-    $len = [math]::Sqrt($dx * $dx + $dy * $dy)
-    if ($len -lt 0.001) { $out[$i] = $p; continue }
-    $scale = ($len + $Pad) / $len
-    $out[$i] = [System.Drawing.PointF]::new([single]($cx + $dx * $scale), [single]($cy + $dy * $scale))
-  }
-  return $out
-}
-
-# 在底图右下角叠状态角标：
-#   none = 无角标 / dot = 实心圆 / check = 对钩 / cross = 叉 / play = 向右三角 / pause = 暂停
-# 挖空一律按角标实际轮廓（笔画/多边形）外扩，而不是矩形或外接圆
-function New-TrayIcon([string]$Badge = 'none', [System.Drawing.Color]$Color) {
-  $size = 32
-  $bmp = [System.Drawing.Bitmap]::new($size, $size)
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-  $g.Clear([System.Drawing.Color]::Transparent)
-
-  if ($script:baseIconBitmap) { $g.DrawImage($script:baseIconBitmap, 0, 0, $size, $size) }
-
-  if ($Badge -eq 'dot') {
-    $d = 12
-    $x = $size - $d - 1
-    $y = $size - $d - 1
-    # 透明挖空角标四周一圈，替代描边（圆形按圆周外扩，与实心圆轮廓一致）
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
-    $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
-    $g.FillEllipse($clear, $x - 2, $y - 2, $d + 4, $d + 4)
-    $clear.Dispose()
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-    $dot = [System.Drawing.SolidBrush]::new($Color)
-    $g.FillEllipse($dot, $x, $y, $d, $d)
-    $dot.Dispose()
-  } elseif ($Badge -eq 'check') {
-    # 绿色对钩：先按笔画本身（含外扩）挖空，再画对钩
-    $points = [System.Drawing.PointF[]]@(
-      [System.Drawing.PointF]::new(18.5, 23.5),
-      [System.Drawing.PointF]::new(22.0, 27.0),
-      [System.Drawing.PointF]::new(29.0, 19.0)
-    )
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
-    $clearPen = [System.Drawing.Pen]::new([System.Drawing.Color]::Transparent, 7)
-    $clearPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $clearPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $clearPen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
-    $g.DrawLines($clearPen, $points)
-    $clearPen.Dispose()
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-    $pen = [System.Drawing.Pen]::new($Color, 3)
-    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $pen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
-    $g.DrawLines($pen, $points)
-    $pen.Dispose()
-  } elseif ($Badge -eq 'cross') {
-    # 红色叉：按两条笔画本身（含外扩）挖空，再画叉
-    $a = [System.Drawing.PointF]::new(19, 19)
-    $b = [System.Drawing.PointF]::new(29, 29)
-    $c = [System.Drawing.PointF]::new(29, 19)
-    $d = [System.Drawing.PointF]::new(19, 29)
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
-    $clearPen = [System.Drawing.Pen]::new([System.Drawing.Color]::Transparent, 7)
-    $clearPen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $clearPen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $g.DrawLine($clearPen, $a, $b)
-    $g.DrawLine($clearPen, $c, $d)
-    $clearPen.Dispose()
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-    $pen = [System.Drawing.Pen]::new($Color, 3)
-    $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $pen.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-    $g.DrawLine($pen, $a, $b)
-    $g.DrawLine($pen, $c, $d)
-    $pen.Dispose()
-  } elseif ($Badge -eq 'pause') {
-    # 「||」直接画在右下角，白色填充，不套圆形徽标；按每根竖条的实际轮廓挖空
-    $barW = 4
-    $barH = 10
-    $gap = 2
-    $x = $size - ($barW * 2 + $gap) - 1
-    $y = $size - $barH - 1
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
-    $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
-    $g.FillRectangle($clear, $x - 2, $y - 2, $barW + 4, $barH + 4)
-    $g.FillRectangle($clear, $x + $barW + $gap - 2, $y - 2, $barW + 4, $barH + 4)
-    $clear.Dispose()
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-    $bar = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
-    $g.FillRectangle($bar, $x, $y, $barW, $barH)
-    $g.FillRectangle($bar, $x + $barW + $gap, $y, $barW, $barH)
-    $bar.Dispose()
-  } elseif ($Badge -eq 'play') {
-    # 向右的白色实心三角，与暂停角标同位置、同风格；挖空按三角形轮廓外扩
-    $w = 9
-    $h = 10
-    $x = $size - $w - 2
-    $y = $size - $h - 1
-    $points = [System.Drawing.PointF[]]@(
-      [System.Drawing.PointF]::new($x, $y),
-      [System.Drawing.PointF]::new($x, $y + $h),
-      [System.Drawing.PointF]::new($x + $w, $y + [int][math]::Floor($h / 2))
-    )
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceCopy
-    $clear = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::Transparent)
-    $expanded = Get-ExpandedPolygon $points 2.0
-    $g.FillPolygon($clear, $expanded)
-    $clear.Dispose()
-    $g.CompositingMode = [System.Drawing.Drawing2D.CompositingMode]::SourceOver
-    $brush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
-    $g.FillPolygon($brush, $points)
-    $brush.Dispose()
-  }
-
-  $g.Dispose()
-
-  # 位图与 HICON 都由 Update-TrayIcons 在换代/退出时统一释放
-  $script:iconBitmaps += $bmp
-  $icon = [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
-  $script:iconHandles += [IntPtr]$icon.Handle
-  return $icon
-}
-
-function Destroy-IconHandle([IntPtr]$Handle) {
-  if ($Handle -eq [IntPtr]::Zero) { return }
-  try { [void][Win32.IconApi]::DestroyIcon($Handle) } catch { }
-}
-
-function Update-TrayIcons {
-  $oldIcons = @($script:iconIdle, $script:iconBusy, $script:iconPaused, $script:iconOk, $script:iconLatest, $script:iconFail) |
-    Where-Object { $_ }
-  $oldBitmaps = $script:iconBitmaps
-  $oldHandles = $script:iconHandles
-  $script:iconBitmaps = @()
-  $script:iconHandles = @()
-
-  if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
-  $script:baseIconBitmap = New-BaseIconBitmap
-
-  $script:iconIdle = New-TrayIcon 'none'
-  $script:iconBusy = New-TrayIcon 'play'
-  $script:iconPaused = New-TrayIcon 'pause'
-  $okGreen = [System.Drawing.Color]::FromArgb(46, 160, 67)
-  $failRed = [System.Drawing.Color]::FromArgb(218, 54, 51)
-  $script:iconOk = New-TrayIcon 'check' $okGreen       # 上次成功：绿色对钩
-  $script:iconLatest = New-TrayIcon 'dot' $okGreen     # 上次已是最新：绿色实心圆
-  $script:iconFail = New-TrayIcon 'cross' $failRed     # 上次失败：红色叉
-
-  # 先让托盘切到新图标，再释放旧图标、HICON 与位图
-  Update-TrayIcon $script:trayState
-  foreach ($i in $oldIcons) { try { $i.Dispose() } catch { } }
-  foreach ($h in $oldHandles) { Destroy-IconHandle $h }
-  foreach ($b in $oldBitmaps) { try { $b.Dispose() } catch { } }
-}
-
-function Update-IdleStateIcon {
-  if ($script:running) { Update-TrayIcon 'busy' }
-  elseif (Test-EffectivePaused) { Update-TrayIcon 'paused' }
-  else {
-    # 空闲时显示上一次同步结果；还没跑过则无角标
-    switch ([string]$script:lastOutcome) {
-      'success' { Update-TrayIcon 'ok' }
-      'latest' { Update-TrayIcon 'latest' }
-      'failed' { Update-TrayIcon 'failed' }
-      default { Update-TrayIcon 'idle' }
-    }
-  }
-}
-
-function Update-TrayIcon([string]$State) {
-  $script:trayState = $State
-  if (-not $script:notify) { return }
-  switch ($State) {
-    'busy' { $script:notify.Icon = $script:iconBusy }
-    'paused' { $script:notify.Icon = $script:iconPaused }
-    'ok' { $script:notify.Icon = $script:iconOk }
-    'latest' { $script:notify.Icon = $script:iconLatest }
-    'failed' { $script:notify.Icon = $script:iconFail }
-    default { $script:notify.Icon = $script:iconIdle } # idle：无角标
-  }
-}
-
-# 本地版界面上不出现线路编号 / 提供方字样：统一在这里抹掉，日志原文不动
-function Format-Display([string]$Text) {
-  if (-not $Text) { return $Text }
-  $Text = $Text -replace '线路\s*1\s*自动同步', '自动同步'
-  $Text = $Text -replace '线路\s*1(?!\d)', ''
-  $Text = $Text -replace '站长提供线路', ''
-  $Text = $Text -replace '站长提供', ''
-  # 中性化：不出现「资源 / 软件」与服务商名
-  $Text = $Text -replace '全部软件均已是最新', '全部内容均为最新'
-  $Text = $Text -replace '全部软件已是最新', '全部内容均为最新'
-  $Text = $Text -replace '软件同步成功', '同步成功'
-  $Text = $Text -replace '成功软件', '成功'
-  $Text = $Text -replace '软件', '内容'
-  $Text = $Text -replace '资源\s*id\s*=', '条目 '
-  $Text = $Text -replace '资源', '条目'
-  $Text = $Text -replace '登录\s*huang1111\s*失败', '登录失败'
-  $Text = $Text -replace 'huang1111', '存储服务'
-  $Text = $Text -replace '网盘', '存储'
-  return $Text
-}
-
-function Show-Balloon([string]$Title, [string]$Text, [string]$Kind = 'Info') {
-  if (-not $script:notify) { return }
-  $Title = Format-Display $Title
-  $icon = [System.Windows.Forms.ToolTipIcon]::Info
-  if ($Kind -eq 'Error') { $icon = [System.Windows.Forms.ToolTipIcon]::Error }
-  elseif ($Kind -eq 'Warning') { $icon = [System.Windows.Forms.ToolTipIcon]::Warning }
-  $text = Format-Display ([string]$Text)
-  if ($text.Length -gt 250) { $text = $text.Substring(0, 250) + '…' }
-  try { $script:notify.ShowBalloonTip(8000, $Title, $text, $icon) } catch { }
-}
-
-# notifyMode 只约束「同步结果通知」；会话临期这类安全提醒始终弹
-function Test-Notify([bool]$IsFailure) {
-  switch ([string]$script:cfg.notifyMode) {
-    'never' { return $false }
-    'failure' { return $IsFailure }
-    default { return $true }
-  }
-}
-
-# 累积模式下的「静默错误」：非周期错误只写日志/进汇总，不即时弹气泡
-function Test-SilentError {
-  return ([string]$script:cfg.notifyMode -eq 'accumulate' -and [bool]$script:cfg.silentErrors)
-}
-
-# ============================ 会话寿命（离线推算，不联网） ============================
-
-function Update-SessionInfo {
-  if (-not $script:nodeExe) { $script:sessionText = '会话：未找到 Node.js'; return }
-  $raw = ''
-  try {
-    $raw = (& $script:nodeExe $SessionScript 2>$null | Out-String).Trim()
-    if (-not $raw) { throw '无输出' }
-    $j = $raw | ConvertFrom-Json
-    if (-not $j.present) {
-      $script:sessionText = '会话：未配置（同步必定失败）'
-      $script:sessionDaysLeft = $null
-    } elseif (-not $j.valid) {
-      $script:sessionText = "会话：已失效（$($j.reason)）"
-      $script:sessionDaysLeft = 0
-    } elseif ($null -eq $j.daysLeft) {
-      $script:sessionText = '会话：已配置（无法解析签发时间）'
-      $script:sessionDaysLeft = $null
-    } else {
-      $script:sessionText = "会话：剩余 $($j.remaining)（到期 $($j.expires)）"
-      $script:sessionDaysLeft = [double]$j.daysLeft
-    }
-  } catch {
-    $script:sessionText = '会话：读取失败'
-    $script:sessionDaysLeft = $null
-    Write-TrayLog "会话状态读取失败：$($_.Exception.Message) $raw"
-  }
-}
-
-# 本地执行特有的坑：push 失败（超时 / 远端已有新提交）后提交留在本地，
-# 下一轮 probe 看到本地 JSON 已是最新 → 直接退出 0，永远不会自动补推。
-# 这里只检测并提示，不自动 push：避免把用户自己的本地提交一起推上去。
-function Get-UnpushedInfo {
-  $info = @{ Count = 0; Branch = ''; Local = '' }
-  try {
-    $branch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null | Out-String).Trim()
-    if (-not $branch -or $branch -eq 'HEAD') { return $info }
-    $info.Local = $branch
-    $upstream = (& git -C $RepoRoot rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>$null | Out-String).Trim()
-    $ref = $upstream
-    if (-not $ref) { $ref = "origin/$branch" }
-    $info.Branch = $ref
-    $raw = (& git -C $RepoRoot rev-list --count "$ref..HEAD" 2>$null | Out-String).Trim()
-    if ($raw -match '^\d+$') { $info.Count = [int]$raw }
-  } catch { }
-  return $info
-}
-
-function Update-UnpushedState {
-  $info = Get-UnpushedInfo
-  $prev = $script:unpushedCount
-  $script:unpushedCount = [int]$info.Count
-  $script:unpushedBranch = [string]$info.Branch
-  $script:branchLocal = [string]$info.Local
-  if ($script:unpushedCount -gt 0 -and $script:unpushedCount -ne $prev) {
-    $msg = '本地有 ' + $script:unpushedCount + ' 个提交没推到 ' + $script:unpushedBranch +
-      '（多半是 push 超时或被远端新提交拒绝）。在仓库目录执行：git pull --rebase && git push'
-    if (-not $script:cfg.stepPush) {
-      # 推送步骤关着时，未推送是预期状态，别反复弹气泡
-      Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '，推送步骤已关闭）')
-    } else {
-      if ((Test-Notify $true) -and -not (Test-SilentError)) { Show-Balloon '有本地提交未推送' $msg 'Warning' }
-      Write-TrayLog ('未推送提交：' + $script:unpushedCount + ' 个（' + $script:unpushedBranch + '）')
-    }
-  }
-}
-
-# ============================ Wi-Fi 自动连接（同步前联网） ============================
-#
-# 仅 Windows 托盘版使用：同步前发现「当前没有任何网络」时，按 config.json 里的
-# wifiSsid / wifiPassword 用 netsh 连接指定 Wi-Fi，再继续同步。
-# 连接成功后记下本轮「由托盘连接」这一事实；同步结束（无论成败）由 Complete-WifiSession
-# 按 wifiDisconnectAfter / wifiForgetOnDisconnect 决定是否断开、是否删除配置。
-
-$script:WifiConnectTimeoutSeconds = 30
-$script:WifiSavedConnectTimeoutSeconds = 12
-$script:WifiNetshTimeoutMs = 15000
-$script:nlm = $null
-
-# 「有没有网络」按能否上外网判断（NLM 的 IPv4/IPv6 Internet 标志），
-# 避免仅有虚拟网卡/本地连接时误判为有网；NLM 不可用时退回「任一网络可用」。
-function Test-NetworkAvailable {
-  try {
-    if (-not $script:nlm) { $script:nlm = New-Object -ComObject HNetCfg.NLM }
-    $flags = [int]$script:nlm.GetConnectivity()
-    # NLM_CONNECTIVITY_IPV4_INTERNET = 0x100，NLM_CONNECTIVITY_IPV6_INTERNET = 0x200
-    return (($flags -band 0x300) -ne 0)
-  } catch {
-    $script:nlm = $null
-    try { return [System.Net.NetworkInformation.NetworkInterface]::GetIsNetworkAvailable() }
-    catch { return $true } # 检测失败时当作有网，避免误连/误跳过
-  }
-}
-
-# 跑一条 netsh 命令（参数原样拼成命令行，便于 name="含空格的 SSID" 这种写法）。
-# 带超时：netsh 偶尔会卡住，不能让它把托盘 UI 一起拖死。
-function Invoke-Netsh([string]$ArgLine, [int]$TimeoutMs = 0) {
-  if ($TimeoutMs -le 0) { $TimeoutMs = $script:WifiNetshTimeoutMs }
-  $tmpOut = [System.IO.Path]::GetTempFileName()
-  $tmpErr = $tmpOut + '.err'
-  try {
-    $p = Start-Process -FilePath (Join-Path $env:WINDIR 'System32\netsh.exe') `
-      -ArgumentList $ArgLine -NoNewWindow -PassThru `
-      -RedirectStandardOutput $tmpOut -RedirectStandardError $tmpErr
-    if (-not $p.WaitForExit($TimeoutMs)) {
-      try { $p.Kill() } catch { }
-      try { [void]$p.WaitForExit(2000) } catch { }
-      return @{ Ok = $false; Code = -1; Output = ("netsh 执行超时（$TimeoutMs 毫秒）") }
-    }
-    $code = -1
-    try { $p.Refresh(); $code = [int]$p.ExitCode } catch { $code = -1 }
-    $out = ''
-    $err = ''
-    try { $out = [System.IO.File]::ReadAllText($tmpOut, [System.Text.Encoding]::Default) } catch { }
-    try { $err = [System.IO.File]::ReadAllText($tmpErr, [System.Text.Encoding]::Default) } catch { }
-    return @{
-      Ok     = ($code -eq 0)
-      Code   = $code
-      Output = (($out.Trim() + "`n" + $err.Trim()).Trim())
-    }
-  } catch {
-    return @{ Ok = $false; Code = -1; Output = $_.Exception.Message }
-  } finally {
-    try { Remove-Item -LiteralPath $tmpOut -Force -ErrorAction SilentlyContinue } catch { }
-    try { Remove-Item -LiteralPath $tmpErr -Force -ErrorAction SilentlyContinue } catch { }
-  }
-}
-
-# 本机无线网卡状态：none = 没有；disabled = 全部被禁用；ok / unknown（查询失败，交给 netsh 报错）
-function Get-WifiAdapterState {
-  try {
-    $adapters = @(Get-NetAdapter -Physical -ErrorAction Stop |
-      Where-Object { $_.PhysicalMediaType -eq 'Native 802.11' })
-    if ($adapters.Count -eq 0) { return 'none' }
-    if (@($adapters | Where-Object { $_.Status -ne 'Disabled' }).Count -eq 0) { return 'disabled' }
-    return 'ok'
-  } catch {
-    return 'unknown'
-  }
-}
-
-# 系统里是否已保存该 SSID 的配置。优先用 CIM（不受系统语言影响），失败再退回 netsh。
-function Test-WlanProfile([string]$Ssid) {
-  try {
-    $profiles = @(Get-CimInstance -Namespace 'root/StandardCimv2' -ClassName 'MSFT_WlanProfile' -ErrorAction Stop)
-    foreach ($p in $profiles) {
-      if ([string]$p.Name -eq $Ssid) { return $true }
-    }
-    return $false
-  } catch { }
-  $r = Invoke-Netsh ('wlan show profiles name="' + $Ssid + '"') 8000
-  return [bool]$r.Ok
-}
-
-# 轮询等待外网就绪（True = 已能上外网）
-function Wait-NetworkReady([int]$Seconds) {
-  $deadline = (Get-Date).AddSeconds($Seconds)
-  while ((Get-Date) -lt $deadline) {
-    Start-Sleep -Milliseconds 700
-    if (Test-NetworkAvailable) { return $true }
-  }
-  return $false
-}
-
-# Wi-Fi 相关提示统一走通知策略：
-#   always / failure → 立即弹；never → 不弹；
-#   accumulate → 按「其他错误」处理（silentErrors 开启时只写日志，不即时弹）
-function Show-WifiNotice([string]$Title, [string]$Text) {
-  if ((Test-Notify $true) -and -not (Test-SilentError)) {
-    Show-Balloon $Title $Text 'Warning'
-  }
-}
-
-# 生成 WLAN 配置 XML：有密码按 WPA2-PSK/AES，无密码按开放网络
-function New-WlanProfileXml([string]$Ssid, [string]$Password) {
-  $ssidXml = [System.Security.SecurityElement]::Escape($Ssid)
-  if ($Password) {
-    $keyXml = [System.Security.SecurityElement]::Escape($Password)
-    $security = @"
-      <authEncryption>
-        <authentication>WPA2PSK</authentication>
-        <encryption>AES</encryption>
-        <useOneX>false</useOneX>
-      </authEncryption>
-      <sharedKey>
-        <keyType>passPhrase</keyType>
-        <protected>false</protected>
-        <keyMaterial>$keyXml</keyMaterial>
-      </sharedKey>
-"@
-  } else {
-    $security = @"
-      <authEncryption>
-        <authentication>open</authentication>
-        <encryption>none</encryption>
-        <useOneX>false</useOneX>
-      </authEncryption>
-"@
-  }
-  return @"
-<?xml version="1.0"?>
-<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
-  <name>$ssidXml</name>
-  <SSIDConfig>
-    <SSID>
-      <name>$ssidXml</name>
-    </SSID>
-  </SSIDConfig>
-  <connectionType>ESS</connectionType>
-  <connectionMode>manual</connectionMode>
-  <MSM>
-    <security>
-$security
-    </security>
-  </MSM>
-</WLANProfile>
-"@
-}
-
-# 连接指定 Wi-Fi 并等待网络就绪；返回 @{ Ok; Error }
-function Connect-TargetWifi([string]$Ssid, [string]$Password) {
-  $ssid = ([string]$Ssid).Trim()
-  if (-not $ssid) { return @{ Ok = $false; Error = '未配置 Wi-Fi 名称（SSID）' } }
-
-  # 先排除「没有无线网卡 / 网卡被禁用」这类必然失败，给出可读原因
-  $adapter = Get-WifiAdapterState
-  if ($adapter -eq 'none') { return @{ Ok = $false; Error = '本机没有可用的无线网卡' } }
-  if ($adapter -eq 'disabled') { return @{ Ok = $false; Error = '无线网卡已被禁用，请先在系统里启用' } }
-
-  # 1) 优先尝试系统里已保存的密码/配置：不写配置、不覆盖用户原有设置
-  if ([bool]$script:cfg.wifiUseSavedFirst -and (Test-WlanProfile $ssid)) {
-    Write-TrayLog "Wi-Fi：发现已保存的「$ssid」，优先尝试已保存的密码"
-    $saved = Invoke-Netsh ('wlan connect name="' + $ssid + '" ssid="' + $ssid + '"')
-    if ($saved.Ok) {
-      if (Wait-NetworkReady $script:WifiSavedConnectTimeoutSeconds) {
-        Write-TrayLog "Wi-Fi：已用已保存的密码连接「$ssid」"
-        return @{ Ok = $true; Error = $null }
-      }
-      Write-TrayLog 'Wi-Fi：已保存的密码未能联网，改用配置中的密码重试'
-    } else {
-      Write-TrayLog "Wi-Fi：用已保存的配置连接失败：$($saved.Output)"
-    }
-    # 没配置密码却又连不上：不要用「开放网络」覆盖系统里原有的安全配置
-    if (-not $Password) {
-      return @{ Ok = $false; Error = '已保存的密码无法连接，且未配置 Wi-Fi 密码（已保留系统原配置）' }
-    }
-  }
-
-  # 2) 用 config.json 里的 SSID/密码写入（或覆盖）配置后再连接
-  $profilePath = Join-Path ([System.IO.Path]::GetTempPath()) ('auto-sync-wlan-' + [guid]::NewGuid().ToString('N') + '.xml')
-  try {
-    $xml = New-WlanProfileXml $ssid ([string]$Password)
-    [System.IO.File]::WriteAllText($profilePath, $xml, (New-Object System.Text.UTF8Encoding -ArgumentList $true))
-    $add = Invoke-Netsh ('wlan add profile filename="' + $profilePath + '" user=current')
-    if (-not $add.Ok) {
-      return @{ Ok = $false; Error = ('写入 Wi-Fi 配置失败：' + $add.Output) }
-    }
-
-    $connect = Invoke-Netsh ('wlan connect name="' + $ssid + '" ssid="' + $ssid + '"')
-    if (-not $connect.Ok) {
-      return @{ Ok = $false; Error = ('连接命令失败：' + $connect.Output) }
-    }
-
-    if (Wait-NetworkReady $script:WifiConnectTimeoutSeconds) { return @{ Ok = $true; Error = $null } }
-    return @{ Ok = $false; Error = ("等待网络就绪超时（$($script:WifiConnectTimeoutSeconds) 秒）") }
-  } catch {
-    return @{ Ok = $false; Error = $_.Exception.Message }
-  } finally {
-    try { Remove-Item -LiteralPath $profilePath -Force -ErrorAction SilentlyContinue } catch { }
-  }
-}
-
-# 同步开始前：无网络时按配置连接指定 Wi-Fi。
-# 返回 $true = 可以继续本次同步；$false = 按配置跳过整次。
-function Invoke-WifiBeforeSync {
-  $script:wifiConnectedThisRun = $false
-  if (-not [bool]$script:cfg.wifiAutoConnect) { return $true }
-
-  if (Test-NetworkAvailable) {
-    Write-TrayLog 'Wi-Fi：当前已有网络连接，跳过自动连接'
-    return $true
-  }
-
-  $ssid = ([string]$script:cfg.wifiSsid).Trim()
-  if (-not $ssid) {
-    Write-TrayLog 'Wi-Fi：当前无网络，但未配置 Wi-Fi 名称，无法自动连接'
-    if ([bool]$script:cfg.wifiSkipOnFail) {
-      Show-WifiNotice 'Wi-Fi 未配置' '当前没有网络，且未配置要连接的 Wi-Fi 名称。本次同步已跳过。'
-      return $false
-    }
-    Show-WifiNotice 'Wi-Fi 未配置' '当前没有网络，且未配置要连接的 Wi-Fi 名称。将按当前网络继续同步。'
-    return $true
-  }
-
-  Write-TrayLog "Wi-Fi：当前无网络，尝试连接「$ssid」"
-  $r = Connect-TargetWifi $ssid ([string]$script:cfg.wifiPassword)
-  if ($r.Ok) {
-    $script:wifiConnectedThisRun = $true
-    Write-TrayLog "Wi-Fi：已连接「$ssid」"
-    return $true
-  }
-
-  Write-TrayLog "Wi-Fi：连接「$ssid」失败：$($r.Error)"
-  if ([bool]$script:cfg.wifiSkipOnFail) {
-    Show-WifiNotice 'Wi-Fi 连接失败' ("无法连接「$ssid」：" + $r.Error + '。本次同步已跳过。')
-    return $false
-  }
-  Show-WifiNotice 'Wi-Fi 连接失败' ("无法连接「$ssid」：" + $r.Error + '。将按当前网络继续同步。')
-  return $true
-}
-
-# 同步结束后（无论成败）：本轮由托盘连接过 Wi-Fi 时，按配置断开 / 忘记
-function Complete-WifiSession {
-  if (-not $script:wifiConnectedThisRun) { return }
-  $script:wifiConnectedThisRun = $false
-  if (-not [bool]$script:cfg.wifiDisconnectAfter) {
-    Write-TrayLog 'Wi-Fi：本轮由托盘自动连接，按设置保持连接'
-    return
-  }
-
-  $ssid = ([string]$script:cfg.wifiSsid).Trim()
-  $d = Invoke-Netsh 'wlan disconnect'
-  if ($d.Ok) { Write-TrayLog "Wi-Fi：已断开「$ssid」" }
-  else { Write-TrayLog "Wi-Fi：断开失败：$($d.Output)" }
-
-  if ([bool]$script:cfg.wifiForgetOnDisconnect -and $ssid) {
-    $f = Invoke-Netsh ('wlan delete profile name="' + $ssid + '"')
-    if ($f.Ok) { Write-TrayLog "Wi-Fi：已忘记「$ssid」" }
-    else { Write-TrayLog "Wi-Fi：删除配置失败：$($f.Output)" }
-  }
-}
-
-# ============================ 同步进程 ============================
-
-function Start-SyncRun {
-  if ($script:running) { return }
-
-  # 每轮重新读配置：改 config.json（例如换会话 cookie / token / node 路径）后无需重启托盘即可生效
-  $script:cfg = Read-Config
-
-  # 四个步骤全关 = 暂停：不启动、不弹失败气泡
-  if (-not (Test-StepsEnabled)) {
-    # 仍排好下一轮，用户重新勾选步骤后无需重启托盘也能恢复自动同步
-    $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
-    Write-TrayLog '启动同步被忽略：所有步骤均已关闭（等同于暂停）'
-    Show-Balloon '无法启动同步' '所有步骤都已关闭。到「设置 → 同步 → 执行步骤」至少开一项。' 'Warning'
-    return
-  }
-
-  Set-InjectedEnv 'H1111_SESSION' ([string]$script:cfg.session)
-  Set-InjectedEnv 'GITHUB_TOKEN' ([string]$script:cfg.githubToken)
-  # 拉取/推送用的 PAT：没有就清掉，让 run-sync 回退到本机 git 凭据
-  Set-InjectedEnv 'LOCAL_SYNC_GIT_TOKEN' (([string]$script:cfg.gitToken).Trim())
-  # 提交身份：脚本默认（github-actions[bot]）/ 本机 git 配置 / 自定义
-  $env:LOCAL_SYNC_GIT_IDENTITY = [string]$script:cfg.gitIdentityMode
-  Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_NAME' (([string]$script:cfg.gitUserName).Trim())
-  Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_EMAIL' (([string]$script:cfg.gitUserEmail).Trim())
-  $script:nodeExe = Resolve-NodeExe
-  if ($script:nodeExe -and -not $script:nodeVersion) {
-    try { $script:nodeVersion = (& $script:nodeExe --version 2>$null | Out-String).Trim() } catch { }
-  }
-  # 拉取 / 补推 / 通知的行为都来自 config.json，每次同步前重新注入给包装器
-  if ($script:cfg.pullBeforeSync) { $env:LOCAL_SYNC_PULL = '1' } else { $env:LOCAL_SYNC_PULL = '0' }
-  $env:LOCAL_SYNC_PULL_STRATEGY = [string]$script:cfg.pullStrategy
-  $env:LOCAL_SYNC_PULL_TIMEOUT_MS = [string]([int]([double]$script:cfg.pullTimeoutMinutes * 60000))
-  if ($script:cfg.retryPush) { $env:LOCAL_SYNC_RETRY_PUSH = '1' } else { $env:LOCAL_SYNC_RETRY_PUSH = '0' }
-  # 步骤开关交给 run-sync / sync.mjs
-  $env:LOCAL_SYNC_STEP_PULL = $(if ($script:cfg.stepPull) { '1' } else { '0' })
-  $env:LOCAL_SYNC_STEP_SYNC = $(if ($script:cfg.stepSync) { '1' } else { '0' })
-  $env:LOCAL_SYNC_STEP_COMMIT = $(if ($script:cfg.stepCommit) { '1' } else { '0' })
-  $env:LOCAL_SYNC_STEP_PUSH = $(if ($script:cfg.stepPush) { '1' } else { '0' })
-
-  if (-not $script:nodeExe) {
-    Show-Balloon '无法启动同步' '未找到 Node.js。请安装 Node.js 18+，或在 config.json 的 nodePath 里写 node.exe 的完整路径。' 'Error'
-    Write-TrayLog '启动同步失败：找不到 node'
-    return
-  }
-  if (-not (Test-Path -LiteralPath $RunnerScript) -or -not (Test-Path -LiteralPath $SyncScript)) {
-    Show-Balloon '无法启动同步' "找不到同步脚本：$RunnerScript" 'Error'
-    Write-TrayLog "启动同步失败：找不到 $RunnerScript 或 $SyncScript"
-    return
-  }
-
-  # 同步前联网：无网络时按配置连接指定 Wi-Fi；失败且配置为跳过时，本轮不下载也不提交
-  if (-not (Invoke-WifiBeforeSync)) {
-    $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
-    $script:lastRunAt = Get-Date
-    $script:lastOutcome = 'failed'
-    $script:lastResult = '⏭ 已跳过（Wi-Fi 未连接）'
-    $script:lastElapsedText = ''
-    Update-IdleStateIcon
-    Write-TrayLog '本轮同步已跳过：Wi-Fi 连接失败（按设置跳过整次）'
-    return
-  }
-
-  $runLogDir = Get-LogDir
-  if (-not (Test-Path -LiteralPath $runLogDir)) {
-    New-Item -ItemType Directory -Path $runLogDir -Force | Out-Null
-  }
-  $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-  $script:runLog = Join-Path $runLogDir "sync-$stamp.log"
-  $errLog = Join-Path $runLogDir "sync-$stamp.err.log"
-  $script:runErrLog = $errLog
-  # 机器可读结果：run-sync/sync 写这个文件，托盘据此得知「已是最新 / 同步了哪些版本 / 失败原因」
-  $script:runResult = Join-Path $runLogDir "sync-$stamp.result.json"
-  $env:LOCAL_SYNC_RESULT_FILE = $script:runResult
-
-  try {
-    # -NoNewWindow 与重定向是唯一合法组合（-WindowStyle Hidden 与重定向冲突会报错）；
-    # 托盘自身由 wscript 以隐藏窗口拉起，子进程复用这个不可见的控制台，因此全程无窗口
-    $script:proc = Start-Process `
-      -FilePath $script:nodeExe `
-      -ArgumentList "`"$RunnerScript`"" `
-      -WorkingDirectory $RepoRoot `
-      -NoNewWindow `
-      -RedirectStandardOutput $script:runLog `
-      -RedirectStandardError $errLog `
-      -PassThru
-    $script:running = $true
-    $script:runStartedAt = Get-Date
-    Update-TrayIcon 'busy'; Write-TrayLog "开始同步（PID $($script:proc.Id)）→ $script:runLog"
-  } catch {
-    $script:proc = $null
-    $script:running = $false
-    $script:lastOutcome = 'failed'
-    Update-IdleStateIcon
-    Show-Balloon '启动同步失败' $_.Exception.Message 'Error'
-    Write-TrayLog "启动同步异常：$($_.Exception.Message)"
-    # 启动失败也算「本轮结束」：按配置把刚连上的 Wi-Fi 断开/忘记
-    Complete-WifiSession
-  }
-}
-
-# 读取 run-sync/sync 写出的 result.json；文件不存在或损坏时返回 $null（走日志兜底）
-function Read-RunResult([string]$Path) {
-  if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return $null }
-  try {
-    return (Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
-  } catch {
-    Write-TrayLog "结果文件解析失败：$($_.Exception.Message)"
-    return $null
-  }
-}
-
-# 把结构化结果压成气泡/日志用的一行摘要（不靠日志里的中文措辞）
-function Format-RunResult($r) {
-  if (-not $r) { return '' }
-  # 只有 ok 字段缺失才算无效结果；softwareTotal=0 的「拉取失败」也必须能压出摘要
-  $props = $r.PSObject.Properties
-  if (-not $props['ok']) { return '' }
-  $parts = @()
-  $errs = @($r.errors | Where-Object { $_ })
-  if (-not $r.ok) {
-    $parts += '失败'
-    if ([string]$r.stage -eq 'pull') { $parts += '本轮已取消（拉取失败）' }
-    elseif ([string]$r.stage -eq 'login') { $parts += '登录失败' }
-    elseif ([int]$r.softwareTotal -gt 0) { $parts += ('成功 ' + [int]$r.softwareOk + '/' + [int]$r.softwareTotal) }
-    if ($errs.Count -gt 0) { $parts += ('原因：' + [string]$errs[0]) }
-  } elseif ($r.allLatest) {
-    $parts += ('全部内容均为最新（' + [int]$r.softwareTotal + ' 个）')
-    $guarded = @($r.guarded | Where-Object { $_ })
-    if ($guarded.Count -gt 0) {
-      $gList = ($guarded | Select-Object -First 3 | ForEach-Object {
-        '条目 ' + $_.id + '：' + [string]$_.version
-      }) -join '；'
-      if ($guarded.Count -gt 3) { $gList += ' 等 ' + $guarded.Count + ' 个' }
-      $parts += ('新版本发布未满守护时间，暂缓 ' + $gList)
-    }
-  } elseif ($r.syncSkipped) {
-    $parts += '同步步骤已关闭（本轮未执行同步）'
-  } else {
-    $parts += ('同步成功 ' + [int]$r.softwareOk + '/' + [int]$r.softwareTotal)
-    $parts += $(if ($r.committed) { '已提交' } else { '无提交' })
-    if ($r.pushed) { $parts += '已推送' }
-    $changed = @(@($r.items) | Where-Object { $_ -and @($_.versions).Count -gt 0 })
-    if ($changed.Count -gt 0) {
-      $list = ($changed | Select-Object -First 3 | ForEach-Object {
-        '条目 ' + $_.id + '：' + (@($_.versions) -join '、')
-      }) -join '；'
-      if ($changed.Count -gt 3) { $list += ' 等 ' + $changed.Count + ' 个条目' }
-      $parts += $list
-    }
-    $guarded = @($r.guarded | Where-Object { $_ })
-    if ($guarded.Count -gt 0) { $parts += ('另有 ' + $guarded.Count + ' 个新版本发布未满守护时间，暂缓') }
-  }
-  if ($r.retryPush -and -not $r.retryPush.ok) { $parts += '补推失败，提交保留到下次' }
-  return ($parts -join '｜')
-}
-
-function Get-RunSummary([string]$LogPath, [string]$ErrPath = '', $Result = $null) {
-  # 优先用调用方已解析好的结构化结果；缺失（旧版脚本 / 进程崩溃 / JSON 损坏）才退回日志关键字
-  if ($Result) {
-    $text = Format-RunResult $Result
-    if ($text) { return $text }
-  }
-
-  if (-not $LogPath -or -not (Test-Path -LiteralPath $LogPath)) { return '' }
-  try {
-    $lines = Get-Content -LiteralPath $LogPath -Encoding UTF8 -ErrorAction SilentlyContinue
-    $hit = $lines | Where-Object { $_ -match '总用时|全部软件均已是最新|全部软件已是最新|登录失败|push 失败|同步失败|拉取失败|已取消|补推' } |
-      Select-Object -Last 2
-    $text = (($hit | ForEach-Object { ([string]$_).Trim() }) -join ' / ')
-    if (-not $text -and $ErrPath -and (Test-Path -LiteralPath $ErrPath)) {
-      # 未捕获异常（栈）只会写进 stderr：stdout 可能停在半路，气泡里至少要给出最后一行错误
-      $errLine = Get-Content -LiteralPath $ErrPath -Encoding UTF8 -ErrorAction SilentlyContinue |
-        Where-Object { ([string]$_).Trim() } | Select-Object -Last 1
-      if ($errLine) { $text = 'stderr：' + ([string]$errLine).Trim() }
-    }
-    return $text
-  } catch { return '' }
-}
-
-function Stop-ProcessTree([int]$ProcessId) {
-  try { & taskkill.exe /PID $ProcessId /T /F | Out-Null } catch { }
-}
-
-function Show-RunNotice([string]$Text, [bool]$IsFailure, [string]$Elapsed = '') {
-  $body = $Text
-  if (-not $body) {
-    if ($IsFailure) { $body = '详见日志：' + $script:runLog }
-    else { $body = '本次同步成功（无新增内容）' }
-  }
-  $body += $Elapsed
-  if ($IsFailure) { Show-Balloon '自动同步失败' $body 'Error' }
-  else { Show-Balloon '自动同步完成' $body 'Info' }
-}
-
-# 清空累积计数（改累积次数时也要重置，避免用旧计数立刻触发）
-function Reset-AccumulateState {
-  $script:notifyRunCount = 0
-  $script:notifyStats = @{ success = 0; latest = 0; failed = 0 }
-}
-
-# notifyMode = accumulate：攒够 notifyEveryRuns 次再汇总弹一次
-function Update-AccumulatedNotice([string]$Outcome) {
-  $every = 0
-  try { $every = [int][double]$script:cfg.notifyEveryRuns } catch { $every = 0 }
-  if ($every -lt 1) { $every = [int]$script:Defaults.notifyEveryRuns }
-  if ($Outcome -eq 'latest') { $script:notifyStats.latest++ }
-  elseif ($Outcome -eq 'failed') { $script:notifyStats.failed++ }
-  else { $script:notifyStats.success++ }
-  $script:notifyRunCount++
-  if ($script:notifyRunCount -lt $every) { return }
-
-  $x = $script:notifyRunCount
-  $text = "在最近 $x 次内，共进行了 $x 次同步。其中 $($script:notifyStats.success) 次成功、" +
-    "$($script:notifyStats.latest) 次已是最新、$($script:notifyStats.failed) 次失败。"
-  $kind = $(if ($script:notifyStats.failed -gt 0) { 'Warning' } else { 'Info' })
-  Show-Balloon '自动同步累积提醒' $text $kind
-  Write-TrayLog "累积提醒：$text"
-  Reset-AccumulateState
-}
-
-# 同步被系统关机/注销打断时，结束后只提醒用户重新操作，不替用户发起关机（避免违背其取消意图）
-function Resume-PendingSessionEnd {
-  $pending = $script:pendingSessionEnd
-  if (-not $pending) { return }
-  $script:pendingSessionEnd = $null
-  if ($script:exitRequested -or $script:restartRequested) { return }
-
-  $action = $(if ([string]$pending.Reason -eq 'Logoff') { '注销' } else { '关机' })
-  Show-Balloon '同步已完成' ('之前拦截了一次' + $action + '请求。同步已结束，请重新' + $action + '。') 'Warning'
-  Write-TrayLog ('同步已结束：之前拦截的' + $action + '请求不会自动继续，已提醒用户重新操作')
-}
-
-# 本轮结果三态判定（唯一口径，角标 / 菜单 / 通知都用它）：
-#   failed  = 失败：超时、退出码非 0、result.json 报错（ok=false / stage=pull /
-#             pull.ok=false / retryPush.ok=false / errors 非空）、或没有 result.json 时
-#             日志里出现明确的致命失败
-#   latest  = 已是最新：非失败，且本轮没有任何可同步内容（result.allLatest）
-#   success = 成功：非失败，且执行了同步流程（退出码 0 且无错误）
-function Resolve-RunOutcome($Result, [int]$ExitCode, [bool]$TimedOut, [string]$Summary) {
-  $resultFailed = $false
-  if ($Result) {
-    if ($null -ne $Result.ok -and -not [bool]$Result.ok) { $resultFailed = $true }
-    if ([string]$Result.stage -eq 'pull') { $resultFailed = $true }
-    if ($Result.pull -and $null -ne $Result.pull.ok -and -not [bool]$Result.pull.ok) { $resultFailed = $true }
-    if ($Result.retryPush -and $null -ne $Result.retryPush.ok -and -not [bool]$Result.retryPush.ok) { $resultFailed = $true }
-    if (@($Result.errors | Where-Object { $_ }).Count -gt 0) { $resultFailed = $true }
-  }
-  $logFailed = $false
-  if (-not $Result -and $ExitCode -eq 0 -and $script:runLog) {
-    try {
-      $raw = Get-Content -LiteralPath $script:runLog -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
-      if ($raw -match '本次同步已取消|❌\s*拉取失败|❌\s*登录失败|❌\s*push 失败|❌\s*探测失败') { $logFailed = $true }
-    } catch { }
-  }
-  $isFailure = ($TimedOut -or $ExitCode -ne 0 -or $resultFailed -or $logFailed)
-
-  if ($isFailure) {
-    if ($TimedOut) {
-      return @{ Outcome = 'failed'; IsFailure = $true; Label = '❌ 超时已终止' }
-    }
-    if (($Result -and [string]$Result.stage -eq 'pull') -or $ExitCode -eq 2) {
-      return @{ Outcome = 'failed'; IsFailure = $true; Label = '❌ 已取消（拉取失败）' }
-    }
-    return @{ Outcome = 'failed'; IsFailure = $true; Label = "❌ 失败（退出码 $ExitCode）" }
-  }
-
-  if (($Result -and [bool]$Result.allLatest) -or (-not $Result -and $Summary -match '全部.*最新')) {
-    return @{ Outcome = 'latest'; IsFailure = $false; Label = '✅ 已是最新（本轮无可同步内容）' }
-  }
-  return @{ Outcome = 'success'; IsFailure = $false; Label = '✅ 成功' }
-}
-
-function Complete-SyncRun([int]$ExitCode, [bool]$TimedOut = $false) {
-  # 先收尾 Wi-Fi：本轮由托盘自动连接过时，按配置断开 / 忘记（成功、失败、超时都执行）
-  Complete-WifiSession
-  if ($script:proc) {
-    try { $script:proc.Dispose() } catch { }
-  }
-  $script:proc = $null
-  $script:running = $false
-  $script:lastRunAt = Get-Date
-
-  $result = Read-RunResult $script:runResult
-  $summary = Get-RunSummary $script:runLog $script:runErrLog $result
-  $minutes = [double]$script:cfg.intervalMinutes
-  # 下一轮从「本次结束」起算，不累积错过的周期
-  $script:nextRunAt = (Get-Date).AddMinutes($minutes)
-
-  # 三态判定统一交给 Resolve-RunOutcome（失败 / 已是最新 / 成功），这里只取结果
-  $verdict = Resolve-RunOutcome $result $ExitCode $TimedOut $summary
-  $isFailure = [bool]$verdict.IsFailure
-  $script:lastResult = [string]$verdict.Label
-  $script:lastOutcome = [string]$verdict.Outcome
-
-  $elapsedText = ''
-  if ($script:runStartedAt) {
-    $sec = [int]((Get-Date) - $script:runStartedAt).TotalSeconds
-    if ($sec -ge 60) { $elapsedText = "｜用时 $([int]($sec / 60)) 分 $($sec % 60) 秒" }
-    else { $elapsedText = "｜用时 $sec 秒" }
-  }
-  $script:lastElapsedText = $elapsedText
-
-  Update-IdleStateIcon
-
-  switch ([string]$script:cfg.notifyMode) {
-    'never' { }
-    'failure' { if ($isFailure) { Show-RunNotice $summary $true $elapsedText } }
-    'accumulate' { Update-AccumulatedNotice $script:lastOutcome }
-    default { Show-RunNotice $summary $isFailure $elapsedText }
-  }
-
-  Write-TrayLog "同步结束：$($script:lastResult)（退出码 $ExitCode，结果文件 ok=$($result.ok)）｜$summary"
-  Update-SessionInfo
-  Update-UnpushedState
-  Resume-PendingSessionEnd
-}
-
-function Invoke-Tick {
-  try {
-    # 跨天时清理一次过期日志，避免长期常驻时日志无限增长
-    if ($script:lastCleanDate -and (Get-Date).Date -ne $script:lastCleanDate) {
-      $script:lastCleanDate = (Get-Date).Date
-      Remove-OldLogs
-    }
-    if ($script:running) {
-      $p = $script:proc
-      if ($p -and $p.HasExited) {
-        # WaitForExit 之后再读 ExitCode；拿不到就当 -1（失败），绝不当成 0（成功）
-        $exit = -1
-        try {
-          $p.WaitForExit()
-          if ($null -ne $p.ExitCode) { $exit = [int]$p.ExitCode }
-        } catch { $exit = -1 }
-        Complete-SyncRun $exit $false
-      } elseif ($script:runStartedAt -and $p) {
-        $elapsedMin = ((Get-Date) - $script:runStartedAt).TotalMinutes
-        if ($elapsedMin -gt [double]$script:cfg.syncTimeoutMinutes) {
-          Write-TrayLog "同步超时（$([math]::Round($elapsedMin,1)) 分钟），终止 PID $($p.Id)"
-          Stop-ProcessTree ([int]$p.Id)
-          Complete-SyncRun -ExitCode -1 -TimedOut $true
+# ConvertFrom-Json 得到 PSCustomObject，嵌套字段要转成 [ordered] 才能安全修改/回写
+function ConvertTo-OrderedHashtable {
+    param($Value)
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [string]) { return $Value }
+    if ($Value -is [bool] -or $Value -is [int] -or $Value -is [long] -or $Value -is [double] -or $Value -is [decimal]) { return $Value }
+
+    if ($Value -is [System.Collections.IDictionary]) {
+        $map = [ordered]@{}
+        foreach ($key in @($Value.Keys)) {
+            $map[[string]$key] = ConvertTo-OrderedHashtable $Value[$key]
         }
-      }
-    } elseif (-not (Test-EffectivePaused) -and $script:nextRunAt -and (Get-Date) -ge $script:nextRunAt) {
-      # 先排下一轮再启动：即便这次启动失败（如 node 丢失），也不会卡死不再重试
-      $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
-      Start-SyncRun
+        return $map
     }
-  } catch {
-    Write-TrayLog "调度异常：$($_.Exception.Message)"
-  }
-  try { Update-Tooltip } catch { }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $list = New-Object System.Collections.ArrayList
+        foreach ($item in $Value) { [void]$list.Add((ConvertTo-OrderedHashtable $item)) }
+        return , $list.ToArray()
+    }
+    try {
+        $props = $Value.PSObject.Properties
+        if ($null -ne $props -and $props.Count -gt 0) {
+            $map = [ordered]@{}
+            foreach ($p in $props) { $map[$p.Name] = ConvertTo-OrderedHashtable $p.Value }
+            return $map
+        }
+    }
+    catch {
+    }
+    return $Value
 }
 
-function Update-Tooltip {
-  if (-not $script:notify) { return }
-  $text = ''
-  if ($script:running -and $script:runStartedAt) {
-    $mins = [int](((Get-Date) - $script:runStartedAt).TotalMinutes)
-    $text = "自动同步 · 同步中 ${mins}m"
-  } elseif (Test-EffectivePaused) {
-    $text = '自动同步 · 已暂停'
-  } elseif ($script:nextRunAt) {
-    $text = '自动同步 · 下次 ' + $script:nextRunAt.ToString('HH:mm')
-  } else {
-    $text = '自动同步'
-  }
-  if ([bool]$script:cfg.locked) { $text += ' · 已锁定' }
-  if ($script:unpushedCount -gt 0) { $text += " · 待推 $($script:unpushedCount)" }
-  if ($text.Length -gt 63) { $text = $text.Substring(0, 63) }
-  if ($text -ne $script:lastTip) {
-    try { $script:notify.Text = $text } catch { }
-    $script:lastTip = $text
-  }
+# 安全取字段：PSCustomObject / Hashtable 都适用，缺失或为空返回默认值
+function Get-ObjectField {
+    param($Object, [string]$Name, $Default = $null)
+    if ($null -eq $Object) { return $Default }
+    try {
+        $prop = $Object.PSObject.Properties[$Name]
+        if ($null -ne $prop -and $null -ne $prop.Value) { return $prop.Value }
+    }
+    catch {
+    }
+    try {
+        if ($Object -is [System.Collections.IDictionary] -and $Object.Contains($Name)) {
+            $value = $Object[$Name]
+            if ($null -ne $value) { return $value }
+        }
+    }
+    catch {
+    }
+    return $Default
+}
+
+function Get-StateField {
+    param([string]$Name, $Default = $null)
+    return (Get-ObjectField $script:State $Name $Default)
+}
+
+function Get-IsLocked {
+    return [bool](Get-StateField 'locked' $false)
+}
+
+# ============================ Node 子进程 ============================
+
+# 只读 config.json 的 runtime.nodePath 一个字段（旧版配置在根上写 nodePath，也兼容读一次）
+function Get-ConfiguredNodePath {
+    try {
+        if (-not (Test-Path -LiteralPath $script:ConfigPath -PathType Leaf)) { return '' }
+        $raw = [System.IO.File]::ReadAllText($script:ConfigPath, [System.Text.Encoding]::UTF8)
+        if ([string]::IsNullOrWhiteSpace($raw)) { return '' }
+        $cfg = $raw | ConvertFrom-Json
+        $runtime = Get-ObjectField $cfg 'runtime' $null
+        $path = ''
+        if ($null -ne $runtime) { $path = [string](Get-ObjectField $runtime 'nodePath' '') }
+        if ([string]::IsNullOrWhiteSpace($path)) { $path = [string](Get-ObjectField $cfg 'nodePath' '') }
+        return $path.Trim()
+    }
+    catch {
+        Write-TrayLog ('读取 config.json 的 runtime.nodePath 失败（将回退 PATH 里的 node）：' + $_.Exception.Message) 'WARN'
+        return ''
+    }
+}
+
+function Resolve-NodeExecutable {
+    $configured = Get-ConfiguredNodePath
+    if (-not [string]::IsNullOrWhiteSpace($configured)) {
+        $candidate = $configured
+        if (-not [System.IO.Path]::IsPathRooted($candidate)) {
+            $candidate = Join-Path $script:ScriptDir $candidate
+        }
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return ([System.IO.Path]::GetFullPath($candidate)) }
+        if (Test-Path -LiteralPath ($candidate + '.exe') -PathType Leaf) { return ([System.IO.Path]::GetFullPath($candidate + '.exe')) }
+        Write-TrayLog ('config.json 的 runtime.nodePath 不存在：' + $candidate + '（回退 PATH 里的 node）') 'WARN'
+    }
+    $cmd = Get-Command 'node' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $cmd -and -not [string]::IsNullOrWhiteSpace($cmd.Source)) { return $cmd.Source }
+    return ''
+}
+
+function Get-NodeArguments {
+    $override = [string]$env:FDN_TRAY_NODE_ARGS
+    if (-not [string]::IsNullOrWhiteSpace($override)) { return $override.Trim() }
+    return ('"' + $script:MainScriptPath + '"')
+}
+
+function Initialize-NodeBridge {
+    if ($null -ne $script:Bridge) { return }
+    $code = @'
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics;
+
+namespace FdnAutosyncTray
+{
+    /// stdout / stderr / 系统事件在这里入队，由 WinForms 定时器在 UI 线程取走处理。
+    /// 这样既满足「BeginOutputReadLine 异步读」，又不用在非 PowerShell 线程里跑脚本块。
+    public sealed class NodeBridge
+    {
+        private readonly ConcurrentQueue<string> _stdout = new ConcurrentQueue<string>();
+        private readonly ConcurrentQueue<string> _stderr = new ConcurrentQueue<string>();
+        private readonly ConcurrentQueue<string> _events = new ConcurrentQueue<string>();
+
+        public string[] DrainStdout() { return Drain(_stdout); }
+        public string[] DrainStderr() { return Drain(_stderr); }
+        public string[] DrainEvents() { return Drain(_events); }
+
+        private static string[] Drain(ConcurrentQueue<string> queue)
+        {
+            List<string> list = new List<string>();
+            string item;
+            while (list.Count < 400 && queue.TryDequeue(out item)) { list.Add(item); }
+            return list.ToArray();
+        }
+
+        public void Attach(Process process)
+        {
+            if (process == null) { return; }
+            process.OutputDataReceived += OnStdout;
+            process.ErrorDataReceived += OnStderr;
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+        }
+
+        public void Detach(Process process)
+        {
+            if (process == null) { return; }
+            try { process.OutputDataReceived -= OnStdout; } catch { }
+            try { process.ErrorDataReceived -= OnStderr; } catch { }
+            try { process.CancelOutputRead(); } catch { }
+            try { process.CancelErrorRead(); } catch { }
+        }
+
+        private void OnStdout(object sender, DataReceivedEventArgs e)
+        {
+            if (e != null && e.Data != null) { _stdout.Enqueue(e.Data); }
+        }
+
+        private void OnStderr(object sender, DataReceivedEventArgs e)
+        {
+            if (e != null && e.Data != null) { _stderr.Enqueue(e.Data); }
+        }
+
+        /// 系统从休眠恢复 → 入队 "wake"（SystemEvents 在自己的线程上触发，不能直接跑脚本块）
+        public void WirePowerEvents()
+        {
+            try { Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged; } catch { }
+        }
+
+        public void UnwirePowerEvents()
+        {
+            try { Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged; } catch { }
+        }
+
+        private void OnPowerModeChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+        {
+            if (e != null && e.Mode == Microsoft.Win32.PowerModes.Resume) { _events.Enqueue("wake"); }
+        }
+    }
+}
+'@
+    Add-Type -TypeDefinition $code -ReferencedAssemblies 'System.dll' -ErrorAction Stop
+    $script:Bridge = New-Object FdnAutosyncTray.NodeBridge
+}
+
+function Start-NodeProcess {
+    param([string]$NodeExe)
+
+    $arguments = Get-NodeArguments
+
+    # PROTOCOL.md §1.1：协议两个方向都按 UTF-8 处理（宿主写出的 JSON 本身已经是纯 ASCII）
+    try { [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false) } catch { }
+    try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch { }
+
+    $process = New-Object System.Diagnostics.Process
+    $startInfo = $process.StartInfo
+    $startInfo.FileName = $NodeExe
+    $startInfo.Arguments = $arguments
+    $startInfo.WorkingDirectory = $script:ScriptDir
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardInput = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
+    $startInfo.StandardErrorEncoding = New-Object System.Text.UTF8Encoding($false)
+    $startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+
+    if (-not $process.Start()) { throw 'Node 进程启动失败' }
+
+    Initialize-NodeBridge
+    $script:Bridge.Attach($process)
+    $script:NodeProcess = $process
+    $script:NodeExitHandled = $false
+    $script:NodeExited = $false
+    Write-TrayLog ('已启动 Node：' + $NodeExe + ' ' + $arguments + '（工作目录 ' + $script:ScriptDir + '）')
+}
+
+# 日志里只写「信封」（type/id/name/target/... 这些非敏感字段），
+# 绝不写 password、config（含凭据）、data 等载荷——日志不能出现任何凭据值。
+function Get-OutgoingSummary {
+    param($Message)
+    $parts = New-Object System.Collections.ArrayList
+    foreach ($key in @('type', 'id', 'name', 'target', 'enabled', 'exists', 'ok', 'path', 'message')) {
+        if ($Message.Contains($key)) {
+            $value = $Message[$key]
+            if ($null -eq $value) { continue }
+            $text = [string]$value
+            if ([string]::IsNullOrEmpty($text)) { continue }
+            [void]$parts.Add($key + '=' + (Format-TextForLog $text 200))
+        }
+    }
+    if ($Message.Contains('password')) { [void]$parts.Add('password=********') }
+    if ($Message.Contains('config')) { [void]$parts.Add('config=<省略>') }
+    if ($Message.Contains('data')) { [void]$parts.Add('data=<省略>') }
+    return ($parts -join ' ')
+}
+
+function Send-NodeMessage {
+    param($Message)
+    if ($null -eq $script:NodeProcess -or $script:NodeExited) { return $false }
+    try {
+        $json = ConvertTo-ProtocolJson $Message
+        $stdin = $script:NodeProcess.StandardInput
+        if ($null -eq $stdin) { return $false }
+        $stdin.WriteLine($json)
+        $stdin.Flush()
+        Write-TrayLog ('→ ' + (Get-OutgoingSummary $Message)) 'DEBUG'
+        return $true
+    }
+    catch {
+        Write-TrayLog ('写入 Node stdin 失败：' + $_.Exception.Message) 'ERROR'
+        return $false
+    }
+}
+
+function Send-NodeCommand {
+    param([string]$Name, [hashtable]$Extra = $null)
+    $message = [ordered]@{
+        type = 'command'
+        id   = (New-MessageId 'c')
+        name = $Name
+    }
+    if ($null -ne $Extra) {
+        foreach ($key in $Extra.Keys) { $message[[string]$key] = $Extra[$key] }
+    }
+    $ok = Send-NodeMessage $message
+    if ($ok) {
+        # 只记录命令名，绝不记录 password 等字段
+        Write-TrayLog ('→ command ' + $Name + ' (id ' + $message['id'] + ')') 'DEBUG'
+    }
+    return $message['id']
+}
+
+function Send-NodeEvent {
+    param([string]$Name, [hashtable]$Extra = $null)
+    $message = [ordered]@{
+        type = 'event'
+        name = $Name
+    }
+    if ($null -ne $Extra) {
+        foreach ($key in $Extra.Keys) { $message[[string]$key] = $Extra[$key] }
+    }
+    [void](Send-NodeMessage $message)
+    Write-TrayLog ('→ event ' + $Name) 'DEBUG'
+}
+
+function Send-NodeAck {
+    param([string]$Id, [bool]$Ok = $true, [string]$Message = '', $ErrorText = $null, $Data = $null)
+    $ack = [ordered]@{
+        type    = 'ack'
+        id      = $Id
+        ok      = $Ok
+        message = $Message
+        error   = $ErrorText
+    }
+    if ($null -ne $Data) { $ack['data'] = $Data }
+    [void](Send-NodeMessage $ack)
+}
+
+# 等一条 ack：绝不阻塞读取线程（读取由 WinForms 定时器在 UI 线程完成），只泵 UI 消息
+function Wait-NodeAck {
+    param([string]$Id, [int]$TimeoutMs = 10000)
+    if ([string]::IsNullOrWhiteSpace($Id)) { return $null }
+    $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if ($script:AckTable.ContainsKey($Id)) {
+            $entry = $script:AckTable[$Id]
+            [void]$script:AckTable.Remove($Id)
+            return $entry
+        }
+        if ($script:NodeExited) { return $null }
+        try { [System.Windows.Forms.Application]::DoEvents() } catch { }
+        Start-Sleep -Milliseconds 30
+    }
+    Write-TrayLog ('等待 ack 超时：' + $Id + '（' + $TimeoutMs + 'ms）') 'WARN'
+    return $null
+}
+
+# 发命令并等 ack（需要 UI 反馈的命令都走这里）
+function Invoke-NodeCommand {
+    param([string]$Name, [hashtable]$Extra = $null, [int]$TimeoutMs = 10000)
+    $id = Send-NodeCommand -Name $Name -Extra $Extra
+    if ([string]::IsNullOrWhiteSpace($id)) { return $null }
+    return (Wait-NodeAck -Id $id -TimeoutMs $TimeoutMs)
+}
+
+function Wait-NodeState {
+    param([scriptblock]$Condition, [int]$TimeoutMs = 8000)
+    $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMs)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        try {
+            if (& $Condition) { return $true }
+        }
+        catch {
+        }
+        if ($script:NodeExited) { return $false }
+        try { [System.Windows.Forms.Application]::DoEvents() } catch { }
+        Start-Sleep -Milliseconds 50
+    }
+    return $false
+}
+
+function Get-AckErrorText {
+    param($Ack)
+    if ($null -eq $Ack) { return 'Node 未响应（超时）' }
+    $errorText = [string](Get-ObjectField $Ack 'error' '')
+    $messageText = [string](Get-ObjectField $Ack 'message' '')
+    if (-not [string]::IsNullOrWhiteSpace($messageText)) {
+        if (-not [string]::IsNullOrWhiteSpace($errorText) -and $errorText -ne $messageText) {
+            return ($messageText + '（' + $errorText + '）')
+        }
+        return $messageText
+    }
+    if (-not [string]::IsNullOrWhiteSpace($errorText)) { return $errorText }
+    return '操作失败（Node 未给出原因）'
+}
+
+function Get-AckOk {
+    param($Ack)
+    if ($null -eq $Ack) { return $false }
+    return [bool](Get-ObjectField $Ack 'ok' $false)
+}
+
+# ============================ 消息泵 ============================
+
+function Test-NodeAlive {
+    if ($null -eq $script:NodeProcess) { return $false }
+    try { return (-not $script:NodeProcess.HasExited) }
+    catch { return $false }
+}
+
+function Invoke-HostPump {
+    # 防止 DoEvents 递归重入（等待 ack / 弹窗里的 DoEvents 会再次触发定时器）
+    if ($script:PumpInProgress) { return }
+    $script:PumpInProgress = $true
+    try {
+        if ($null -ne $script:Bridge) {
+            foreach ($hostEvent in ($script:Bridge.DrainEvents())) {
+                try { Handle-HostEvent $hostEvent }
+                catch { Write-TrayLog ('处理系统事件异常：' + $_.Exception.Message) 'ERROR' }
+            }
+            foreach ($line in ($script:Bridge.DrainStderr())) {
+                if (-not [string]::IsNullOrWhiteSpace($line)) {
+                    Write-TrayLog ('[node] ' + (Format-TextForLog $line 1000)) 'INFO'
+                }
+            }
+            foreach ($line in ($script:Bridge.DrainStdout())) {
+                try { Read-NodeStdoutLine $line }
+                catch { Write-TrayLog ('处理协议行异常：' + $_.Exception.Message) 'ERROR' }
+            }
+        }
+
+        if (-not $script:SeenFirstState -and $script:AutostartStatusSent -eq $false -and (Test-NodeAlive)) {
+            # Node 已启动但还没发首条 state：autostart-status 仍然尽早发出（stdin 有管道缓冲）
+        }
+
+        if (-not $script:NodeExitHandled) {
+            if ($script:NodeProcess -and $script:NodeProcess.HasExited) {
+                Handle-NodeExited
+            }
+        }
+
+        # 延迟动作（不能在「正在处理消息」的栈里阻塞等待 ack；这里只发命令不等待）
+        if ($script:PendingConfigFlagsRefresh) {
+            $script:PendingConfigFlagsRefresh = $false
+            try { Refresh-HostConfigFlags } catch { Write-TrayLog ('读取配置标志失败：' + $_.Exception.Message) 'WARN' }
+        }
+
+        # 配置标志请求超时（例如 Node 忙）：清掉在途标记，后续状态变化会重试
+        if (-not [string]::IsNullOrEmpty($script:ConfigFlagsRequestId) -and $null -ne $script:ConfigFlagsRequestAt) {
+            if (((Get-Date) - $script:ConfigFlagsRequestAt).TotalSeconds -gt 10) {
+                Write-TrayLog ('读取配置标志超时，放弃本次请求（' + $script:ConfigFlagsRequestId + '）') 'DEBUG'
+                $script:ConfigFlagsRequestId = ''
+                $script:ConfigFlagsRequestAt = $null
+            }
+        }
+
+        # 清理没人取走的 ack（例如 -NoTray 自检命令），避免无限增长
+        if ($null -ne $script:AckTable -and $script:AckTable.Count -gt 0) {
+            $expireBefore = (Get-Date).AddMinutes(-5)
+            $stale = @()
+            foreach ($key in @($script:AckTable.Keys)) {
+                $entry = $script:AckTable[$key]
+                if ($null -ne $entry -and [datetime]$entry.At -lt $expireBefore) { $stale += $key }
+            }
+            foreach ($key in $stale) { [void]$script:AckTable.Remove($key) }
+        }
+    }
+    catch {
+        Write-TrayLog ('消息泵异常：' + $_.Exception.Message) 'ERROR'
+    }
+    finally {
+        $script:PumpInProgress = $false
+    }
+}
+
+function Handle-HostEvent {
+    param([string]$Name)
+    switch ($Name) {
+        'wake' {
+            Write-TrayLog '系统从休眠恢复，通知 Node 核对计划时间'
+            Send-NodeEvent 'wake'
+        }
+        default {
+            Write-TrayLog ('未知宿主事件：' + $Name) 'WARN'
+        }
+    }
+}
+
+function Handle-NodeExited {
+    if ($script:NodeExitHandled) { return }
+    $script:NodeExitHandled = $true
+    $script:NodeExited = $true
+    $exitCode = -1
+    try { $exitCode = $script:NodeProcess.ExitCode } catch { }
+
+    if ($null -ne $script:Bridge -and $null -ne $script:NodeProcess) {
+        try { $script:Bridge.Detach($script:NodeProcess) } catch { }
+    }
+
+    if ([string]::IsNullOrEmpty($script:CloseIntent) -and -not $script:SeenFirstState) {
+        # PROTOCOL.md §1：Node 判定已有实例时立即 exit 0 且不输出任何消息 → 宿主静默退出
+        Write-TrayLog ('Node 未发送任何状态即退出（退出码 ' + $exitCode + '），判定为已有实例在运行，宿主静默退出')
+        Stop-TrayHost
+        return
+    }
+
+    switch ($script:CloseIntent) {
+        'restart' {
+            Write-TrayLog ('Node 已退出（退出码 ' + $exitCode + '），准备重启托盘')
+            if ($script:NoTrayMode) {
+                Write-TrayLog '-NoTray 测试模式：不真的重启，只写日志'
+            }
+            else {
+                Start-NewTrayInstance
+            }
+            Stop-TrayHost
+        }
+        'exit' {
+            Write-TrayLog ('Node 已退出（退出码 ' + $exitCode + '），宿主退出')
+            Stop-TrayHost
+        }
+        default {
+            Write-TrayLog ('Node 意外退出（退出码 ' + $exitCode + '）') 'ERROR'
+            Show-TrayBalloon '自动同步已停止' '后台同步进程已意外退出，托盘将关闭。请重新启动自动同步。' 'Error'
+            Stop-TrayHost
+        }
+    }
+}
+
+# ============================ 协议消息处理 ============================
+
+# 把一条协议消息压成一行可读摘要（中文原样，便于看日志排障）
+function Get-MessageSummary {
+    param($Message, [string]$Type)
+    switch ($Type) {
+        'state' {
+            $data = Get-ObjectField $Message 'data' $null
+            $lines = Get-ObjectField $data 'statusLines' $null
+            $statusText = ''
+            if ($null -ne $lines) {
+                $parts = @()
+                foreach ($line in $lines) { $parts += [string]$line }
+                $statusText = ($parts -join ' / ')
+            }
+            return ('state 锁定=' + [bool](Get-ObjectField $data 'locked' $false) +
+                ' 运行=' + [bool](Get-ObjectField $data 'running' $false) +
+                ' 暂停=' + [bool](Get-ObjectField $data 'paused' $false) +
+                ' 状态行：' + (Format-TextForLog $statusText 400))
+        }
+        'icon' {
+            return ('icon ' + [string](Get-ObjectField $Message 'path' ''))
+        }
+        'notify' {
+            return ('notify ' + (Format-TextForLog ([string](Get-ObjectField $Message 'title' '')) 60) +
+                ' / ' + (Format-TextForLog ([string](Get-ObjectField $Message 'text' '')) 220))
+        }
+        'ack' {
+            return ('ack ' + [string](Get-ObjectField $Message 'id' '') + ' ok=' + [bool](Get-ObjectField $Message 'ok' $false))
+        }
+        'action' {
+            return ('action ' + [string](Get-ObjectField $Message 'name' '') + ' (id ' + [string](Get-ObjectField $Message 'id' '') + ')')
+        }
+        default {
+            # 未知类型的载荷不落日志（可能含凭据），只记类型
+            return ($Type + ' <未知类型，载荷不记录>')
+        }
+    }
+}
+
+function Read-NodeStdoutLine {
+    param([string]$Line)
+    if ([string]::IsNullOrWhiteSpace($Line)) { return }
+
+    $message = $null
+    try {
+        $message = $Line | ConvertFrom-Json
+    }
+    catch {
+        Write-TrayLog ('收到非法 JSON（已忽略）：' + (Format-TextForLog $Line 200)) 'WARN'
+        return
+    }
+    if ($null -eq $message) {
+        Write-TrayLog ('收到空 JSON（已忽略）：' + (Format-TextForLog $Line 200)) 'WARN'
+        return
+    }
+    if ($message -is [System.Array]) {
+        Write-TrayLog '收到 JSON 数组（协议要求单对象，已忽略）' 'WARN'
+        return
+    }
+
+    $type = [string](Get-ObjectField $message 'type' '')
+    if ([string]::IsNullOrWhiteSpace($type)) {
+        Write-TrayLog ('收到缺少 type 的消息（已忽略）：' + (Format-TextForLog $Line 200)) 'WARN'
+        return
+    }
+
+    # 可读摘要进日志（中文原样）；原始 JSON 行只在 -VerboseLog 下记 DEBUG，
+    # 且只在「不含载荷的简单消息」上记（state/icon/notify/ack/action 的字段都是非敏感的）
+    Write-ProtocolLog ('收到 ' + (Format-TextForLog (Get-MessageSummary $message $type) 900))
+    if ($type -ne 'state' -and $type -ne 'icon' -and $type -ne 'notify' -and $type -ne 'ack' -and $type -ne 'action') {
+        Write-TrayLog ('收到原始 JSON（未知类型）：' + (Format-TextForLog $Line 400)) 'DEBUG'
+    }
+
+    switch ($type) {
+        'state' { Handle-StateMessage $message }
+        'icon' { Handle-IconMessage $message }
+        'notify' { Handle-NotifyMessage $message }
+        'ack' { Handle-AckMessage $message }
+        'action' { Handle-ActionMessage $message }
+        default {
+            Write-TrayLog ('忽略未知消息类型：' + $type) 'WARN'
+        }
+    }
+}
+
+function Handle-StateMessage {
+    param($Message)
+    $data = Get-ObjectField $Message 'data' $null
+    if ($null -eq $data) {
+        Write-TrayLog 'state 消息缺少 data（已忽略）' 'WARN'
+        return
+    }
+    $script:State = $data
+    if (-not $script:SeenFirstState) {
+        $script:SeenFirstState = $true
+        Write-TrayLog ('收到首条状态：锁定=' + (Get-IsLocked) + ' 运行=' + [bool](Get-StateField 'running' $false) + ' 暂停=' + [bool](Get-StateField 'paused' $false))
+        # 首条状态到达后再补一次自启动探测结果（Node 可能启动很慢）
+        if (-not $script:AutostartStatusSent) {
+            Send-NodeEvent 'autostart-status' @{ exists = [bool]$script:AutostartExists }
+            $script:AutostartStatusSent = $true
+        }
+        if ($script:NoTrayMode) {
+            # 开发/自测模式（-NoTray）：主动发一条 get-status，把 command → ack 往返也跑一遍
+            $selfCheckId = Send-NodeCommand -Name 'get-status'
+            Write-TrayLog ('-NoTray 自检：已发送 get-status（id ' + $selfCheckId + '），等待 ack')
+        }
+    }
+
+    Update-TrayTooltip
+
+    if (-not $script:ConfigFlagsKnown -and -not (Get-IsLocked) -and (Test-NodeAlive)) {
+        # 不能在这里同步等 ack（会卡住消息泵），交给下一轮定时器
+        $script:PendingConfigFlagsRefresh = $true
+    }
+
+    if (-not $script:NoTrayMode -and $null -ne $script:Menu) {
+        try {
+            if (-not $script:Menu.Visible) { Build-TrayMenu }
+        }
+        catch {
+            Write-TrayLog ('重建托盘菜单失败：' + $_.Exception.Message) 'ERROR'
+        }
+    }
+}
+
+function Handle-IconMessage {
+    param($Message)
+    $path = [string](Get-ObjectField $Message 'path' '')
+    $tooltip = [string](Get-ObjectField $Message 'tooltip' '')
+    if (-not [string]::IsNullOrWhiteSpace($tooltip)) {
+        Set-TrayTooltip $tooltip
+    }
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        Write-TrayLog 'icon 消息没有 path（已忽略）' 'WARN'
+        return
+    }
+    Set-TrayIconFromPath $path
+}
+
+function Handle-NotifyMessage {
+    param($Message)
+    $id = [string](Get-ObjectField $Message 'id' '')
+    $title = [string](Get-ObjectField $Message 'title' $script:AppName)
+    $text = [string](Get-ObjectField $Message 'text' '')
+
+    # -NoTray 是开发/联调模式：不弹 Toast、不弹气泡，用日志代替（避免打扰正在使用旧托盘的用户）
+    if ($script:NoTrayMode) {
+        Write-TrayLog ('-NoTray 模式：通知仅记日志 → ' + (Format-TextForLog $title 60) + ' / ' + (Format-TextForLog $text 220)) 'INFO'
+        if (-not [string]::IsNullOrWhiteSpace($id)) { Send-NodeAck -Id $id -Ok $true -Message '-NoTray: logged' }
+        return
+    }
+
+    $ok = $false
+    $errorText = $null
+    try {
+        $ok = Show-TrayToast $title $text
+        if (-not $ok) {
+            # Toast 不可用 → 退化成托盘气泡
+            $ok = Show-TrayBalloon $title $text 'Info'
+            if (-not $ok) { $errorText = 'no-toast-and-no-balloon' }
+        }
+    }
+    catch {
+        $errorText = $_.Exception.Message
+        Write-TrayLog ('显示通知失败：' + $_.Exception.Message) 'WARN'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($id)) {
+        Write-TrayLog 'notify 消息没有 id，无法回 ack' 'WARN'
+        return
+    }
+    # 无论成功失败都要回 ack：Node 只在 ok=true 时清零累积计数
+    Send-NodeAck -Id $id -Ok ([bool]$ok) -Message '' -ErrorText $errorText
+}
+
+function Handle-AckMessage {
+    param($Message)
+    $id = [string](Get-ObjectField $Message 'id' '')
+    if ([string]::IsNullOrWhiteSpace($id)) {
+        Write-TrayLog '收到缺少 id 的 ack（已忽略）' 'WARN'
+        return
+    }
+    $entry = @{
+        Ok      = [bool](Get-ObjectField $Message 'ok' $false)
+        Message = [string](Get-ObjectField $Message 'message' '')
+        Error   = [string](Get-ObjectField $Message 'error' '')
+        Data    = (Get-ObjectField $Message 'data' $null)
+        At      = (Get-Date)
+    }
+    $script:AckTable[$id] = $entry
+    # 摘要行已由 Read-NodeStdoutLine 记过，这里只补 DEBUG 明细
+    Write-TrayLog ('ack 明细 ' + $id + ' ok=' + $entry.Ok + ' error=' + (Format-TextForLog $entry.Error 120)) 'DEBUG'
+
+    # get-config 的回执：解析出「开机自启动 / 是否已设锁定密码」两个标志（不保留凭据）
+    if (-not [string]::IsNullOrEmpty($script:ConfigFlagsRequestId) -and $id -eq $script:ConfigFlagsRequestId) {
+        $script:ConfigFlagsRequestId = ''
+        $script:ConfigFlagsRequestAt = $null
+        if ($entry.Ok) {
+            try { Complete-HostConfigFlags $Message }
+            catch { Write-TrayLog ('解析配置标志失败：' + $_.Exception.Message) 'WARN' }
+        }
+    }
+}
+
+function Handle-ActionMessage {
+    param($Message)
+    $id = [string](Get-ObjectField $Message 'id' '')
+    $name = [string](Get-ObjectField $Message 'name' '')
+
+    if ($script:Stopping) {
+        # 宿主正在退出：立即 ack，避免 Node 白等 5 秒
+        if (-not [string]::IsNullOrWhiteSpace($id)) { Send-NodeAck -Id $id -Ok $true -Message '宿主正在退出' }
+        return
+    }
+
+    $ok = $false
+    $message = ''
+    $errorText = $null
+    $data = $null
+
+    try {
+        switch ($name) {
+            'open-path' {
+                $path = [string](Get-ObjectField $Message 'path' '')
+                $opened = Open-PathSilent $path
+                $ok = $opened
+                if (-not $opened) { $errorText = 'not-found'; $message = '目标不存在' }
+            }
+            'restart' {
+                $script:CloseIntent = 'restart'
+                $ok = $true
+                $message = '宿主准备重启'
+                Write-TrayLog '收到 action restart：Node 已收尾，等进程退出后重启'
+                Add-DeferredHostClose 'restart'
+            }
+            'exit' {
+                $script:CloseIntent = 'exit'
+                $ok = $true
+                $message = '宿主准备退出'
+                Write-TrayLog '收到 action exit：Node 已收尾，等进程退出后退出'
+                Add-DeferredHostClose 'exit'
+            }
+            'repair-autostart' {
+                # 幂等：enabled=true 时确保快捷方式存在，false 时确保不存在
+                $enabled = [bool](Get-ObjectField $Message 'enabled' $true)
+                $result = Set-Autostart $enabled
+                $ok = [bool]$result.Ok
+                $message = '开机自启动已更新'
+                if (-not $ok) {
+                    $errorText = [string]$result.Error
+                    $message = '开机自启动更新失败'
+                }
+                $data = @{ exists = [bool]$script:AutostartExists }
+            }
+            'show-detail' {
+                # 协议保留动作：详情窗口由宿主自己用 get-detail 的 ack 显示，这里只兼容性 ack
+                $ok = $true
+                $message = 'show-detail 由宿主自行处理'
+            }
+            default {
+                $ok = $false
+                $errorText = 'unknown-action'
+                $message = ('未知动作：' + $name)
+                Write-TrayLog ('收到未知 action：' + $name) 'WARN'
+            }
+        }
+    }
+    catch {
+        $ok = $false
+        $errorText = $_.Exception.Message
+        $message = '宿主处理动作失败'
+        Write-TrayLog ('处理 action 失败：' + $name + ' / ' + $_.Exception.Message) 'ERROR'
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($id)) {
+        Send-NodeAck -Id $id -Ok ([bool]$ok) -Message $message -ErrorText $errorText -Data $data
+    }
+
+    if (-not [string]::IsNullOrEmpty($script:CloseIntent) -and ($name -eq 'exit' -or $name -eq 'restart')) {
+        # Node 收到 ack 后会自己退出；宿主等进程退出事件，再收尾（不强杀）
+        Write-TrayLog ('已 ack 关闭请求，等待 Node 自行退出（' + $name + '）')
+    }
+}
+
+# ============================ 图标 ============================
+
+# 图标全部由 Node 端合成（PROTOCOL.md §8），宿主只负责「加载 + 换上 + 释放旧的」。
+# Node 写到缓存里的是传统 32bpp DIB 条目 ICO（icon-compose.ps1 -OutIco），
+# 所以这里用最朴素的 System.Drawing.Icon 加载即可，宿主不再维护任何 ICO 解码逻辑。
+function New-TrayIconFromFile {
+    param([string]$Path)
+    return (New-Object System.Drawing.Icon($Path))
+}
+function Set-TrayTooltip {
+    param([string]$Text)
+    if ($script:NoTrayMode -or $null -eq $script:NotifyIcon) { return }
+    $tooltip = $Text
+    if ([string]::IsNullOrWhiteSpace($tooltip)) { $tooltip = $script:AppName }
+    $tooltip = $tooltip -replace '[\r\n\t]+', ' '
+    if ($tooltip.Length -gt 63) { $tooltip = $tooltip.Substring(0, 62) + '…' }
+    try {
+        $script:NotifyIcon.Text = $tooltip
+    }
+    catch {
+        try { $script:NotifyIcon.Text = $script:AppName } catch { }
+    }
+}
+
+function Update-TrayTooltip {
+    $tooltip = [string](Get-StateField 'tooltip' '')
+    if ([string]::IsNullOrWhiteSpace($tooltip)) {
+        if (Get-IsLocked) { $tooltip = $script:AppName + '（已锁定）' } else { $tooltip = $script:AppName }
+    }
+    Set-TrayTooltip $tooltip
+}
+
+function Set-TrayIconFromPath {
+    param([string]$Path)
+    if ($script:NoTrayMode -or $null -eq $script:NotifyIcon) { return }
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Write-TrayLog ('图标文件不存在，保留上一张：' + $Path) 'WARN'
+        return
+    }
+    $icon = $null
+    try {
+        $icon = New-TrayIconFromFile $Path
+    }
+    catch {
+        Write-TrayLog ('加载图标失败，保留上一张：' + $Path + ' / ' + $_.Exception.Message) 'WARN'
+        if ($null -ne $icon) { try { $icon.Dispose() } catch { } }
+        return
+    }
+    if ($null -eq $icon) {
+        Write-TrayLog ('图标解码为空，保留上一张：' + $Path) 'WARN'
+        return
+    }
+    $old = $script:CurrentIcon
+    try {
+        $script:NotifyIcon.Icon = $icon
+        $script:CurrentIcon = $icon
+        Write-TrayLog ('托盘图标已更新：' + $Path) 'DEBUG'
+    }
+    catch {
+        Write-TrayLog ('设置托盘图标失败：' + $_.Exception.Message) 'ERROR'
+        try { $icon.Dispose() } catch { }
+        return
+    }
+    if ($null -ne $old -and -not [object]::ReferenceEquals($old, $icon)) {
+        try { $old.Dispose() } catch { }
+    }
+}
+
+# ============================ Toast / 气泡 ============================
+
+function Test-ToastAvailable {
+    if ($null -ne $script:ToastReady) { return $script:ToastReady }
+    $script:ToastReady = $false
+    try {
+        [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+        [void][Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+        $script:ToastReady = $true
+    }
+    catch {
+        Write-TrayLog ('WinRT Toast 不可用，将退化为气泡提示：' + $_.Exception.Message) 'WARN'
+        $script:ToastReady = $false
+    }
+    return $script:ToastReady
+}
+
+function Show-TrayToast {
+    param([string]$Title, [string]$Text)
+    if (-not (Test-ToastAvailable)) { return $false }
+
+    $safeTitle = [System.Security.SecurityElement]::Escape([string]$Title)
+    $safeText = [System.Security.SecurityElement]::Escape([string]$Text)
+    if ([string]::IsNullOrWhiteSpace($safeText)) {
+        $xml = '<toast><visual><binding template="ToastGeneric"><text>' + $safeTitle + '</text></binding></visual></toast>'
+    }
+    else {
+        $xml = '<toast><visual><binding template="ToastGeneric"><text>' + $safeTitle + '</text><text>' + $safeText + '</text></binding></visual></toast>'
+    }
+
+    $document = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $document.LoadXml($xml)
+    $toast = New-Object Windows.UI.Notifications.ToastNotification $document
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($script:ToastAppId)
+    $notifier.Show($toast)
+    Write-TrayLog ('已显示 Toast：' + (Format-TextForLog $Title 60) + ' / ' + (Format-TextForLog $Text 120)) 'DEBUG'
+    return $true
+}
+
+function Show-TrayBalloon {
+    param([string]$Title, [string]$Text, [string]$Kind = 'Info')
+    if ($null -eq $script:NotifyIcon) { return $false }
+    $iconKind = [System.Windows.Forms.ToolTipIcon]::Info
+    if ($Kind -eq 'Error') { $iconKind = [System.Windows.Forms.ToolTipIcon]::Error }
+    elseif ($Kind -eq 'Warning') { $iconKind = [System.Windows.Forms.ToolTipIcon]::Warning }
+    $body = [string]$Text
+    if ($body.Length -gt 250) { $body = $body.Substring(0, 250) + '…' }
+    try {
+        $script:NotifyIcon.ShowBalloonTip(8000, [string]$Title, $body, $iconKind)
+        return $true
+    }
+    catch {
+        Write-TrayLog ('气泡提示失败：' + $_.Exception.Message) 'WARN'
+        return $false
+    }
+}
+
+# ============================ 对话框 ============================
+
+function Show-InfoBox {
+    param([string]$Text, [string]$Title = 'fdn-autosync-tray')
+    try { [void][System.Windows.Forms.MessageBox]::Show($Text, $Title, [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) }
+    catch { Write-TrayLog ('显示提示框失败：' + $_.Exception.Message) 'WARN' }
+}
+
+function Show-ErrorBox {
+    param([string]$Text, [string]$Title = 'fdn-autosync-tray')
+    try { [void][System.Windows.Forms.MessageBox]::Show($Text, $Title, [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) }
+    catch { Write-TrayLog ('显示错误框失败：' + $_.Exception.Message) 'WARN' }
+}
+
+function Show-ConfirmBox {
+    param([string]$Text, [string]$Title = 'fdn-autosync-tray')
+    try {
+        $result = [System.Windows.Forms.MessageBox]::Show($Text, $Title, [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Question, [System.Windows.Forms.MessageBoxDefaultButton]::Button2)
+        return ($result -eq [System.Windows.Forms.DialogResult]::Yes)
+    }
+    catch {
+        Write-TrayLog ('显示确认框失败：' + $_.Exception.Message) 'WARN'
+        return $false
+    }
+}
+
+# 单行密码输入；取消返回 $null
+function Show-PasswordDialog {
+    param([string]$Prompt, [string]$Title = 'fdn-autosync-tray')
+    $form = New-Object System.Windows.Forms.Form
+    $label = New-Object System.Windows.Forms.Label
+    $textBox = New-Object System.Windows.Forms.TextBox
+    $okButton = New-Object System.Windows.Forms.Button
+    $cancelButton = New-Object System.Windows.Forms.Button
+    try {
+        $form.Text = $Title
+        $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+        $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+        $form.MinimizeBox = $false
+        $form.MaximizeBox = $false
+        $form.ShowInTaskbar = $false
+        $form.TopMost = $true
+        $form.ClientSize = New-Object System.Drawing.Size(420, 150)
+
+        $label.Text = $Prompt
+        $label.Location = New-Object System.Drawing.Point(14, 14)
+        $label.Size = New-Object System.Drawing.Size(392, 44)
+        $form.Controls.Add($label)
+
+        $textBox.Location = New-Object System.Drawing.Point(14, 62)
+        $textBox.Size = New-Object System.Drawing.Size(392, 24)
+        $textBox.UseSystemPasswordChar = $true
+        $form.Controls.Add($textBox)
+
+        $okButton.Text = '确定'
+        $okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+        $okButton.Location = New-Object System.Drawing.Point(240, 108)
+        $okButton.Size = New-Object System.Drawing.Size(78, 28)
+        $form.Controls.Add($okButton)
+
+        $cancelButton.Text = '取消'
+        $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+        $cancelButton.Location = New-Object System.Drawing.Point(328, 108)
+        $cancelButton.Size = New-Object System.Drawing.Size(78, 28)
+        $form.Controls.Add($cancelButton)
+
+        $form.AcceptButton = $okButton
+        $form.CancelButton = $cancelButton
+
+        $result = $form.ShowDialog()
+        if ($result -ne [System.Windows.Forms.DialogResult]::OK) { return $null }
+        return [string]$textBox.Text
+    }
+    catch {
+        Write-TrayLog ('显示密码框失败：' + $_.Exception.Message) 'WARN'
+        return $null
+    }
+    finally {
+        $form.Dispose()
+    }
+}
+
+# 设置锁定密码：两次输入必须一致且非空；取消返回 $null
+function Show-NewPasswordDialog {
+    $form = New-Object System.Windows.Forms.Form
+    $label1 = New-Object System.Windows.Forms.Label
+    $box1 = New-Object System.Windows.Forms.TextBox
+    $label2 = New-Object System.Windows.Forms.Label
+    $box2 = New-Object System.Windows.Forms.TextBox
+    $hint = New-Object System.Windows.Forms.Label
+    $okButton = New-Object System.Windows.Forms.Button
+    $cancelButton = New-Object System.Windows.Forms.Button
+    try {
+        $form.Text = '设置锁定密码'
+        $form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+        $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+        $form.MinimizeBox = $false
+        $form.MaximizeBox = $false
+        $form.ShowInTaskbar = $false
+        $form.TopMost = $true
+        $form.ClientSize = New-Object System.Drawing.Size(430, 210)
+
+        $label1.Text = '密码：'
+        $label1.Location = New-Object System.Drawing.Point(14, 18)
+        $label1.Size = New-Object System.Drawing.Size(110, 20)
+        $form.Controls.Add($label1)
+
+        $box1.Location = New-Object System.Drawing.Point(130, 16)
+        $box1.Size = New-Object System.Drawing.Size(280, 24)
+        $box1.UseSystemPasswordChar = $true
+        $form.Controls.Add($box1)
+
+        $label2.Text = '再次输入：'
+        $label2.Location = New-Object System.Drawing.Point(14, 56)
+        $label2.Size = New-Object System.Drawing.Size(110, 20)
+        $form.Controls.Add($label2)
+
+        $box2.Location = New-Object System.Drawing.Point(130, 54)
+        $box2.Size = New-Object System.Drawing.Size(280, 24)
+        $box2.UseSystemPasswordChar = $true
+        $form.Controls.Add($box2)
+
+        $hint.Text = '锁定时菜单只保留：状态摘要、查看详细状态、立即同步、解锁、浏览日志文件夹。' + "`r`n" + '锁定只限制托盘菜单，不阻止直接访问文件。'
+        $hint.ForeColor = [System.Drawing.Color]::DimGray
+        $hint.Location = New-Object System.Drawing.Point(14, 92)
+        $hint.Size = New-Object System.Drawing.Size(396, 46)
+        $form.Controls.Add($hint)
+
+        $okButton.Text = '确定'
+        $okButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+        $okButton.Location = New-Object System.Drawing.Point(240, 158)
+        $okButton.Size = New-Object System.Drawing.Size(82, 28)
+        $form.Controls.Add($okButton)
+
+        $cancelButton.Text = '取消'
+        $cancelButton.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+        $cancelButton.Location = New-Object System.Drawing.Point(330, 158)
+        $cancelButton.Size = New-Object System.Drawing.Size(82, 28)
+        $form.Controls.Add($cancelButton)
+
+        $form.AcceptButton = $okButton
+        $form.CancelButton = $cancelButton
+
+        $result = $form.ShowDialog()
+        if ($result -ne [System.Windows.Forms.DialogResult]::OK) { return $null }
+
+        $first = [string]$box1.Text
+        $second = [string]$box2.Text
+        if ([string]::IsNullOrEmpty($first)) {
+            Show-ErrorBox '密码不能为空。'
+            return $null
+        }
+        if ($first -cne $second) {
+            Show-ErrorBox '两次输入的密码不一致，请重新设置。'
+            return $null
+        }
+        return $first
+    }
+    catch {
+        Write-TrayLog ('显示设置密码窗口失败：' + $_.Exception.Message) 'WARN'
+        return $null
+    }
+    finally {
+        $form.Dispose()
+    }
+}
+
+# 只读多行窗口（详细状态用）
+function Show-ReadOnlyTextWindow {
+    param([string]$Title, [string]$Text)
+    $form = New-Object System.Windows.Forms.Form
+    $textBox = New-Object System.Windows.Forms.TextBox
+    $closeButton = New-Object System.Windows.Forms.Button
+    try {
+        $form.Text = $Title
+        $form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+        $form.MinimizeBox = $false
+        $form.ShowInTaskbar = $false
+        $form.TopMost = $true
+        $form.ClientSize = New-Object System.Drawing.Size(560, 420)
+        $form.MinimumSize = New-Object System.Drawing.Size(420, 300)
+
+        $textBox.Multiline = $true
+        $textBox.ReadOnly = $true
+        $textBox.ScrollBars = [System.Windows.Forms.ScrollBars]::Vertical
+        $textBox.WordWrap = $true
+        $textBox.Dock = [System.Windows.Forms.DockStyle]::Fill
+        $textBox.Font = New-Object System.Drawing.Font('Consolas', 9)
+        $textBox.BackColor = [System.Drawing.Color]::White
+        $textBox.Text = [string]$Text
+        $form.Controls.Add($textBox)
+
+        $panel = New-Object System.Windows.Forms.Panel
+        $panel.Dock = [System.Windows.Forms.DockStyle]::Bottom
+        $panel.Height = 46
+        $form.Controls.Add($panel)
+
+        $closeButton.Text = '关闭'
+        $closeButton.DialogResult = [System.Windows.Forms.DialogResult]::OK
+        $closeButton.Anchor = [System.Windows.Forms.AnchorStyles]::Bottom -bor [System.Windows.Forms.AnchorStyles]::Right
+        $closeButton.Location = New-Object System.Drawing.Point(464, 9)
+        $closeButton.Size = New-Object System.Drawing.Size(82, 28)
+        $panel.Controls.Add($closeButton)
+        $form.AcceptButton = $closeButton
+        $form.CancelButton = $closeButton
+
+        [void]$form.ShowDialog()
+    }
+    catch {
+        Write-TrayLog ('显示详情窗口失败：' + $_.Exception.Message) 'WARN'
+    }
+    finally {
+        $form.Dispose()
+    }
+}
+
+# ============================ 开机自启动 ============================
+
+function Initialize-StartupPaths {
+    try {
+        $script:StartupDir = [Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
+    }
+    catch {
+        $script:StartupDir = ''
+    }
+    if ([string]::IsNullOrWhiteSpace($script:StartupDir)) {
+        try {
+            $script:StartupDir = [Environment]::GetFolderPath('Startup')
+        }
+        catch {
+            $script:StartupDir = ''
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($script:StartupDir)) {
+        $script:StartupShortcut = Join-Path $script:StartupDir $script:StartupShortcutName
+    }
+    else {
+        $script:StartupShortcut = ''
+    }
+}
+
+function Test-AutostartShortcut {
+    if ([string]::IsNullOrWhiteSpace($script:StartupShortcut)) { return $false }
+    return (Test-Path -LiteralPath $script:StartupShortcut -PathType Leaf)
+}
+
+function Remove-LegacyShortcuts {
+    if ([string]::IsNullOrWhiteSpace($script:StartupDir)) { return }
+    foreach ($name in $script:LegacyShortcutNames) {
+        $path = Join-Path $script:StartupDir $name
+        try {
+            if (Test-Path -LiteralPath $path -PathType Leaf) {
+                Remove-Item -LiteralPath $path -Force -ErrorAction Stop
+                Write-TrayLog ('已删除旧版开机启动快捷方式：' + $name)
+            }
+        }
+        catch {
+            Write-TrayLog ('删除旧版快捷方式失败：' + $name + ' / ' + $_.Exception.Message) 'WARN'
+        }
+    }
+}
+
+# 返回 @{ Ok = bool; Error = string|null }
+function Install-AutostartShortcut {
+    $result = @{ Ok = $false; Error = $null }
+    if ([string]::IsNullOrWhiteSpace($script:StartupShortcut)) {
+        $result.Error = '找不到当前用户 Startup 文件夹'
+        return $result
+    }
+    if (-not (Test-Path -LiteralPath $script:StartVbsPath -PathType Leaf)) {
+        $result.Error = 'start.vbs 不存在'
+        return $result
+    }
+    $shell = $null
+    try {
+        Remove-LegacyShortcuts
+        $wscript = Join-Path $env:WINDIR 'System32\wscript.exe'
+        $shell = New-Object -ComObject WScript.Shell
+        $link = $shell.CreateShortcut($script:StartupShortcut)
+        $link.TargetPath = $wscript
+        $link.Arguments = '"' + $script:StartVbsPath + '"'
+        $link.WorkingDirectory = $script:ScriptDir
+        $link.WindowStyle = 7
+        $link.Description = 'fdn-autosync-tray（自动同步托盘）'
+        if (Test-Path -LiteralPath $script:DefaultIconPath -PathType Leaf) {
+            $link.IconLocation = $script:DefaultIconPath + ',0'
+        }
+        $link.Save()
+        $result.Ok = $true
+        Write-TrayLog ('已创建开机自启动快捷方式：' + $script:StartupShortcut)
+    }
+    catch {
+        $result.Error = $_.Exception.Message
+        Write-TrayLog ('创建开机自启动快捷方式失败：' + $_.Exception.Message) 'ERROR'
+    }
+    finally {
+        if ($null -ne $shell) {
+            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($shell) } catch { }
+        }
+    }
+    return $result
+}
+
+function Remove-AutostartShortcut {
+    $result = @{ Ok = $false; Error = $null }
+    try {
+        if ((-not [string]::IsNullOrWhiteSpace($script:StartupShortcut)) -and (Test-Path -LiteralPath $script:StartupShortcut -PathType Leaf)) {
+            Remove-Item -LiteralPath $script:StartupShortcut -Force -ErrorAction Stop
+        }
+        Remove-LegacyShortcuts
+        $result.Ok = $true
+        Write-TrayLog '已删除开机自启动快捷方式'
+    }
+    catch {
+        $result.Error = $_.Exception.Message
+        Write-TrayLog ('删除开机自启动快捷方式失败：' + $_.Exception.Message) 'ERROR'
+    }
+    return $result
+}
+
+# 创建/删除快捷方式，并把真实结果回给 Node（event autostart-changed）
+function Set-Autostart {
+    param([bool]$Enabled)
+    $result = $null
+    if ($Enabled) { $result = Install-AutostartShortcut }
+    else { $result = Remove-AutostartShortcut }
+
+    $script:AutostartExists = Test-AutostartShortcut
+    $script:ConfigStartupEnabled = $script:AutostartExists
+    Send-NodeEvent 'autostart-changed' @{
+        enabled = [bool]$script:AutostartExists
+        ok      = [bool]$result.Ok
+        error   = $(if ($result.Ok) { $null } else { [string]$result.Error })
+    }
+    return $result
+}
+
+# ============================ 打开路径 / 详情 / 配置 ============================
+
+function Open-PathSilent {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    try {
+        if (-not (Test-Path -LiteralPath $Path)) {
+            Write-TrayLog ('打开失败（目标不存在）：' + $Path) 'WARN'
+            return $false
+        }
+        Start-Process -FilePath $Path
+        Write-TrayLog ('已打开：' + $Path) 'DEBUG'
+        return $true
+    }
+    catch {
+        Write-TrayLog ('打开失败：' + $Path + ' / ' + $_.Exception.Message) 'WARN'
+        return $false
+    }
+}
+
+# 打开命令统一走 Node 解析目标路径（宿主不自己拼业务路径）
+function Invoke-OpenTarget {
+    param([string]$Target)
+    $ack = Invoke-NodeCommand -Name 'open' -Extra @{ target = $Target } -TimeoutMs 8000
+    if (-not (Get-AckOk $ack)) {
+        Show-ErrorBox ('无法打开「' + $Target + '」：' + (Get-AckErrorText $ack))
+        return
+    }
+    $data = Get-ObjectField $ack 'data' $null
+    $path = [string](Get-ObjectField $data 'path' '')
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        Write-TrayLog ('open 的 ack 没有返回路径（target=' + $Target + '）') 'WARN'
+        return
+    }
+    if (-not (Open-PathSilent $path)) { Show-ErrorBox ('目标不存在或无法打开：' + $path) }
+}
+
+function Format-DetailText {
+    param($Detail)
+    $lines = New-Object System.Collections.ArrayList
+    if ($null -eq $Detail) {
+        [void]$lines.Add('详细状态暂不可用（Node 未返回数据）。')
+        return ($lines -join "`r`n")
+    }
+    [void]$lines.Add('当前状态：' + [string](Get-ObjectField $Detail 'statusText' '未知'))
+    [void]$lines.Add('当前阶段：' + ([string](Get-ObjectField $Detail 'stageText' '阶段：—') -replace '^阶段：', ''))
+    [void]$lines.Add('自启动后运行次数：' + [string](Get-ObjectField $Detail 'totalRuns' 0))
+
+    $lastRun = Get-ObjectField $Detail 'lastRun' $null
+    if ($null -eq $lastRun) {
+        [void]$lines.Add('上次同步：尚未同步')
+    }
+    else {
+        [void]$lines.Add('上次开始：' + [string](Get-ObjectField $lastRun 'startText' '未知'))
+        [void]$lines.Add('上次结束：' + [string](Get-ObjectField $lastRun 'endText' '未知'))
+        [void]$lines.Add('耗时：' + [string](Get-ObjectField $lastRun 'durationText' '未知'))
+        [void]$lines.Add('上次结果：' + [string](Get-ObjectField $lastRun 'statusText' '未知'))
+        $summary = [string](Get-ObjectField $lastRun 'message' '')
+        if (-not [string]::IsNullOrWhiteSpace($summary)) { [void]$lines.Add('结果说明：' + $summary) }
+        $errorText = [string](Get-ObjectField $lastRun 'errorText' '')
+        if (-not [string]::IsNullOrWhiteSpace($errorText)) { [void]$lines.Add('错误信息：' + $errorText) }
+    }
+
+    $counts = Get-ObjectField $Detail 'counts' $null
+    if ($null -ne $counts) {
+        [void]$lines.Add('累计次数：成功 ' + [string](Get-ObjectField $counts 'success' 0) +
+            ' · 已是最新 ' + [string](Get-ObjectField $counts 'up-to-date' 0) +
+            ' · 失败 ' + [string](Get-ObjectField $counts 'failure' 0) +
+            ' · 内部错误 ' + [string](Get-ObjectField $counts 'internal-error' 0))
+    }
+
+    [void]$lines.Add('下次同步：' + [string](Get-ObjectField $Detail 'nextRunText' '未安排'))
+    $locked = [bool](Get-ObjectField $Detail 'locked' $false)
+    [void]$lines.Add('锁定状态：' + $(if ($locked) { '已锁定' } else { '未锁定' }))
+    [void]$lines.Add('')
+    [void]$lines.Add('（本窗口只读，不包含任何凭据。）')
+    return ($lines -join "`r`n")
+}
+
+function Invoke-ShowDetail {
+    $ack = Invoke-NodeCommand -Name 'get-detail' -Extra $null -TimeoutMs 8000
+    $detail = $null
+    if (Get-AckOk $ack) {
+        $data = Get-ObjectField $ack 'data' $null
+        $detail = Get-ObjectField $data 'detail' $null
+    }
+    else {
+        Write-TrayLog ('获取详细状态失败：' + (Get-AckErrorText $ack)) 'WARN'
+    }
+    if ($null -eq $detail) {
+        # 退路：用最近一条 state 的 statusLines 显示，保证锁定状态下也能看到状态
+        $fallback = New-Object System.Collections.ArrayList
+        $statusLines = Get-StateField 'statusLines' $null
+        if ($null -ne $statusLines) {
+            foreach ($line in $statusLines) { [void]$fallback.Add([string]$line) }
+        }
+        if ($fallback.Count -eq 0) { [void]$fallback.Add('详细状态暂不可用。') }
+        [void]$fallback.Add('')
+        [void]$fallback.Add('（本窗口只读，不包含任何凭据。）')
+        Show-ReadOnlyTextWindow -Title ($script:AppName + ' · 详细状态') -Text ($fallback -join "`r`n")
+        return
+    }
+    Show-ReadOnlyTextWindow -Title ($script:AppName + ' · 详细状态') -Text (Format-DetailText $detail)
+}
+
+function Refresh-HostConfigFlags {
+    # 只取「开机自启动是否启用」「是否已设锁定密码」两个标志，不保留任何凭据。
+    # 注意：这里是「发一次 get-config，ack 回来时在 Handle-AckMessage 里解析」的事件驱动写法，
+    # 绝不能在消息泵里同步等待 ack（会把读取线程一起卡住）。
+    if (Get-IsLocked) { return }
+    if (-not [string]::IsNullOrEmpty($script:ConfigFlagsRequestId)) { return }
+    $id = Send-NodeCommand -Name 'get-config'
+    if ([string]::IsNullOrEmpty($id)) { return }
+    $script:ConfigFlagsRequestId = $id
+    $script:ConfigFlagsRequestAt = Get-Date
+    Write-TrayLog ('正在读取配置标志（开机自启动 / 锁定密码）id=' + $id) 'DEBUG'
+}
+
+function Complete-HostConfigFlags {
+    param($Ack)
+    $data = Get-ObjectField $Ack 'data' $null
+    $config = Get-ObjectField $data 'config' $null
+    if ($null -eq $config) { return }
+    $startup = Get-ObjectField $config 'startup' $null
+    if ($null -ne $startup) { $script:ConfigStartupEnabled = [bool](Get-ObjectField $startup 'enabled' $false) }
+    $security = Get-ObjectField $config 'security' $null
+    if ($null -ne $security) {
+        $password = [string](Get-ObjectField $security 'lockPassword' '')
+        $script:ConfigHasLockPassword = -not [string]::IsNullOrEmpty($password)
+    }
+    $script:ConfigFlagsKnown = $true
+    Write-TrayLog ('配置标志：开机自启动=' + $script:ConfigStartupEnabled + ' 已设锁定密码=' + $script:ConfigHasLockPassword) 'DEBUG'
+}
+
+# 从配置里读 startup.enabled（读不到返回 $null）
+function Get-StartupEnabledFromConfig {
+    param($Config)
+    if ($null -eq $Config) { return $null }
+    $startup = $null
+    try {
+        if ($Config -is [System.Collections.IDictionary] -and $Config.Contains('startup')) { $startup = $Config['startup'] }
+        elseif ($Config -isnot [System.Collections.IDictionary]) { $startup = Get-ObjectField $Config 'startup' $null }
+    }
+    catch {
+        $startup = $null
+    }
+    if ($null -eq $startup) { return $null }
+    try {
+        if ($startup -is [System.Collections.IDictionary]) {
+            if ($startup.Contains('enabled')) { return [bool]$startup['enabled'] }
+            return $null
+        }
+        $value = Get-ObjectField $startup 'enabled' $null
+        if ($null -eq $value) { return $null }
+        return [bool]$value
+    }
+    catch {
+        return $null
+    }
+}
+
+function Invoke-OpenSettings {
+    if (Get-IsLocked) {
+        Show-InfoBox '已锁定，配置窗口不可用。请先解锁。'
+        return
+    }
+    if (-not (Test-Path -LiteralPath $script:SettingsScriptPath -PathType Leaf)) {
+        Show-ErrorBox ('找不到配置窗口脚本：' + $script:SettingsScriptPath)
+        Write-TrayLog ('找不到 settings.ps1：' + $script:SettingsScriptPath) 'ERROR'
+        return
+    }
+
+    $ack = Invoke-NodeCommand -Name 'get-config' -Extra $null -TimeoutMs 10000
+    if (-not (Get-AckOk $ack)) {
+        Show-ErrorBox ('读取配置失败：' + (Get-AckErrorText $ack))
+        return
+    }
+    $data = Get-ObjectField $ack 'data' $null
+    $rawConfig = Get-ObjectField $data 'config' $null
+    if ($null -eq $rawConfig) {
+        Show-ErrorBox '读取配置失败：Node 没有返回配置内容。'
+        return
+    }
+    $config = ConvertTo-OrderedHashtable $rawConfig
+
+    try {
+        . $script:SettingsScriptPath
+    }
+    catch {
+        Show-ErrorBox ('加载配置窗口失败：' + $_.Exception.Message)
+        Write-TrayLog ('dot-source settings.ps1 失败：' + $_.Exception.Message) 'ERROR'
+        return
+    }
+    if (-not (Get-Command 'Show-SettingsWindow' -CommandType Function -ErrorAction SilentlyContinue)) {
+        Show-ErrorBox 'settings.ps1 里没有找到 Show-SettingsWindow 函数。'
+        Write-TrayLog 'settings.ps1 缺少 Show-SettingsWindow 函数' 'ERROR'
+        return
+    }
+
+    while ($true) {
+        $newConfig = $null
+        try {
+            $newConfig = Show-SettingsWindow $config
+        }
+        catch {
+            Show-ErrorBox ('配置窗口出错：' + $_.Exception.Message)
+            Write-TrayLog ('配置窗口异常：' + $_.Exception.Message) 'ERROR'
+            return
+        }
+        if ($null -eq $newConfig) { return }   # 用户取消
+
+        # settings.ps1 把「选择图片 / 重置默认图标」表达成两个临时键：
+        #   _iconAction = 'set' | 'reset' | $null，_iconPath = 用户原始图片全路径。
+        # 先取出意图，再用它导出的 Remove-SettingsTransientKeys 去掉临时键后发给 Node。
+        $iconAction = ''
+        $iconPath = ''
+        try {
+            if ($newConfig -is [System.Collections.IDictionary]) {
+                if ($newConfig.Contains('_iconAction')) { $iconAction = [string]$newConfig['_iconAction'] }
+                if ($newConfig.Contains('_iconPath')) { $iconPath = [string]$newConfig['_iconPath'] }
+            }
+        }
+        catch {
+        }
+        $payload = $newConfig
+        if (Get-Command -Name 'Remove-SettingsTransientKeys' -CommandType Function -ErrorAction SilentlyContinue) {
+            try { $payload = Remove-SettingsTransientKeys $newConfig } catch { $payload = $newConfig }
+        }
+
+        $saveAck = Invoke-NodeCommand -Name 'save-config' -Extra @{ config = $payload } -TimeoutMs 20000
+        if (-not (Get-AckOk $saveAck)) {
+            # 保留用户输入重开窗口；ack.message 是 Node 的中文校验错误
+            $config = $newConfig
+            Show-ErrorBox ('保存配置失败：' + (Get-AckErrorText $saveAck))
+            continue
+        }
+
+        # ---- 保存成功：刷新宿主缓存的配置标志 ----
+        $savedData = Get-ObjectField $saveAck 'data' $null
+        $savedConfig = Get-ObjectField $savedData 'config' $null
+        $effective = $payload
+        if ($null -ne $savedConfig) { $effective = $savedConfig }
+        $startupFlag = Get-StartupEnabledFromConfig $effective
+        if ($null -ne $startupFlag) { $script:ConfigStartupEnabled = [bool]$startupFlag }
+        $security = Get-ObjectField $effective 'security' $null
+        if ($null -ne $security) {
+            $password = [string](Get-ObjectField $security 'lockPassword' '')
+            $script:ConfigHasLockPassword = -not [string]::IsNullOrEmpty($password)
+        }
+        $script:ConfigFlagsKnown = $true
+
+        # ---- 开机自启动：窗口里改了就以真实快捷方式为准落实 ----
+        if ($null -ne $startupFlag) {
+            if ([bool]$startupFlag -ne [bool]$script:AutostartExists) {
+                $autoResult = Set-Autostart ([bool]$startupFlag)
+                if (-not $autoResult.Ok) {
+                    Show-ErrorBox ('开机自启动设置失败：' + [string]$autoResult.Error + "`r`n`r`n" + '菜单里的勾选状态已按快捷方式的实际存在情况恢复。')
+                }
+            }
+        }
+        else {
+            $script:AutostartExists = Test-AutostartShortcut
+        }
+
+        # ---- 图标意图：save-config 成功后再发 set-icon / reset-icon ----
+        if ($iconAction -eq 'set') {
+            if ([string]::IsNullOrWhiteSpace($iconPath)) {
+                Show-ErrorBox '没有收到要使用的图片路径，图标未更改。'
+            }
+            else {
+                $iconAck = Invoke-NodeCommand -Name 'set-icon' -Extra @{ path = $iconPath } -TimeoutMs 20000
+                if (Get-AckOk $iconAck) { Write-TrayLog ('已更换托盘图标：' + $iconPath) }
+                else { Show-ErrorBox ('更换图标失败：' + (Get-AckErrorText $iconAck)) }
+            }
+        }
+        elseif ($iconAction -eq 'reset') {
+            $iconAck = Invoke-NodeCommand -Name 'reset-icon' -Extra $null -TimeoutMs 15000
+            if (Get-AckOk $iconAck) { Write-TrayLog '已恢复默认托盘图标' }
+            else { Show-ErrorBox ('恢复默认图标失败：' + (Get-AckErrorText $iconAck)) }
+        }
+
+        Show-InfoBox '配置已保存。'
+        return
+    }
+}
+
+# ============================ 命令动作 ============================
+
+function Invoke-SyncNow {
+    if ([bool](Get-StateField 'running' $false)) { return }
+    $ack = Invoke-NodeCommand -Name 'sync-now' -Extra $null -TimeoutMs 15000
+    if (-not (Get-AckOk $ack)) {
+        # 同步中重复触发、锁定等都属于正常控制结果，不弹框打断用户
+        Write-TrayLog ('立即同步未被接受：' + (Get-AckErrorText $ack)) 'INFO'
+    }
+}
+
+function Invoke-PauseToggle {
+    $paused = [bool](Get-StateField 'paused' $false)
+    $name = 'pause'
+    if ($paused) { $name = 'resume' }
+    $ack = Invoke-NodeCommand -Name $name -Extra $null -TimeoutMs 10000
+    if (-not (Get-AckOk $ack)) {
+        Show-ErrorBox ('操作失败：' + (Get-AckErrorText $ack))
+        return
+    }
+    if ($paused) { Write-TrayLog '已请求恢复自动同步' } else { Write-TrayLog '已请求暂停自动同步' }
+}
+
+function Invoke-Lock {
+    if (Get-IsLocked) { return }
+
+    $password = ''
+    $needsPassword = $false
+    if ($null -eq $script:ConfigHasLockPassword) {
+        # 还不知道有没有密码：先按空密码发一次，Node 会回 no-password
+        $needsPassword = $true
+    }
+    elseif ($script:ConfigHasLockPassword -eq $false) {
+        $needsPassword = $true
+    }
+
+    if ($needsPassword) {
+        $ack = Invoke-NodeCommand -Name 'lock' -Extra @{ password = '' } -TimeoutMs 10000
+        if (Get-AckOk $ack) {
+            $script:ConfigHasLockPassword = $true
+            return
+        }
+        $errorCode = [string](Get-ObjectField $ack 'error' '')
+        if ($null -ne $ack -and $errorCode -ne 'no-password') {
+            Show-ErrorBox ('锁定失败：' + (Get-AckErrorText $ack))
+            return
+        }
+        # 没有密码：先让用户设置（两次一致、非空），再随 lock 命令发出
+        $password = Show-NewPasswordDialog
+        if ($null -eq $password) { return }
+        $ack = Invoke-NodeCommand -Name 'lock' -Extra @{ password = $password } -TimeoutMs 10000
+        if (-not (Get-AckOk $ack)) {
+            Show-ErrorBox ('锁定失败：' + (Get-AckErrorText $ack))
+            return
+        }
+        $script:ConfigHasLockPassword = $true
+        $script:ConfigFlagsKnown = $true
+        Write-TrayLog '已设置锁定密码并锁定托盘菜单'
+        return
+    }
+
+    $ack = Invoke-NodeCommand -Name 'lock' -Extra @{ password = '' } -TimeoutMs 10000
+    if (-not (Get-AckOk $ack)) {
+        Show-ErrorBox ('锁定失败：' + (Get-AckErrorText $ack))
+        return
+    }
+    Write-TrayLog '已锁定托盘菜单'
+}
+
+function Invoke-Unlock {
+    $password = Show-PasswordDialog -Prompt '请输入锁定密码（取消 = 不解锁）。' -Title '解锁'
+    if ($null -eq $password) { return }
+    $ack = Invoke-NodeCommand -Name 'unlock' -Extra @{ password = $password } -TimeoutMs 10000
+    if (Get-AckOk $ack) {
+        Write-TrayLog '菜单已解锁'
+        return
+    }
+    $errorCode = [string](Get-ObjectField $ack 'error' '')
+    if ($errorCode -eq 'bad-password') { Show-ErrorBox '密码错误。' }
+    else { Show-ErrorBox ('解锁失败：' + (Get-AckErrorText $ack)) }
+}
+
+function Invoke-RepairAutostart {
+    $enabled = $true
+    if ($null -ne $script:ConfigStartupEnabled) { $enabled = [bool]$script:ConfigStartupEnabled }
+    $result = Set-Autostart $enabled
+    if (-not $result.Ok) {
+        Show-ErrorBox ('修复开机自启动失败：' + [string]$result.Error)
+        return
+    }
+    Show-InfoBox $(if ($script:AutostartExists) { '已重建开机自启动快捷方式。' } else { '已清除失效的开机自启动快捷方式。' })
+}
+
+function Invoke-ToggleAutostart {
+    $target = -not $script:AutostartExists
+    $result = Set-Autostart $target
+    if (-not $result.Ok) {
+        Show-ErrorBox ('设置开机自启动失败：' + [string]$result.Error)
+        return
+    }
+    if ($script:AutostartExists) { Write-TrayLog '开机自启动已启用' } else { Write-TrayLog '开机自启动已禁用' }
+}
+
+function Add-DeferredHostClose {
+    param([string]$Mode)
+    $script:CloseIntent = $Mode
+}
+
+function Invoke-TrayClose {
+    param([string]$Mode)   # exit | restart
+    if (Get-IsLocked) { return }
+
+    $verb = '退出'
+    if ($Mode -eq 'restart') { $verb = '重启' }
+
+    $running = [bool](Get-StateField 'running' $false)
+    if ($running) {
+        $question = '正在同步，暂时不能' + $verb + '。' + "`r`n`r`n" + '是否取消当前同步，然后再' + $verb + '？' + "`r`n" + '（取消同步会在同步结果里记为失败，不会记为成功。）'
+        if (-not (Show-ConfirmBox $question)) { return }
+        $cancelAck = Invoke-NodeCommand -Name 'sync-cancel' -Extra $null -TimeoutMs 10000
+        if (-not (Get-AckOk $cancelAck)) {
+            Show-ErrorBox ('取消同步失败：' + (Get-AckErrorText $cancelAck))
+            return
+        }
+        $settled = Wait-NodeState -Condition { -not [bool](Get-StateField 'running' $false) } -TimeoutMs 15000
+        if (-not $settled) {
+            Show-ErrorBox '同步仍在收尾，请稍后再' + $verb + '。'
+            return
+        }
+    }
+    else {
+        $question = '确定要退出自动同步吗？退出后不会再自动同步。'
+        if ($Mode -eq 'restart') { $question = '确定要重启自动同步托盘吗？配置、状态和锁定状态都会保留。' }
+        if (-not (Show-ConfirmBox $question)) { return }
+    }
+
+    $script:CloseIntent = $Mode
+    $ack = Invoke-NodeCommand -Name $Mode -Extra $null -TimeoutMs 15000
+    if ($ack -and -not (Get-AckOk $ack)) {
+        $script:CloseIntent = ''
+        Show-ErrorBox ($verb + '失败：' + (Get-AckErrorText $ack))
+        return
+    }
+    if ($null -eq $ack) {
+        # Node 没回 ack：可能已经退出或卡住，等进程退出事件决定后续
+        Write-TrayLog ($verb + '请求没有收到 ack（可能 Node 已经在退出）') 'WARN'
+    }
+    Write-TrayLog ('已请求' + $verb + '，等待 Node 收尾退出')
 }
 
 # ============================ 托盘菜单 ============================
 
-function Set-Interval([double]$Minutes) {
-  if ($Minutes -lt 1) { return }
-  $script:cfg.intervalMinutes = $Minutes
-  Save-Config $script:cfg
-  $script:nextRunAt = (Get-Date).AddMinutes($Minutes)
-  Write-TrayLog "更新间隔已设为 $Minutes 分钟"
-}
-
-function Format-Interval([double]$Minutes) {
-  if ($Minutes -lt 60) { return "$([int]$Minutes) 分钟" }
-  $h = $Minutes / 60
-  if ($h -eq [math]::Floor($h)) { return "$([int]$h) 小时" }
-  return "$([math]::Round($h,1)) 小时"
-}
-
-function Install-Autostart {
-  try {
-    # 旧版快捷方式名带线路编号，统一换成中性名
-    if (Test-Path -LiteralPath $LegacyStartupShortcut) { Remove-Item -LiteralPath $LegacyStartupShortcut -Force }
-    $ws = New-Object -ComObject WScript.Shell
-    $lnk = $ws.CreateShortcut($StartupShortcut)
-    $lnk.TargetPath = Join-Path $env:WINDIR 'System32\wscript.exe'
-    $lnk.Arguments = '"' + (Join-Path $ScriptDir 'start.vbs') + '"'
-    $lnk.WorkingDirectory = $ScriptDir
-    $lnk.WindowStyle = 7
-    $lnk.Description = '自动同步（Windows 托盘版）'
-    $lnk.Save()
-    Write-TrayLog '已写入开机启动快捷方式'
-    return $true
-  } catch {
-    Write-TrayLog "写入开机启动失败：$($_.Exception.Message)"
-    Show-Balloon '设置开机启动失败' $_.Exception.Message 'Error'
-    return $false
-  }
-}
-
-function Remove-Autostart {
-  try {
-    if (Test-Path -LiteralPath $StartupShortcut) { Remove-Item -LiteralPath $StartupShortcut -Force }
-    if (Test-Path -LiteralPath $LegacyStartupShortcut) { Remove-Item -LiteralPath $LegacyStartupShortcut -Force }
-    Write-TrayLog '已移除开机启动快捷方式'
-    return $true
-  } catch {
-    Write-TrayLog "移除开机启动失败：$($_.Exception.Message)"
-    return $false
-  }
-}
-
-function Test-Autostart { return ((Test-Path -LiteralPath $StartupShortcut) -or (Test-Path -LiteralPath $LegacyStartupShortcut)) }
-
-function New-MenuItem([string]$Text, [scriptblock]$OnClick = $null, [bool]$Enabled = $true) {
-  $item = New-Object System.Windows.Forms.ToolStripMenuItem
-  $item.Text = $Text
-  $item.Enabled = $Enabled
-  if ($OnClick) { $item.Add_Click($OnClick) }
-  return $item
-}
-
-function Show-TokenDialog([string]$Title, [string]$Prompt, [string]$Current, [string]$Hint = '留空并确定 = 清除，改回本机 git 凭据', [switch]$NoTrim, [switch]$Plain) {
-  $form = New-Object System.Windows.Forms.Form
-  $form.Text = $Title
-  $form.FormBorderStyle = 'FixedDialog'
-  $form.StartPosition = 'CenterScreen'
-  $form.MinimizeBox = $false
-  $form.MaximizeBox = $false
-  $form.ClientSize = New-Object System.Drawing.Size(420, 150)
-
-  $label = New-Object System.Windows.Forms.Label
-  $label.Text = $Prompt
-  $label.Location = New-Object System.Drawing.Point(14, 14)
-  $label.Size = New-Object System.Drawing.Size(392, 44)
-  $form.Controls.Add($label)
-
-  $tb = New-Object System.Windows.Forms.TextBox
-  $tb.Location = New-Object System.Drawing.Point(14, 62)
-  $tb.Size = New-Object System.Drawing.Size(392, 24)
-  $tb.UseSystemPasswordChar = -not $Plain
-  $tb.Text = [string]$Current
-  $form.Controls.Add($tb)
-
-  $hint = New-Object System.Windows.Forms.Label
-  $hint.Text = $Hint
-  $hint.ForeColor = [System.Drawing.Color]::Gray
-  $hint.Location = New-Object System.Drawing.Point(14, 90)
-  $hint.Size = New-Object System.Drawing.Size(392, 20)
-  $form.Controls.Add($hint)
-
-  $ok = New-Object System.Windows.Forms.Button
-  $ok.Text = '确定'
-  $ok.DialogResult = [System.Windows.Forms.DialogResult]::OK
-  $ok.Location = New-Object System.Drawing.Point(240, 114)
-  $ok.Size = New-Object System.Drawing.Size(78, 26)
-  $form.Controls.Add($ok)
-
-  $cancel = New-Object System.Windows.Forms.Button
-  $cancel.Text = '取消'
-  $cancel.DialogResult = [System.Windows.Forms.DialogResult]::Cancel
-  $cancel.Location = New-Object System.Drawing.Point(328, 114)
-  $cancel.Size = New-Object System.Drawing.Size(78, 26)
-  $form.Controls.Add($cancel)
-  $form.AcceptButton = $ok
-  $form.CancelButton = $cancel
-
-  $result = $form.ShowDialog()
-  $value = $tb.Text
-  $form.Dispose()
-  if ($result -ne [System.Windows.Forms.DialogResult]::OK) { return $null }
-  if ($NoTrim) { return [string]$value }
-  return ([string]$value).Trim()
-}
-
-# 密码校验：未设置密码时直接放行；设置后必须输对（明文存在 config.json）
-function Test-Password([string]$Title = '密码', [string]$Prompt = '请输入密码（取消 = 取消操作）。') {
-  $expected = [string]$script:cfg.exitPassword
-  if (-not $expected) { return $true }
-  $value = Show-TokenDialog $Title $Prompt '' '密码错误或取消都不会继续' -NoTrim
-  if ($null -eq $value) { return $false }
-  if ($value -ceq $expected) { return $true }
-  Show-Balloon '密码错误' '密码不正确，已取消。' 'Warning'
-  Write-TrayLog "操作被拒绝：$Title 密码错误"
-  return $false
-}
-
-# 锁定：菜单只剩「立即同步」「解锁」「日志」；状态存 config.json
-function Set-LockState([bool]$Locked) {
-  if ($Locked -and -not [string]$script:cfg.exitPassword) {
-    Show-Balloon '无法锁定' '先到「设置 → 更多 → 锁定密码」设个密码。' 'Warning'
-    return
-  }
-  $script:cfg.locked = $Locked
-  Save-Config $script:cfg
-  Write-TrayLog ('菜单' + $(if ($Locked) { '已锁定' } else { '已解锁' }))
-  if ($Locked) {
-    Show-Balloon '已锁定' '菜单只剩同步、解锁和日志。' 'Info'
-  } else {
-    Show-Balloon '已解锁' '菜单已恢复。' 'Info'
-  }
-  Update-Tooltip
-}
-
-function Stop-Tray {
-  if ($script:timer) { try { $script:timer.Stop() } catch { } }
-  if ($script:appContext) { try { $script:appContext.ExitThread() } catch { } }
-}
-
-# ============================ 顶层菜单概览 ============================
-
-# 下次运行：今天/明天/日期 + 时间 + 倒计时
-function Format-NextRun([datetime]$Target) {
-  $now = Get-Date
-  $day = $Target.ToString('MM-dd')
-  if ($Target.Date -eq $now.Date) { $day = '今天' }
-  elseif ($Target.Date -eq $now.Date.AddDays(1)) { $day = '明天' }
-  $span = $Target - $now
-  if ($span.TotalSeconds -le 0) { $remain = '即将开始' }
-  elseif ($span.TotalMinutes -lt 60) { $remain = "$([int][math]::Ceiling($span.TotalMinutes)) 分钟后" }
-  elseif ($span.TotalHours -lt 24) { $remain = "$([int][math]::Floor($span.TotalHours)) 小时 $($span.Minutes) 分后" }
-  else { $remain = "$([int][math]::Floor($span.TotalDays)) 天后" }
-  return "$day $($Target.ToString('HH:mm'))（$remain）"
-}
-
-# 今天的同步日志：次数与最近一次时间（不含 .err.log）
-function Get-TodayLogInfo {
-  $info = @{ Count = 0; Last = $null }
-  try {
-    $dir = Get-LogDir
-    if (-not (Test-Path -LiteralPath $dir)) { return $info }
-    $files = @(Get-ChildItem -LiteralPath $dir -Filter 'sync-*.log' -File -ErrorAction SilentlyContinue |
-      Where-Object { $_.Name -notlike '*.err.log' } | Sort-Object LastWriteTime)
-    $info.Count = $files.Count
-    if ($files.Count -gt 0) { $info.Last = $files[$files.Count - 1].LastWriteTime }
-  } catch { }
-  return $info
-}
-
-# 按 logRetentionDays 清理过期日期目录（logs/yyyy/MM/dd），0 = 永久保留
-function Remove-OldLogs {
-  $days = 0
-  try { $days = [int][double]$script:cfg.logRetentionDays } catch { $days = 0 }
-  if ($days -le 0) { return }
-  $cutoff = (Get-Date).Date.AddDays(-$days)
-  $removed = 0
-  try {
-    if (-not (Test-Path -LiteralPath $LogDir)) { return }
-    foreach ($yearDir in @(Get-ChildItem -LiteralPath $LogDir -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -match '^\d{4}$' })) {
-      foreach ($monthDir in @(Get-ChildItem -LiteralPath $yearDir.FullName -Directory -ErrorAction SilentlyContinue |
-          Where-Object { $_.Name -match '^\d{2}$' })) {
-        foreach ($dayDir in @(Get-ChildItem -LiteralPath $monthDir.FullName -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '^\d{2}$' })) {
-          $dateText = "$($yearDir.Name)-$($monthDir.Name)-$($dayDir.Name)"
-          $parsed = [datetime]::MinValue
-          if (-not [datetime]::TryParseExact($dateText, 'yyyy-MM-dd',
-              [System.Globalization.CultureInfo]::InvariantCulture,
-              [System.Globalization.DateTimeStyles]::None, [ref]$parsed)) { continue }
-          if ($parsed -ge $cutoff) { continue }
-          Remove-Item -LiteralPath $dayDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
-          $removed++
-        }
-        if (-not (Get-ChildItem -LiteralPath $monthDir.FullName -Force -ErrorAction SilentlyContinue)) {
-          Remove-Item -LiteralPath $monthDir.FullName -Force -ErrorAction SilentlyContinue
-        }
-      }
-      if (-not (Get-ChildItem -LiteralPath $yearDir.FullName -Force -ErrorAction SilentlyContinue)) {
-        Remove-Item -LiteralPath $yearDir.FullName -Force -ErrorAction SilentlyContinue
-      }
-    }
-    if ($removed -gt 0) { Write-TrayLog "已清理 $removed 个过期日志目录（保留 $days 天）" }
-  } catch {
-    Write-TrayLog "清理过期日志失败：$($_.Exception.Message)"
-  }
-}
-
-function Format-IdentityText {
-  switch ([string]$script:cfg.gitIdentityMode) {
-    'git' { return '本机 git 配置' }
-    'custom' {
-      $n = ([string]$script:cfg.gitUserName).Trim()
-      $e = ([string]$script:cfg.gitUserEmail).Trim()
-      if ($n -or $e) { return '自定义' }
-      return '自定义（未填写，等同本机 git 配置）'
-    }
-    default { return '脚本默认（github-actions[bot]）' }
-  }
-}
-
-# 概览行统一用彩色文本：ToolStrip 禁用项会忽略 ForeColor，故这些行保持启用但不绑定点击动作；
-# 上锁时也不能禁用它们（否则整块概览会变灰），用 Tag = 'info' 让上锁逻辑跳过
-function Add-InfoLine([string]$Text, [System.Drawing.Color]$Color) {
-  $item = New-MenuItem $Text $null $true
-  $item.ForeColor = $Color
-  $item.Tag = 'info'
-  [void]$script:menu.Items.Add($item)
-}
-
-function New-SubMenu([string]$Text) {
-  $item = New-Object System.Windows.Forms.ToolStripMenuItem
-  $item.Text = $Text
-  return $item
-}
-
-function Add-MenuSeparator($Parent) {
-  [void]$Parent.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-}
-
-function Open-LogFolder {
-  try {
-    # 日志按日期分文件夹，默认打开当天的
-    $dir = Get-LogDir
-    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-    Start-Process explorer.exe -ArgumentList ('"' + $dir + '"')
-  } catch { }
-}
-
-function Open-LatestLog {
-  try {
-    $logToOpen = $script:runLog
-    if (-not $logToOpen -or -not (Test-Path -LiteralPath $logToOpen)) {
-      # 托盘重启后内存里没有记录，退回到日志目录（含日期子目录）里最新的 sync-*.log
-      $logToOpen = Get-ChildItem -LiteralPath $LogDir -Filter 'sync-*.log' -File -Recurse -ErrorAction SilentlyContinue |
-        Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName
-    }
-    if ($logToOpen -and (Test-Path -LiteralPath $logToOpen)) {
-      Start-Process notepad.exe -ArgumentList ('"' + $logToOpen + '"')
-    } else {
-      Show-Balloon '暂无日志' '还没有运行过同步。' 'Info'
-    }
-  } catch { }
-}
-
-function Build-Menu {
-  $menu = $script:menu
-  # Clear() 只是移除引用，不会释放 ToolStripItem 的 GDI 资源；菜单每次打开都重建，必须逐个 Dispose
-  while ($menu.Items.Count -gt 0) {
-    $old = $menu.Items[0]
-    $menu.Items.RemoveAt(0)
-    try { $old.Dispose() } catch { }
-  }
-  # ---- 概览区（只读；全部彩色）----
-  $accent = [System.Drawing.Color]::FromArgb(38, 132, 255)
-  $okColor = [System.Drawing.Color]::FromArgb(46, 160, 67)
-  $warnColor = [System.Drawing.Color]::FromArgb(210, 153, 34)
-  $errColor = [System.Drawing.Color]::FromArgb(218, 54, 51)
-  $violetColor = [System.Drawing.Color]::FromArgb(128, 90, 213)
-  $tealColor = [System.Drawing.Color]::FromArgb(0, 150, 136)
-  $skyColor = [System.Drawing.Color]::FromArgb(0, 122, 204)
-  $slateColor = [System.Drawing.Color]::FromArgb(96, 125, 139)
-
-  $stateText = '待命'
-  $stateSymbol = '●'
-  $stateColor = $okColor
-  if ($script:running) {
-    $stateText = '同步中（已 ' + [int](((Get-Date) - $script:runStartedAt).TotalMinutes) + ' 分钟）'
-    $stateSymbol = '◉'
-    $stateColor = $accent
-  } elseif (Test-EffectivePaused) {
-    $stateText = $(if (Test-StepsEnabled) { '已暂停' } else { '已暂停（步骤全关）' })
-    $stateSymbol = '‖'
-    $stateColor = $warnColor
-  } elseif ($script:lastOutcome -eq 'failed') {
-    $stateText = '待命（上次失败）'
-    $stateSymbol = '×'
-    $stateColor = $errColor
-  } elseif ($script:lastOutcome -eq 'latest') {
-    $stateText = '待命（上次已是最新）'
-    $stateSymbol = '●'
-    $stateColor = $okColor
-  }
-  Add-InfoLine ('   状态　' + $stateSymbol + ' ' + $stateText) $stateColor
-  if ([bool]$script:cfg.locked) {
-    Add-InfoLine '   锁定　🔒 已锁定' $warnColor
-  }
-
-  if ($script:running) { $nextText = '本轮结束后重新排期' }
-  elseif (Test-EffectivePaused) { $nextText = '已暂停，不排期' }
-  elseif ($script:nextRunAt) { $nextText = Format-NextRun $script:nextRunAt }
-  else { $nextText = '待启动' }
-  Add-InfoLine ('   下次　' + $nextText) $skyColor
-
-  if ($script:lastRunAt) {
-    $lastText = $script:lastRunAt.ToString('MM-dd HH:mm') + ' · ' + $script:lastResult + $script:lastElapsedText
-  } else {
-    $lastText = '尚未运行'
-  }
-  $lastColor = $okColor
-  if ($script:lastOutcome -eq 'failed') { $lastColor = $errColor }
-  elseif (-not $script:lastRunAt) { $lastColor = $slateColor }
-  Add-InfoLine ('   上次　' + $lastText) $lastColor
-
-  $branchTarget = $(if ($script:unpushedBranch) { $script:unpushedBranch } elseif ($script:branchLocal) { 'origin/' + $script:branchLocal } else { '?' })
-  $branchText = $(if ($script:branchLocal) { $script:branchLocal + ' → ' + $branchTarget } else { '（未检测）' }) + '｜待推 ' + $script:unpushedCount
-  Add-InfoLine ('   分支　' + $branchText) $(if ($script:unpushedCount -gt 0) { $warnColor } else { $accent })
-
-  Add-InfoLine ('   身份　' + (Format-IdentityText)) $violetColor
-
-  $sessionBody = ($script:sessionText -replace '^会话：', '')
-  $sessionColor = $okColor
-  if ($null -ne $script:sessionDaysLeft -and $script:sessionDaysLeft -le 10) { $sessionColor = $errColor }
-  elseif ($null -eq $script:sessionDaysLeft) { $sessionColor = $slateColor }
-  Add-InfoLine ('   会话　' + $sessionBody) $sessionColor
-
-  $pullText = $(if ($script:cfg.pullBeforeSync) { '拉取 ' + $script:cfg.pullStrategy } else { '拉取关' })
-  $notifyText = @{ always = '每次'; failure = '仅失败'; never = '从不'; accumulate = '累积' }[[string]$script:cfg.notifyMode]
-  if (-not $notifyText) { $notifyText = '每次' }
-  $retryText = $(if ($script:cfg.retryPush) { '开' } else { '关' })
-  $onSteps = 0
-  foreach ($k in @('stepPull', 'stepSync', 'stepCommit', 'stepPush')) { if ([bool]$script:cfg[$k]) { $onSteps++ } }
-  $wifiText = $(if ($script:cfg.wifiAutoConnect) { '开' } else { '关' })
-  $intervalText = (Format-Interval ([double]$script:cfg.intervalMinutes)) + '｜' + $pullText + '｜补推 ' + $retryText +
-    '｜通知 ' + $notifyText + '｜步骤 ' + $onSteps + '/4｜Wi-Fi ' + $wifiText
-  Add-InfoLine ('   设置　' + $intervalText) $tealColor
-
-  $logInfo = Get-TodayLogInfo
-  $envText = 'Node ' + $(if ($script:nodeVersion) { $script:nodeVersion } else { '未找到' }) + '｜今日同步 ' + $logInfo.Count + ' 次'
-  if ($logInfo.Last) { $envText += '｜最近 ' + $logInfo.Last.ToString('HH:mm') }
-  Add-InfoLine ('   本机　' + $envText) $slateColor
-
-  [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-
-  # ---- 操作区 ----
-  $nowText = '立即同步'
-  $anySteps = Test-StepsEnabled
-  if ($script:running) { $nowText = '立即同步（进行中）' }
-  elseif (-not $anySteps) { $nowText = '立即同步（步骤全关）' }
-
-  # 上锁：只保留「立即同步 / 解锁 / 日志」
-  if ([bool]$script:cfg.locked) {
-    [void]$menu.Items.Add((New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)))
-    [void]$menu.Items.Add((New-MenuItem '解锁…' ({
-      if (Test-Password '解锁' '请输入密码（取消 = 保持锁定）。') { Set-LockState $false }
-    })))
-    Add-MenuSeparator $menu
-    [void]$menu.Items.Add((New-MenuItem '日志文件夹' ({ Open-LogFolder })))
-    [void]$menu.Items.Add((New-MenuItem '最近日志' ({ Open-LatestLog })))
-    return
-  }
-
-  [void]$menu.Items.Add((New-MenuItem $nowText ({ Start-SyncRun }) (-not $script:running -and $anySteps)))
-
-  $pauseText = '暂停'
-  if ($script:paused) { $pauseText = '继续' }
-  [void]$menu.Items.Add((New-MenuItem $pauseText ({
-    $script:paused = -not $script:paused
-    if ($script:paused) {
-      Update-IdleStateIcon
-      Write-TrayLog '已暂停自动同步'
-    } else {
-      $script:nextRunAt = (Get-Date)
-      Update-IdleStateIcon
-      if (Test-StepsEnabled) {
-        Write-TrayLog '已恢复自动同步'
-      } else {
-        Show-Balloon '仍处于暂停' '所有步骤均已关闭，勾选至少一个步骤后才会自动同步。' 'Warning'
-        Write-TrayLog '恢复自动同步失败：所有步骤均已关闭'
-      }
-    }
-  })))
-
-  [void]$menu.Items.Add((New-MenuItem '锁定' ({ Set-LockState $true })))
-
-  # ---- 分组子菜单（内容在下方构建，最后统一挂到「设置」）----
-  $settingsItem = New-SubMenu '设置'
-  $freqItem = New-SubMenu '同步'
-  $notifyItem = New-SubMenu '通知'
-  $credItem = New-SubMenu '账号与提交'
-  $maintItem = New-SubMenu '更多'
-  $logsItem = New-SubMenu '日志'
-
-  # ---- 更新间隔（预设 + 自定义）----
-  $intervalItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $intervalItem.Text = '间隔：' + (Format-Interval ([double]$script:cfg.intervalMinutes))
-  foreach ($preset in @(15, 30, 60, 120, 240, 720)) {
-    $sub = New-MenuItem (Format-Interval $preset) $null
-    $sub.Tag = [double]$preset
-    $sub.Add_Click({ Set-Interval ([double]$this.Tag) })
-    if ([double]$script:cfg.intervalMinutes -eq [double]$preset) { $sub.Checked = $true }
-    [void]$intervalItem.DropDownItems.Add($sub)
-  }
-  [void]$intervalItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-  $custom = New-MenuItem '自定义…' ({
-    try {
-      Add-Type -AssemblyName Microsoft.VisualBasic
-      $current = [string][int]$script:cfg.intervalMinutes
-      $answer = [Microsoft.VisualBasic.Interaction]::InputBox('请输入自动同步间隔（分钟，最小 1）', '自动同步', $current)
-      if ($answer) {
-        $n = 0
-        if ([int]::TryParse([string]$answer, [ref]$n) -and $n -ge 1) {
-          Set-Interval $n
-          Show-Balloon '更新间隔已修改' ('现在每 ' + (Format-Interval $n) + ' 自动同步一次。') 'Info'
-        } else {
-          Show-Balloon '输入无效' '请输入大于 0 的分钟数。' 'Warning'
-        }
-      }
-    } catch {
-      Write-TrayLog "自定义间隔对话框失败：$($_.Exception.Message)"
-    }
-  })
-  [void]$intervalItem.DropDownItems.Add($custom)
-  [void]$freqItem.DropDownItems.Add($intervalItem)
-
-  # ---- 同步频率：拉取 / 补推 / 步骤 ----
-  $pullItem = New-MenuItem '同步前先拉取' ({
-    $script:cfg.pullBeforeSync = -not $script:cfg.pullBeforeSync
-    Save-Config $script:cfg
-    Write-TrayLog ('同步前自动拉取：' + $(if ($script:cfg.pullBeforeSync) { '开' } else { '关' }))
-  })
-  $pullItem.Checked = [bool]$script:cfg.pullBeforeSync
-  [void]$freqItem.DropDownItems.Add($pullItem)
-
-  $retryItem = New-MenuItem '自动补推' ({
-    $script:cfg.retryPush = -not $script:cfg.retryPush
-    Save-Config $script:cfg
-    Write-TrayLog ('自动补推：' + $(if ($script:cfg.retryPush) { '开' } else { '关' }))
-  })
-  $retryItem.Checked = [bool]$script:cfg.retryPush
-  [void]$freqItem.DropDownItems.Add($retryItem)
-
-  # ---- 执行步骤（全关 = 暂停）----
-  $stepsItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $stepsItem.Text = '执行步骤'
-  $stepDefs = @(
-    @{ Key = 'stepPull'; Text = '拉取（git pull）' },
-    @{ Key = 'stepSync'; Text = '同步（探测 / 下载 / 写入）' },
-    @{ Key = 'stepCommit'; Text = '提交（git commit）' },
-    @{ Key = 'stepPush'; Text = '推送（git push）' }
-  )
-  foreach ($def in $stepDefs) {
-    $sub = New-MenuItem ([string]$def.Text) $null
-    $sub.Tag = [string]$def.Key
-    # 事件脚本块里不能用 GetNewClosure：闭包模块的 $script: 看不到主脚本的 cfg
-    $sub.Add_Click({
-      $key = [string]$this.Tag
-      $script:cfg[$key] = -not $script:cfg[$key]
-      Save-Config $script:cfg
-      Write-TrayLog ('步骤 ' + $this.Text + '：' + $(if ($script:cfg[$key]) { '开' } else { '关' }))
-      Update-IdleStateIcon
-      if (-not (Test-StepsEnabled)) {
-        Show-Balloon '已等同于暂停' '所有步骤均已关闭，自动同步将不会启动。' 'Warning'
-      }
-    })
-    $sub.Checked = [bool]$script:cfg[[string]$def.Key]
-    [void]$stepsItem.DropDownItems.Add($sub)
-  }
-  [void]$freqItem.DropDownItems.Add($stepsItem)
-
-  $iconItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $iconItem.Text = '托盘图标：' + $(if ([string]$script:cfg.iconPath) { [System.IO.Path]::GetFileName([string]$script:cfg.iconPath) } else { '内置' })
-  [void]$iconItem.DropDownItems.Add((New-MenuItem '选择图片…' ({
-    try {
-      $dlg = New-Object System.Windows.Forms.OpenFileDialog
-      $dlg.Title = '选择托盘图标'
-      $dlg.Filter = '图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.ico|所有文件|*.*'
-      if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
-        $script:cfg.iconPath = $dlg.FileName
-        Save-Config $script:cfg
-        Update-TrayIcons
-        Write-TrayLog "托盘图标已更换：$($dlg.FileName)"
-      }
-    } catch {
-      Write-TrayLog "选择托盘图标失败：$($_.Exception.Message)"
-    }
-  })))
-  [void]$iconItem.DropDownItems.Add((New-MenuItem '用回内置图标' ({
-    $script:cfg.iconPath = ''
-    Save-Config $script:cfg
-    Update-TrayIcons
-    Write-TrayLog '托盘图标已恢复内置'
-  })))
-  [void]$maintItem.DropDownItems.Add($iconItem)
-
-  $strategyItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $strategyItem.Text = '拉取方式'
-  $rbItem = New-MenuItem 'rebase（推荐）' ({
-    $script:cfg.pullStrategy = 'rebase'
-    Save-Config $script:cfg
-    Write-TrayLog '拉取方式：rebase'
-  })
-  $rbItem.Checked = ([string]$script:cfg.pullStrategy -eq 'rebase')
-  [void]$strategyItem.DropDownItems.Add($rbItem)
-  $ffItem = New-MenuItem '仅快进（ff-only）' ({
-    $script:cfg.pullStrategy = 'ff-only'
-    Save-Config $script:cfg
-    Write-TrayLog '拉取方式：ff-only'
-  })
-  $ffItem.Checked = ([string]$script:cfg.pullStrategy -eq 'ff-only')
-  [void]$strategyItem.DropDownItems.Add($ffItem)
-  [void]$freqItem.DropDownItems.Add($strategyItem)
-
-  # ---- Wi-Fi：同步前无网络时自动连接指定热点 ----
-  $wifiItem = New-SubMenu '网络（Wi-Fi）'
-
-  $wAuto = New-MenuItem '同步前自动连接 Wi-Fi' ({
-    $script:cfg.wifiAutoConnect = -not $script:cfg.wifiAutoConnect
-    Save-Config $script:cfg
-    Write-TrayLog ('同步前自动连接 Wi-Fi：' + $(if ($script:cfg.wifiAutoConnect) { '开' } else { '关' }))
-  })
-  $wAuto.Checked = [bool]$script:cfg.wifiAutoConnect
-  [void]$wifiItem.DropDownItems.Add($wAuto)
-
-  $ssidText = ([string]$script:cfg.wifiSsid).Trim()
-  [void]$wifiItem.DropDownItems.Add((New-MenuItem ('Wi-Fi 名称：' + $(if ($ssidText) { $ssidText } else { '未设置' })) ({
-    $value = Show-TokenDialog 'Wi-Fi 名称（SSID）' '输入要自动连接的 Wi-Fi 名称。' ([string]$script:cfg.wifiSsid) '留空并确定 = 清除；取消 = 不修改' -NoTrim -Plain
-    if ($null -eq $value) { return }
-    $script:cfg.wifiSsid = ([string]$value).Trim()
-    Save-Config $script:cfg
-    Write-TrayLog ('Wi-Fi 名称：' + $(if ($script:cfg.wifiSsid) { [string]$script:cfg.wifiSsid } else { '已清除' }))
-  })))
-
-  $hasWifiPw = -not [string]::IsNullOrEmpty([string]$script:cfg.wifiPassword)
-  [void]$wifiItem.DropDownItems.Add((New-MenuItem ('Wi-Fi 密码：' + $(if ($hasWifiPw) { '已设置' } else { '无（开放网络）' })) ({
-    $value = Show-TokenDialog 'Wi-Fi 密码' '输入要自动连接的 Wi-Fi 密码（明文保存在 config.json）。' ([string]$script:cfg.wifiPassword) '留空并确定 = 无密码（按开放网络连接）' -NoTrim
-    if ($null -eq $value) { return }
-    $script:cfg.wifiPassword = $value
-    Save-Config $script:cfg
-    Write-TrayLog ('Wi-Fi 密码：' + $(if ($value) { '已更新' } else { '已清除（按开放网络）' }))
-  })))
-
-  $wSaved = New-MenuItem '优先尝试已保存的密码' ({
-    $script:cfg.wifiUseSavedFirst = -not $script:cfg.wifiUseSavedFirst
-    Save-Config $script:cfg
-    Write-TrayLog ('优先尝试已保存的密码：' + $(if ($script:cfg.wifiUseSavedFirst) { '开' } else { '关' }))
-  })
-  $wSaved.Checked = [bool]$script:cfg.wifiUseSavedFirst
-  [void]$wifiItem.DropDownItems.Add($wSaved)
-
-  [void]$wifiItem.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-
-  $wSkip = New-MenuItem '连接失败时跳过本次同步' ({
-    $script:cfg.wifiSkipOnFail = -not $script:cfg.wifiSkipOnFail
-    Save-Config $script:cfg
-    Write-TrayLog ('Wi-Fi 连接失败时跳过本次同步：' + $(if ($script:cfg.wifiSkipOnFail) { '开' } else { '关' }))
-  })
-  $wSkip.Checked = [bool]$script:cfg.wifiSkipOnFail
-  [void]$wifiItem.DropDownItems.Add($wSkip)
-
-  $wDisconnect = New-MenuItem '完成后断开 Wi-Fi' ({
-    $script:cfg.wifiDisconnectAfter = -not $script:cfg.wifiDisconnectAfter
-    Save-Config $script:cfg
-    Write-TrayLog ('完成后断开 Wi-Fi：' + $(if ($script:cfg.wifiDisconnectAfter) { '开' } else { '关' }))
-  })
-  $wDisconnect.Checked = [bool]$script:cfg.wifiDisconnectAfter
-  [void]$wifiItem.DropDownItems.Add($wDisconnect)
-
-  $wForget = New-MenuItem '断开时一并忘记该 Wi-Fi' ({
-    $script:cfg.wifiForgetOnDisconnect = -not $script:cfg.wifiForgetOnDisconnect
-    Save-Config $script:cfg
-    Write-TrayLog ('断开时一并忘记：' + $(if ($script:cfg.wifiForgetOnDisconnect) { '开' } else { '关' }))
-  })
-  $wForget.Checked = [bool]$script:cfg.wifiForgetOnDisconnect
-  [void]$wifiItem.DropDownItems.Add($wForget)
-
-  # ---- 同步通知 ----
-  $nAlways = New-MenuItem '每次同步' ({
-    $script:cfg.notifyMode = 'always'
-    Save-Config $script:cfg
-    Write-TrayLog '同步通知：每次'
-  })
-  $nAlways.Checked = ([string]$script:cfg.notifyMode -eq 'always')
-  [void]$notifyItem.DropDownItems.Add($nAlways)
-  $nFailure = New-MenuItem '仅失败' ({
-    $script:cfg.notifyMode = 'failure'
-    Save-Config $script:cfg
-    Write-TrayLog '同步通知：仅失败'
-  })
-  $nFailure.Checked = ([string]$script:cfg.notifyMode -eq 'failure')
-  [void]$notifyItem.DropDownItems.Add($nFailure)
-  $nNever = New-MenuItem '从不' ({
-    $script:cfg.notifyMode = 'never'
-    Save-Config $script:cfg
-    Write-TrayLog '同步通知：从不'
-  })
-  $nNever.Checked = ([string]$script:cfg.notifyMode -eq 'never')
-  [void]$notifyItem.DropDownItems.Add($nNever)
-
-  # 累积：每 notifyEveryRuns 次汇总弹一次
-  $everyRuns = 0
-  try { $everyRuns = [int][double]$script:cfg.notifyEveryRuns } catch { $everyRuns = 0 }
-  if ($everyRuns -lt 1) { $everyRuns = [int]$script:Defaults.notifyEveryRuns }
-  $nAccum = New-MenuItem ('每 ' + $everyRuns + ' 次汇总一次') ({
-    $script:cfg.notifyMode = 'accumulate'
-    Save-Config $script:cfg
-    Write-TrayLog '同步通知：累积'
-  })
-  $nAccum.Checked = ([string]$script:cfg.notifyMode -eq 'accumulate')
-  [void]$notifyItem.DropDownItems.Add($nAccum)
-  [void]$notifyItem.DropDownItems.Add((New-MenuItem ('汇总间隔：' + $everyRuns + ' 次') ({
-    try {
-      Add-Type -AssemblyName Microsoft.VisualBasic
-      $current = [string][int][double]$script:cfg.notifyEveryRuns
-      $answer = [Microsoft.VisualBasic.Interaction]::InputBox(
-        '每进行多少次同步汇总提醒一次（最小 1）', '累积通知', $current)
-      if ($null -eq $answer -or ([string]$answer).Trim() -eq '') { return }
-      $n = 0
-      if (-not [int]::TryParse(([string]$answer).Trim(), [ref]$n) -or $n -lt 1) {
-        Show-Balloon '输入无效' '请输入大于 0 的整数次数。' 'Warning'
-        return
-      }
-      $script:cfg.notifyEveryRuns = $n
-      Save-Config $script:cfg
-      # 计数口径变了，旧计数作废，从下一轮重新累计
-      Reset-AccumulateState
-      Write-TrayLog "累积提醒次数：$n（计数已重置）"
-      Show-Balloon '汇总间隔已修改' "之后每 $n 次同步汇总一次（已重新计数）。" 'Info'
-    } catch {
-      Write-TrayLog "设置累积次数失败：$($_.Exception.Message)"
-    }
-  })))
-
-  # 静默错误：仅累积模式生效，非周期错误（如「有本地提交未推送」）只写日志不弹气泡
-  $nSilent = New-MenuItem '零星错误只写日志' ({
-    $script:cfg.silentErrors = -not $script:cfg.silentErrors
-    Save-Config $script:cfg
-    Write-TrayLog ('静默错误：' + $(if ($script:cfg.silentErrors) { '开' } else { '关' }))
-  })
-  $nSilent.Checked = [bool]$script:cfg.silentErrors
-  [void]$notifyItem.DropDownItems.Add($nSilent)
-
-  # ---- 账号与提交 ----
-  $hasGitToken = -not [string]::IsNullOrWhiteSpace([string]$script:cfg.gitToken)
-  $tokenText = 'GitHub 令牌：' + $(if ($hasGitToken) { '已配置' } else { '未配置' })
-  [void]$credItem.DropDownItems.Add((New-MenuItem $tokenText ({
-    $value = Show-TokenDialog 'GitHub 令牌（拉取/推送）' '填入有仓库读写权限的 GitHub PAT（classic: repo；fine-grained: Contents 读写）。' ([string]$script:cfg.gitToken)
-    if ($null -eq $value) { return }
-    $script:cfg.gitToken = $value
-    Save-Config $script:cfg
-    Set-InjectedEnv 'LOCAL_SYNC_GIT_TOKEN' $value
-    Write-TrayLog ('拉取/推送令牌：' + $(if ($value) { '已更新' } else { '已清除（改回本机 git 凭据）' }))
-    if ($value) { Show-Balloon '令牌已保存' '下一轮同步起，拉取/推送使用该令牌鉴权。' 'Info' }
-    else { Show-Balloon '令牌已清除' '将回退到本机 git 默认凭据。' 'Info' }
-  })))
-
-  # ---- 会话 Cookie（不必再手改 config.json）----
-  $hasSessionCfg = -not [string]::IsNullOrWhiteSpace([string]$script:cfg.session)
-  [void]$credItem.DropDownItems.Add((New-MenuItem ('会话 Cookie：' + $(if ($hasSessionCfg) { '已配置' } else { '未配置' })) ({
-    $value = Show-TokenDialog '会话 Cookie' '粘贴 huang1111 的会话 cookie 值（取法见 README「会话 cookie」一节）。' ([string]$script:cfg.session) '留空并确定 = 清除；若系统环境变量 H1111_SESSION 存在则回退到它'
-    if ($null -eq $value) { return }
-    $script:cfg.session = $value
-    Save-Config $script:cfg
-    Set-InjectedEnv 'H1111_SESSION' $value
-    Update-SessionInfo
-    Write-TrayLog ('会话 Cookie：' + $(if ($value) { '已更新' } else { '已清除' }))
-    if ($value) { Show-Balloon '会话已保存' $script:sessionText 'Info' }
-    else { Show-Balloon '会话已清除' '若系统环境变量里有 H1111_SESSION，将回退到它。' 'Info' }
-  })))
-
-  # ---- 锁定密码（明文保存在 config.json；只用于上锁/解锁，退出与重启不再校验）----
-  $hasLockPw = -not [string]::IsNullOrEmpty([string]$script:cfg.exitPassword)
-  [void]$maintItem.DropDownItems.Add((New-MenuItem ('锁定密码：' + $(if ($hasLockPw) { '已设置' } else { '未设置' })) ({
-    # 已设置时，改密码必须先验证旧密码
-    if (-not (Test-Password '锁定密码' '请输入当前的锁定密码（取消 = 不修改）。')) { return }
-    $value = Show-TokenDialog '设置锁定密码' '输入新的锁定密码（明文保存在 config.json）。' '' '留空并确定 = 解除密码保护' -NoTrim
-    if ($null -eq $value) { return }
-    $script:cfg.exitPassword = $value
-    Save-Config $script:cfg
-    Write-TrayLog ('锁定密码：' + $(if ($value) { '已设置' } else { '已清除' }))
-    if ($value) { Show-Balloon '锁定密码已设置' '解锁菜单时需要输入该密码；退出与重新启动不再校验。' 'Info' }
-    else { Show-Balloon '锁定密码已清除' '上锁功能将不可用，直到重新设置密码。' 'Info' }
-  })))
-
-  # ---- 提交身份（git user.name / user.email）----
-  $identityLabels = @{ script = '脚本默认'; git = '本机 git 配置'; custom = '自定义' }
-  $identityLabel = $identityLabels[[string]$script:cfg.gitIdentityMode]
-  if (-not $identityLabel) { $identityLabel = '脚本默认' }
-  $identityItem = New-Object System.Windows.Forms.ToolStripMenuItem
-  $identityItem.Text = '提交身份：' + $identityLabel
-
-  $idScript = New-MenuItem '脚本默认（github-actions[bot]）' ({
-    $script:cfg.gitIdentityMode = 'script'
-    Save-Config $script:cfg
-    Write-TrayLog '提交身份：脚本默认（github-actions[bot]）'
-  })
-  $idScript.Checked = ([string]$script:cfg.gitIdentityMode -eq 'script')
-  [void]$identityItem.DropDownItems.Add($idScript)
-
-  $idGit = New-MenuItem '本机 git 配置' ({
-    $script:cfg.gitIdentityMode = 'git'
-    Save-Config $script:cfg
-    Write-TrayLog '提交身份：本机 git 配置'
-  })
-  $idGit.Checked = ([string]$script:cfg.gitIdentityMode -eq 'git')
-  [void]$identityItem.DropDownItems.Add($idGit)
-
-  $idCustom = New-MenuItem '自定义…' ({
-    try {
-      Add-Type -AssemblyName Microsoft.VisualBasic
-      $name = [Microsoft.VisualBasic.Interaction]::InputBox('提交用户名（git user.name）', '提交身份', [string]$script:cfg.gitUserName)
-      if ([string]::IsNullOrWhiteSpace([string]$name)) { return }
-      $email = [Microsoft.VisualBasic.Interaction]::InputBox('提交邮箱（git user.email）', '提交身份', [string]$script:cfg.gitUserEmail)
-      if ([string]::IsNullOrWhiteSpace([string]$email)) { return }
-      $script:cfg.gitUserName = ([string]$name).Trim()
-      $script:cfg.gitUserEmail = ([string]$email).Trim()
-      $script:cfg.gitIdentityMode = 'custom'
-      Save-Config $script:cfg
-      Write-TrayLog '提交身份：自定义（已保存）'
-      Show-Balloon '提交身份已保存' '下一轮同步起使用自定义提交身份。' 'Info'
-    } catch {
-      Write-TrayLog "设置提交身份失败：$($_.Exception.Message)"
-    }
-  })
-  $idCustom.Checked = ([string]$script:cfg.gitIdentityMode -eq 'custom')
-  [void]$identityItem.DropDownItems.Add($idCustom)
-  [void]$credItem.DropDownItems.Add($identityItem)
-
-  # ---- 日志保留天数 ----
-  $retentionDays = 0
-  try { $retentionDays = [int][double]$script:cfg.logRetentionDays } catch { }
-  $retentionText = '日志保留：' + $(if ($retentionDays -le 0) { '永久' } else { "$retentionDays 天" })
-  [void]$maintItem.DropDownItems.Add((New-MenuItem $retentionText ({
-    try {
-      Add-Type -AssemblyName Microsoft.VisualBasic
-      $answer = [Microsoft.VisualBasic.Interaction]::InputBox('日志保留天数（0 = 永久保留）', '日志设置', [string]([int][double]$script:cfg.logRetentionDays))
-      if ($null -eq $answer -or ([string]$answer).Trim() -eq '') { return }
-      $n = 0
-      if (-not [int]::TryParse(([string]$answer).Trim(), [ref]$n) -or $n -lt 0) {
-        Show-Balloon '输入无效' '请输入 0 或更大的整数天数。' 'Warning'
-        return
-      }
-      $script:cfg.logRetentionDays = $n
-      Save-Config $script:cfg
-      Write-TrayLog ('日志保留：' + $(if ($n -eq 0) { '永久' } else { "$n 天" }))
-      Remove-OldLogs
-    } catch {
-      Write-TrayLog "设置日志保留失败：$($_.Exception.Message)"
-    }
-  })))
-
-  # ---- 组装「设置」子菜单 ----
-  [void]$settingsItem.DropDownItems.Add($freqItem)
-  [void]$settingsItem.DropDownItems.Add($wifiItem)
-  [void]$settingsItem.DropDownItems.Add($notifyItem)
-  [void]$settingsItem.DropDownItems.Add($credItem)
-  [void]$settingsItem.DropDownItems.Add($maintItem)
-  [void]$menu.Items.Add($settingsItem)
-
-  # ---- 开机启动 ----
-  $autoItem = New-MenuItem '开机启动' ({
-    if (Test-Autostart) {
-      if (Remove-Autostart) { Show-Balloon '开机启动已关闭' '下次登录 Windows 时不再自动启动托盘。' 'Info' }
-    } else {
-      if (Install-Autostart) { Show-Balloon '开机启动已开启' '下次登录 Windows 时会自动在托盘里启动。' 'Info' }
-    }
-  })
-  $autoItem.Checked = Test-Autostart
-  [void]$menu.Items.Add($autoItem)
-
-  [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-
-  # ---- 日志与配置 ----
-  [void]$logsItem.DropDownItems.Add((New-MenuItem '日志文件夹' ({ Open-LogFolder })))
-  [void]$logsItem.DropDownItems.Add((New-MenuItem '最近日志' ({ Open-LatestLog })))
-  Add-MenuSeparator $logsItem
-  [void]$logsItem.DropDownItems.Add((New-MenuItem '配置文件' ({
-    try { Start-Process notepad.exe -ArgumentList ('"' + $script:ConfigPath + '"') } catch { }
-  })))
-  [void]$menu.Items.Add($logsItem)
-
-  [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-  [void]$menu.Items.Add((New-MenuItem '重启托盘' ({
-    # 锁定功能已够用：退出与重新启动不再额外校验密码
-    $script:restartRequested = $true
-    # 正在同步时不打断，等它跑完再重启
-    if ($script:running) { $script:paused = $true }
-    Stop-Tray
-  })))
-  [void]$menu.Items.Add((New-MenuItem '退出' ({
-    $script:exitRequested = $true
-    if ($script:running -and $script:proc) {
-      # 正在同步时不强杀，等它跑完再退出托盘
-      $script:paused = $true
-    }
-    Stop-Tray
-  })))
-}
-
-# ============================ 启动入口 ============================
-
-# 开机启动 / 取消开机启动（不进入托盘循环）
-if ($Install -or $Uninstall) {
-  $script:cfg = Read-Config
-  if ($Install) {
-    if (Install-Autostart) { Write-Host '已开启开机启动：' $StartupShortcut }
-    exit 0
-  }
-  if ($Uninstall) {
-    if (Remove-Autostart) { Write-Host '已关闭开机启动。' }
-    exit 0
-  }
-}
-
-$script:cfg = Read-Config
-
-# WinForms 需要 STA；PowerShell 7 默认 MTA，重新用 5.1 的 STA 拉起自己
-# （必须在拿单实例锁之前，否则子进程会因锁被占用而直接退出）
-if ([System.Threading.Thread]::CurrentThread.GetApartmentState() -ne 'STA') {
-  $ps51 = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-  if (Test-Path -LiteralPath $ps51) {
-    Start-Process -FilePath $ps51 -ArgumentList @(
-      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-WindowStyle', 'Hidden',
-      '-File', ('"' + $MyInvocation.MyCommand.Path + '"')
+function New-MenuItem {
+    param(
+        [string]$Text,
+        [scriptblock]$OnClick = $null,
+        [bool]$Enabled = $true,
+        [bool]$Checked = $false,
+        [bool]$CheckOnClick = $false
     )
-    exit 0
-  }
-}
-
-# 单实例：已有托盘在跑时静默退出
-$mutex = [System.Threading.Mutex]::new($false, 'Local\FCL-downsite-auto-sync-tray')
-$hasMutex = $false
-try {
-  $hasMutex = $mutex.WaitOne(0)
-} catch [System.Threading.AbandonedMutexException] {
-  # 上一个托盘异常退出会留下废弃互斥量；这种情况应当继续启动
-  $hasMutex = $true
-}
-if (-not $hasMutex) { exit 0 }
-
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-
-# Bitmap.GetHicon() 产生的 HICON 必须显式 DestroyIcon，否则换图标时会泄漏 GDI 句柄
-try {
-  Add-Type -Namespace Win32 -Name IconApi -MemberDefinition @'
-[DllImport("user32.dll", SetLastError = true)]
-public static extern bool DestroyIcon(IntPtr hIcon);
-'@
-} catch {
-  Write-TrayLog "加载 DestroyIcon 失败：$($_.Exception.Message)"
-}
-
-# 后台托盘不应该因为一次 UI 异常就弹错误框或退出；必须在创建任何窗口之前设置
-try {
-  [System.Windows.Forms.Application]::SetUnhandledExceptionMode([System.Windows.Forms.UnhandledExceptionMode]::CatchException)
-  [System.Windows.Forms.Application]::add_ThreadException({
-    param($sender, $e)
-    Write-TrayLog "界面线程异常：$($e.Exception.Message)"
-  })
-} catch {
-  Write-TrayLog "注册全局异常处理失败：$($_.Exception.Message)"
-}
-
-# 同步进行中收到关机/注销：先阻止，等同步结束后由 Resume-PendingSessionEnd 继续原请求。
-# 取消 SessionEnding 走的是 WM_QUERYENDSESSION，Windows 会显示「此应用正在阻止关机」。
-try {
-  Add-Type -AssemblyName System
-  [Microsoft.Win32.SystemEvents]::add_SessionEnding({
-    param($sender, $e)
-    if ($script:running) {
-      $e.Cancel = $true
-      $script:pendingSessionEnd = @{ Reason = [string]$e.Reason; At = Get-Date }
-      Write-TrayLog '收到系统关机/注销请求：同步进行中，已阻止，等待同步结束'
-      Show-Balloon '已阻止关机' '同步进行中，完成前不会退出系统。' 'Warning'
-    } else {
-      Write-TrayLog '收到系统关机/注销请求：当前空闲，正常放行'
+    $item = New-Object System.Windows.Forms.ToolStripMenuItem
+    $item.Text = $Text
+    $item.Enabled = $Enabled
+    if ($CheckOnClick) {
+        $item.Checked = $Checked
+        $item.CheckOnClick = $false
     }
-  })
-} catch {
-  Write-TrayLog "注册关机拦截失败：$($_.Exception.Message)"
+    if ($null -ne $OnClick) { $item.Add_Click($OnClick) }
+    return $item
 }
 
-# 原生进程输出是 UTF-8（node/git），把控制台解码也设为 UTF-8，避免中文变乱码
-try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
-
-# 环境变量：同步脚本只从环境读凭据（配置里的值优先，其次沿用系统环境）
-Set-InjectedEnv 'H1111_SESSION' ([string]$script:cfg.session)
-Set-InjectedEnv 'GITHUB_TOKEN' ([string]$script:cfg.githubToken)
-Set-InjectedEnv 'LOCAL_SYNC_GIT_TOKEN' (([string]$script:cfg.gitToken).Trim())
-$env:LOCAL_SYNC_GIT_IDENTITY = [string]$script:cfg.gitIdentityMode
-Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_NAME' (([string]$script:cfg.gitUserName).Trim())
-Set-InjectedEnv 'LOCAL_SYNC_GIT_USER_EMAIL' (([string]$script:cfg.gitUserEmail).Trim())
-# 隐藏进程里没有可交互的终端：禁用 git 终端提示，缺凭据时直接失败而不是挂起
-$env:GIT_TERMINAL_PROMPT = '0'
-# 本地运行必须摘掉 GHA 上下文：否则 sync.mjs 会把 token 写进 git remote URL
-Remove-Item Env:\GITHUB_REPOSITORY -ErrorAction SilentlyContinue
-Remove-Item Env:\GITHUB_ACTIONS -ErrorAction SilentlyContinue
-Remove-Item Env:\GITHUB_STEP_SUMMARY -ErrorAction SilentlyContinue
-Remove-Item Env:\GITHUB_REF_NAME -ErrorAction SilentlyContinue
-
-$script:nodeExe = Resolve-NodeExe
-if ($script:nodeExe -and -not $script:nodeVersion) {
-  try { $script:nodeVersion = (& $script:nodeExe --version 2>$null | Out-String).Trim() } catch { }
-}
-Update-TrayIcons
-
-$script:notify = New-Object System.Windows.Forms.NotifyIcon
-$script:notify.Icon = $script:iconIdle
-$script:notify.Text = '自动同步'
-$script:notify.Visible = $true
-
-$script:menu = New-Object System.Windows.Forms.ContextMenuStrip
-$script:notify.ContextMenuStrip = $script:menu
-$script:menu.Add_Opening({
-  try { Build-Menu } catch { Write-TrayLog "构建托盘菜单失败：$($_.Exception.Message)" }
-})
-# 先预构建一次：空的 ContextMenuStrip 首次右键可能压根不弹（在 Opening 里加条目会错过那次显示）
-try { Build-Menu } catch { Write-TrayLog "预构建托盘菜单失败：$($_.Exception.Message)" }
-$script:notify.Add_MouseDoubleClick({
-  if (-not $script:running) { Start-SyncRun } else {
-    try { if ($script:runLog) { Start-Process notepad.exe -ArgumentList ('"' + $script:runLog + '"') } } catch { }
-  }
-})
-
-Write-TrayLog "托盘已启动｜仓库 $RepoRoot｜间隔 $($script:cfg.intervalMinutes) 分钟｜node $script:nodeExe"
-$script:lastCleanDate = (Get-Date).Date
-Remove-OldLogs
-Update-SessionInfo
-Update-UnpushedState
-Update-Tooltip
-Update-IdleStateIcon
-
-if (-not $script:nodeExe) {
-  Show-Balloon '未找到 Node.js' '请安装 Node.js 18+，或在 config.json 的 nodePath 里填写 node.exe 的完整路径。' 'Error'
-} elseif (-not [string]$script:cfg.session -and -not $env:H1111_SESSION) {
-  Show-Balloon '未配置会话 cookie' '同步需要会话 cookie。请在 config.json 的 session 里填写，或设置系统环境变量 H1111_SESSION。' 'Warning'
-} elseif ($null -ne $script:sessionDaysLeft -and $script:sessionDaysLeft -le 10) {
-  Show-Balloon '会话即将失效' ($script:sessionText + ' —— 请尽快更新 config.json 里的 session（或系统环境变量 H1111_SESSION）。') 'Warning'
+function Add-MenuSeparator {
+    param($Menu)
+    [void]$Menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 }
 
-if ($script:cfg.runOnStart) {
-  Start-SyncRun
-} else {
-  $script:nextRunAt = (Get-Date).AddMinutes([double]$script:cfg.intervalMinutes)
+function Add-InfoItem {
+    param($Menu, [string]$Text)
+    $item = New-Object System.Windows.Forms.ToolStripMenuItem
+    $item.Text = $Text
+    $item.Enabled = $false   # 状态区只读
+    [void]$Menu.Items.Add($item)
 }
 
-# 单次检查交给 WinForms 定时器：无消息时线程阻塞在消息循环里，不靠轮询空转
-$script:timer = New-Object System.Windows.Forms.Timer
-$script:timer.Interval = 1000
-$script:timer.Add_Tick({ try { Invoke-Tick } catch { Write-TrayLog "定时检查异常：$($_.Exception.Message)" } })
-$script:timer.Start()
-
-$script:appContext = New-Object System.Windows.Forms.ApplicationContext
-[System.Windows.Forms.Application]::Run($script:appContext)
-try { $script:timer.Dispose() } catch { }
-try { $script:appContext.Dispose() } catch { }
-
-# 退出：正在同步则等它跑完（不打断，避免留下半截提交）
-if ($script:running) {
-  Write-TrayLog '退出请求：等待当前同步完成…'
-  while ($script:running) {
-    [System.Windows.Forms.Application]::DoEvents()
-    Invoke-Tick
-    Start-Sleep -Milliseconds 500
-  }
+function Get-StatusLines {
+    $lines = Get-StateField 'statusLines' $null
+    if ($null -eq $lines) { return @() }
+    $result = New-Object System.Collections.ArrayList
+    foreach ($line in $lines) {
+        $text = [string]$line
+        if (-not [string]::IsNullOrWhiteSpace($text)) { [void]$result.Add($text) }
+    }
+    return $result
 }
 
-try { $script:notify.Visible = $false; $script:notify.Dispose() } catch { }
-try { $script:menu.Dispose() } catch { }
-# 释放图标 HICON / 位图，避免进程退出前的 GDI 句柄泄漏
-foreach ($i in @($script:iconIdle, $script:iconBusy, $script:iconPaused, $script:iconOk, $script:iconLatest, $script:iconFail)) {
-  if ($i) { try { $i.Dispose() } catch { } }
-}
-foreach ($h in $script:iconHandles) { Destroy-IconHandle $h }
-foreach ($b in $script:iconBitmaps) { if ($b) { try { $b.Dispose() } catch { } } }
-if ($script:baseIconBitmap) { try { $script:baseIconBitmap.Dispose() } catch { } }
-Write-TrayLog '托盘已退出'
-try { $mutex.ReleaseMutex() } catch { }
+# 两套菜单（PROTOCOL.md §6.1 / §6.2）：每次打开都按当前 state 重建，不缓存陈旧状态
+function Build-TrayMenu {
+    if ($script:NoTrayMode -or $null -eq $script:Menu) { return }
+    $menu = $script:Menu
+    $menu.Items.Clear()
 
-# 重新启动：先释放单实例锁再拉起新托盘，避免新进程因锁被占用直接退出
-if ($script:restartRequested) {
-  Write-TrayLog '正在重新启动托盘…'
-  try {
-    $vbs = Join-Path $ScriptDir 'start.vbs'
-    Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') `
-      -ArgumentList ('"' + $vbs + '"') -WorkingDirectory $ScriptDir
-  } catch {
-    Write-TrayLog "重新启动失败：$($_.Exception.Message)"
-  }
+    $locked = Get-IsLocked
+    $running = [bool](Get-StateField 'running' $false)
+    $paused = [bool](Get-StateField 'paused' $false)
+    $statusLines = @(Get-StatusLines)
+
+    # ---- 标题 ----
+    $title = $script:AppName
+    if ($locked) { $title = $script:AppName + '（已锁定）' }
+    Add-InfoItem $menu $title
+    Add-MenuSeparator $menu
+
+    # ---- 状态区（只读，文本原样取 Node 排好的 statusLines）----
+    if ($statusLines.Count -gt 0) {
+        foreach ($line in $statusLines) { Add-InfoItem $menu $line }
+    }
+    else {
+        Add-InfoItem $menu '尚未收到状态'
+    }
+    Add-MenuSeparator $menu
+
+    if ($locked) {
+        # 锁定：只保留 状态摘要 / 查看详细状态 / 立即同步 / 解锁 / 浏览日志文件夹
+        [void]$menu.Items.Add((New-MenuItem '查看详细状态' { Invoke-SafeAction 'show-detail' { Invoke-ShowDetail } }))
+        Add-MenuSeparator $menu
+
+        $syncText = '立即同步'
+        $syncEnabled = $true
+        if ($running) { $syncText = '同步中…'; $syncEnabled = $false }
+        [void]$menu.Items.Add((New-MenuItem $syncText { Invoke-SafeAction 'sync-now' { Invoke-SyncNow } } $syncEnabled))
+        [void]$menu.Items.Add((New-MenuItem '解锁' { Invoke-SafeAction 'unlock' { Invoke-Unlock } }))
+        [void]$menu.Items.Add((New-MenuItem '浏览日志文件夹' { Invoke-SafeAction 'open-log-folder' { Invoke-OpenTarget 'log-folder' } }))
+        return
+    }
+
+    # ---- 未锁定 ----
+    [void]$menu.Items.Add((New-MenuItem '查看详细状态' { Invoke-SafeAction 'show-detail' { Invoke-ShowDetail } }))
+    Add-MenuSeparator $menu
+
+    $syncText = '立即同步'
+    $syncEnabled = $true
+    if ($running) { $syncText = '同步中…'; $syncEnabled = $false }
+    [void]$menu.Items.Add((New-MenuItem $syncText { Invoke-SafeAction 'sync-now' { Invoke-SyncNow } } $syncEnabled))
+
+    $pauseText = '暂停自动同步'
+    if ($paused) { $pauseText = '恢复自动同步' }
+    [void]$menu.Items.Add((New-MenuItem $pauseText { Invoke-SafeAction 'pause-toggle' { Invoke-PauseToggle } }))
+
+    [void]$menu.Items.Add((New-MenuItem '锁定' { Invoke-SafeAction 'lock' { Invoke-Lock } }))
+    Add-MenuSeparator $menu
+
+    # ---- 浏览 ----
+    $browse = New-Object System.Windows.Forms.ToolStripMenuItem
+    $browse.Text = '浏览'
+    [void]$browse.DropDownItems.Add((New-MenuItem '项目目录' { Invoke-SafeAction 'open-project' { Invoke-OpenTarget 'project-dir' } }))
+    [void]$browse.DropDownItems.Add((New-MenuItem '下载数据目录' { Invoke-SafeAction 'open-data' { Invoke-OpenTarget 'data-dir' } }))
+    [void]$browse.DropDownItems.Add((New-MenuItem '自动同步目录' { Invoke-SafeAction 'open-sync' { Invoke-OpenTarget 'sync-dir' } }))
+    [void]$browse.DropDownItems.Add((New-MenuItem '最新日志' { Invoke-SafeAction 'open-latest-log' { Invoke-OpenTarget 'latest-log' } }))
+    [void]$browse.DropDownItems.Add((New-MenuItem '日志文件夹' { Invoke-SafeAction 'open-log-folder' { Invoke-OpenTarget 'log-folder' } }))
+    [void]$menu.Items.Add($browse)
+    Add-MenuSeparator $menu
+
+    [void]$menu.Items.Add((New-MenuItem '配置文件' { Invoke-SafeAction 'open-config' { Invoke-OpenTarget 'config-file' } }))
+    [void]$menu.Items.Add((New-MenuItem '日志文件夹' { Invoke-SafeAction 'open-log-folder' { Invoke-OpenTarget 'log-folder' } }))
+    [void]$menu.Items.Add((New-MenuItem '配置…' { Invoke-SafeAction 'settings' { Invoke-OpenSettings } }))
+
+    # 开机自启动：勾选状态 = 快捷方式是否真实存在
+    $autostartItem = New-MenuItem '开机自启动' { Invoke-SafeAction 'autostart-toggle' { Invoke-ToggleAutostart } } $true $true
+    $autostartItem.Checked = [bool]$script:AutostartExists
+    [void]$menu.Items.Add($autostartItem)
+
+    # 修复自启动：仅当配置里启用但快捷方式不存在时显示
+    $expected = $script:ConfigStartupEnabled
+    if ($null -eq $expected) { $expected = $script:AutostartExists }
+    if ((-not $script:AutostartExists) -and [bool]$expected) {
+        [void]$menu.Items.Add((New-MenuItem '修复自启动' { Invoke-SafeAction 'repair-autostart' { Invoke-RepairAutostart } }))
+    }
+
+    Add-MenuSeparator $menu
+    [void]$menu.Items.Add((New-MenuItem '重启' { Invoke-SafeAction 'restart' { Invoke-TrayClose 'restart' } }))
+    [void]$menu.Items.Add((New-MenuItem '退出' { Invoke-SafeAction 'exit' { Invoke-TrayClose 'exit' } }))
 }
+
+# 菜单点击统一入口：任何异常都只写日志，不让托盘崩掉
+function Invoke-SafeAction {
+    param([string]$Name, [scriptblock]$Action)
+    try {
+        if ($null -ne $Action) { & $Action }
+    }
+    catch {
+        Write-TrayLog ('菜单动作异常（' + $Name + '）：' + $_.Exception.Message) 'ERROR'
+    }
+}
+
+# ============================ 启动 / 收尾 ============================
+
+function Start-NewTrayInstance {
+    $wscript = Join-Path $env:WINDIR 'System32\wscript.exe'
+    try {
+        if (-not (Test-Path -LiteralPath $script:StartVbsPath -PathType Leaf)) {
+            Write-TrayLog '重启失败：找不到 start.vbs' 'ERROR'
+            return
+        }
+        Start-Process -FilePath $wscript -ArgumentList ('"' + $script:StartVbsPath + '"') -WorkingDirectory $script:ScriptDir
+        Write-TrayLog '已启动新的托盘实例'
+    }
+    catch {
+        Write-TrayLog ('重启失败：' + $_.Exception.Message) 'ERROR'
+    }
+}
+
+function Stop-TrayHost {
+    if ($script:Stopping) { return }
+    $script:Stopping = $true
+    Write-TrayLog '宿主准备退出：停止消息泵、隐藏托盘图标'
+
+    try { if ($null -ne $script:PumpTimer) { $script:PumpTimer.Stop() } } catch { }
+
+    # 关掉 Node 的 stdin：正常流程下 Node 早已退出；这里只是兜底，不发 EOF 之外的信号
+    try {
+        if ($null -ne $script:NodeProcess -and -not $script:NodeExited) {
+            try { $script:NodeProcess.StandardInput.Close() } catch { }
+            Write-TrayLog '已关闭 Node stdin（让 Node 走 EOF 收尾）' 'DEBUG'
+        }
+    }
+    catch { }
+
+    try { if ($null -ne $script:NotifyIcon) { $script:NotifyIcon.Visible = $false } } catch { }
+    try { if ($null -ne $script:AppContext) { $script:AppContext.ExitThread() } } catch { }
+}
+
+function Clear-HostResources {
+    try { if ($null -ne $script:PumpTimer) { $script:PumpTimer.Dispose() } } catch { }
+    $script:PumpTimer = $null
+
+    try {
+        if ($null -ne $script:NotifyIcon) {
+            $script:NotifyIcon.Visible = $false
+            $script:NotifyIcon.ContextMenuStrip = $null
+            $script:NotifyIcon.Dispose()
+        }
+    }
+    catch { }
+    $script:NotifyIcon = $null
+
+    try { if ($null -ne $script:Menu) { $script:Menu.Dispose() } } catch { }
+    $script:Menu = $null
+
+    try { if ($null -ne $script:CurrentIcon) { $script:CurrentIcon.Dispose() } } catch { }
+    $script:CurrentIcon = $null
+
+    try {
+        if ($null -ne $script:Bridge) {
+            $script:Bridge.UnwirePowerEvents()
+            if ($null -ne $script:NodeProcess) { $script:Bridge.Detach($script:NodeProcess) }
+        }
+    }
+    catch { }
+
+    try { if ($null -ne $script:NodeProcess) { $script:NodeProcess.Dispose() } } catch { }
+    $script:NodeProcess = $null
+    $script:AppContext = $null
+}
+
+function Initialize-HostEnvironment {
+    # WinForms / GDI+ / 系统事件
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+    Add-Type -AssemblyName System.Drawing -ErrorAction Stop
+    Add-Type -AssemblyName System.Core -ErrorAction Stop
+
+    try { [System.Windows.Forms.Application]::EnableVisualStyles() } catch { }
+
+    # 后台托盘不应该因为一次 UI 异常就弹框或退出
+    try {
+        [System.Windows.Forms.Application]::SetUnhandledExceptionMode([System.Windows.Forms.UnhandledExceptionMode]::CatchException)
+        [System.Windows.Forms.Application]::add_ThreadException({
+                param($sender, $eventArgs)
+                try {
+                    $message = ''
+                    if ($null -ne $eventArgs -and $null -ne $eventArgs.Exception) { $message = $eventArgs.Exception.Message }
+                    Write-TrayLog ('界面线程异常：' + $message) 'ERROR'
+                }
+                catch { }
+            })
+    }
+    catch {
+        Write-TrayLog ('注册全局异常处理失败：' + $_.Exception.Message) 'WARN'
+    }
+
+    Initialize-StartupPaths
+    $script:AutostartExists = Test-AutostartShortcut
+
+    # 只有当新的开机启动项已经就位（或已由本程序接管）时，才清理旧版快捷方式，
+    # 避免用户还没启用新版自启动就把原来的自启动项删掉。
+    if ($script:AutostartExists) { Remove-LegacyShortcuts }
+}
+
+function Start-HostUi {
+    $script:NotifyIcon = New-Object System.Windows.Forms.NotifyIcon
+    $script:NotifyIcon.Text = $script:AppName
+    $script:Menu = New-Object System.Windows.Forms.ContextMenuStrip
+    $script:NotifyIcon.ContextMenuStrip = $script:Menu
+
+    # 先用默认底图顶上；之后的图标一律用 Node 发来的 icon.path
+    if (Test-Path -LiteralPath $script:DefaultIconPath -PathType Leaf) {
+        try { Set-TrayIconFromPath $script:DefaultIconPath }
+        catch { Write-TrayLog ('加载默认图标失败：' + $_.Exception.Message) 'WARN' }
+    }
+    else {
+        Write-TrayLog ('默认图标不存在：' + $script:DefaultIconPath) 'WARN'
+    }
+
+    $script:Menu.Add_Opening({
+            try { Build-TrayMenu }
+            catch { Write-TrayLog ('打开菜单时重建失败：' + $_.Exception.Message) 'ERROR' }
+        })
+
+    # 预构建一次：ContextMenuStrip 首次弹出时若在 Opening 里清空重建，可能来不及显示
+    try { Build-TrayMenu } catch { }
+
+    $script:NotifyIcon.Visible = $true
+}
+
+function Invoke-TrayHost {
+    Initialize-HostEnvironment
+
+    $script:NodeExe = Resolve-NodeExecutable
+    if ([string]::IsNullOrWhiteSpace($script:NodeExe)) {
+        Write-TrayLog '未找到 Node.js，托盘无法启动' 'ERROR'
+        $message = '未找到 Node.js。' + "`r`n`r`n" + '自动同步托盘需要 Node.js 18 或更高版本。' + "`r`n" + '请安装 Node.js，或在 config.json 的 runtime.nodePath 里填写 node.exe 的完整路径。'
+        try { [void][System.Windows.Forms.MessageBox]::Show($message, 'fdn-autosync-tray', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) } catch { }
+        $script:ExitCode = 3
+        return
+    }
+    Write-TrayLog ('Node 可执行文件：' + $script:NodeExe)
+
+    try {
+        Initialize-NodeBridge
+        $script:Bridge.WirePowerEvents()
+    }
+    catch {
+        Write-TrayLog ('初始化 Node 桥接失败：' + $_.Exception.Message) 'ERROR'
+    }
+
+    $script:AckTable = New-Object System.Collections.Hashtable
+
+    if (-not $script:NoTrayMode) { Start-HostUi }
+    else { Write-TrayLog '-NoTray 模式：不创建托盘图标与菜单，仅运行协议循环' }
+
+    try {
+        Start-NodeProcess $script:NodeExe
+    }
+    catch {
+        Write-TrayLog ('启动 Node 失败：' + $_.Exception.Message) 'ERROR'
+        try { [void][System.Windows.Forms.MessageBox]::Show(('启动 Node 失败：' + $_.Exception.Message + "`r`n`r`n" + $script:NodeExe), 'fdn-autosync-tray', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) } catch { }
+        $script:ExitCode = 4
+        Clear-HostResources
+        return
+    }
+
+    # 开机自启动真实状态（Node 据此把配置与真实状态对齐）
+    Send-NodeEvent 'autostart-status' @{ exists = [bool]$script:AutostartExists }
+    $script:AutostartStatusSent = $true
+
+    # 消息泵：WinForms 定时器在 UI 线程取 stdout/stderr/系统事件，
+    # 既满足「BeginOutputReadLine 异步读」，又不需要在非 PowerShell 线程里跑脚本块。
+    $script:PumpTimer = New-Object System.Windows.Forms.Timer
+    $script:PumpTimer.Interval = 120
+    $script:PumpTimer.Add_Tick({ try { Invoke-HostPump } catch { } })
+    $script:PumpTimer.Start()
+
+    $script:AppContext = New-Object System.Windows.Forms.ApplicationContext
+    Write-TrayLog ('托盘宿主已启动｜脚本目录 ' + $script:ScriptDir + '｜自启动 ' + $script:AutostartExists)
+
+    try {
+        [System.Windows.Forms.Application]::Run($script:AppContext)
+    }
+    finally {
+        Write-TrayLog '消息循环已退出'
+        Clear-HostResources
+    }
+}
+
+# ============================ 入口 ============================
+
+function Invoke-InstallOrUninstall {
+    Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
+    Initialize-StartupPaths
+
+    if ($Install) {
+        $result = Install-AutostartShortcut
+        if (-not $result.Ok) {
+            try { [void][System.Windows.Forms.MessageBox]::Show(('创建开机自启动快捷方式失败：' + [string]$result.Error), 'fdn-autosync-tray', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) } catch { }
+            $script:ExitCode = 1
+            return
+        }
+        Write-TrayLog ('-Install 完成：' + $script:StartupShortcut)
+        return
+    }
+
+    $result = Remove-AutostartShortcut
+    if (-not $result.Ok) {
+        try { [void][System.Windows.Forms.MessageBox]::Show(('删除开机自启动快捷方式失败：' + [string]$result.Error), 'fdn-autosync-tray', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) } catch { }
+        $script:ExitCode = 1
+        return
+    }
+    Write-TrayLog '-Uninstall 完成：已删除开机自启动快捷方式'
+}
+
+$script:StartedAt = Get-Date
+
+try {
+    if ($Install -or $Uninstall) {
+        Invoke-InstallOrUninstall
+    }
+    else {
+        Invoke-TrayHost
+    }
+}
+catch {
+    $script:ExitCode = 1
+    try {
+        Write-TrayLog ('宿主未捕获异常：' + $_.Exception.Message + ' / ' + $_.ScriptStackTrace) 'ERROR'
+    }
+    catch { }
+    try { Clear-HostResources } catch { }
+}
+
+try { Write-TrayLog ('宿主进程结束（退出码 ' + $script:ExitCode + '）') } catch { }
+exit $script:ExitCode
