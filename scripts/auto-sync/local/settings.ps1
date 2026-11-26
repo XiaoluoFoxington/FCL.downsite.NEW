@@ -252,11 +252,15 @@ function New-SettingsDefaultConfig {
 # 区域 2：本地预校验（最终仍由 Node 的 normalizeConfig 校验；这里只负责「本地先挡一遍」）
 # =============================================================================
 
-# 返回 [string[]] 错误信息；空数组 = 通过。错误文案与 Node 的 config.mjs 风格一致。
-function Test-SettingsConfig {
+# 详细版校验：每项带 Path（用于把用户带到出错的页签）+ Message（给人看）。
+function Test-SettingsConfigDetailed {
   param($Config)
 
   $errors = New-Object System.Collections.ArrayList
+  function Add-Error {
+    param([string]$Path, [string]$Message)
+    [void]$errors.Add(@{ Path = $Path; Message = $Message })
+  }
 
   # --- 整数 + 范围 ---
   $intRules = @(
@@ -283,11 +287,11 @@ function Test-SettingsConfig {
       }
     }
     if (-not $ok) {
-      [void]$errors.Add(('{0}（{1}）必须是整数' -f $rule.Label, $rule.Path))
+      Add-Error $rule.Path ('{0}（{1}）必须是整数' -f $rule.Label, $rule.Path)
       continue
     }
     if ($number -lt [int]$rule.Min -or $number -gt [int]$rule.Max) {
-      [void]$errors.Add(('{0}（{1}）必须是 {2}–{3} 的整数，当前是 {4}' -f $rule.Label, $rule.Path, $rule.Min, $rule.Max, $number))
+      Add-Error $rule.Path ('{0}（{1}）必须是 {2}–{3} 的整数，当前是 {4}' -f $rule.Label, $rule.Path, $rule.Min, $rule.Max, $number)
     }
   }
 
@@ -302,7 +306,7 @@ function Test-SettingsConfig {
     $raw = Get-SettingsPathValue $Config $rule.Path
     $value = [string]$raw
     if (-not ($rule.Values -contains $value)) {
-      [void]$errors.Add(('{0}（{1}）只能是 {2}，当前是「{3}」' -f $rule.Label, $rule.Path, ($rule.Values -join ' / '), $value))
+      Add-Error $rule.Path ('{0}（{1}）只能是 {2}，当前是「{3}」' -f $rule.Label, $rule.Path, ($rule.Values -join ' / '), $value)
     }
   }
 
@@ -312,16 +316,27 @@ function Test-SettingsConfig {
     $userName = ([string](Get-SettingsPathValue $Config 'stages.commit.userName')).Trim()
     $userEmail = ([string](Get-SettingsPathValue $Config 'stages.commit.userEmail')).Trim()
     if ([string]::IsNullOrEmpty($userName)) {
-      [void]$errors.Add('Git 身份为「自定义」时，用户名不能为空')
+      Add-Error 'stages.commit.userName' 'Git 身份为「自定义」时，用户名不能为空'
     }
     if ([string]::IsNullOrEmpty($userEmail)) {
-      [void]$errors.Add('Git 身份为「自定义」时，邮箱不能为空')
+      Add-Error 'stages.commit.userEmail' 'Git 身份为「自定义」时，邮箱不能为空'
     } elseif ($userEmail -notmatch '^[^\s@]+@[^\s@]+$') {
-      [void]$errors.Add(('Git 邮箱格式不正确：「{0}」' -f $userEmail))
+      Add-Error 'stages.commit.userEmail' ('Git 邮箱格式不正确：「{0}」' -f $userEmail)
     }
   }
 
   return $errors.ToArray()
+}
+
+# 返回 [string[]] 错误信息；空数组 = 通过。错误文案与 Node 的 config.mjs 风格一致。
+function Test-SettingsConfig {
+  param($Config)
+
+  $messages = @()
+  foreach ($item in (Test-SettingsConfigDetailed -Config $Config)) {
+    $messages += [string]$item['Message']
+  }
+  return $messages
 }
 
 # =============================================================================
@@ -912,22 +927,49 @@ function Add-SettingsNotifyPage {
 }
 
 # --- 其他 -------------------------------------------------------------
-function Add-SettingsOtherPage {
+function Add-SettingsSchedulePage {
   param($Tabs, $Config, $BoldFont)
-  $table = New-SettingsPageTable -Tabs $Tabs -Title '调度与运行时'
+  $table = New-SettingsPageTable -Tabs $Tabs -Title '调度'
   Add-SettingsSectionRow -Table $table -Text '调度' -BoldFont $BoldFont
-  [void](Add-SettingsNumber -Table $table -LabelText '同步间隔（分钟）' -Path 'scheduler.intervalMinutes' -Value (Get-SettingsPathValue $Config 'scheduler.intervalMinutes') -MinValue 1 -MaxValue 1440)
-  [void](Add-SettingsCheck -Table $table -Text '休眠唤醒后补跑一轮' -Path 'scheduler.catchUpOnWake' -Checked (Get-SettingsConfigBool $Config 'scheduler.catchUpOnWake' $true))
+  [void](Add-SettingsNumber -Table $table -LabelText '同步间隔（分钟）' -Path 'scheduler.intervalMinutes' `
+      -Value (Get-SettingsPathValue $Config 'scheduler.intervalMinutes') -MinValue 1 -MaxValue 1440)
+  [void](Add-SettingsCheck -Table $table -Text '休眠唤醒后补跑一轮' -Path 'scheduler.catchUpOnWake' `
+      -Checked (Get-SettingsConfigBool $Config 'scheduler.catchUpOnWake' $true))
+  return $table
+}
+
+function Add-SettingsRuntimePage {
+  param($Tabs, $Config, $BoldFont)
+  $table = New-SettingsPageTable -Tabs $Tabs -Title '运行时'
   Add-SettingsSectionRow -Table $table -Text '运行时' -BoldFont $BoldFont
-  [void](Add-SettingsText -Table $table -LabelText 'Node 路径（留空 = 自动查找）' -Path 'runtime.nodePath' -Value (Get-SettingsConfigString $Config 'runtime.nodePath'))
-  [void](Add-SettingsNumber -Table $table -LabelText '同步超时（分钟）' -Path 'runtime.syncTimeoutMinutes' -Value (Get-SettingsPathValue $Config 'runtime.syncTimeoutMinutes') -MinValue 1 -MaxValue 1440)
-  [void](Add-SettingsNumber -Table $table -LabelText 'Pull 超时（分钟）' -Path 'runtime.pullTimeoutMinutes' -Value (Get-SettingsPathValue $Config 'runtime.pullTimeoutMinutes') -MinValue 1 -MaxValue 120)
-  [void](Add-SettingsNumber -Table $table -LabelText 'Push 超时（分钟）' -Path 'runtime.pushTimeoutMinutes' -Value (Get-SettingsPathValue $Config 'runtime.pushTimeoutMinutes') -MinValue 1 -MaxValue 60)
+  [void](Add-SettingsText -Table $table -LabelText 'Node 路径（留空 = 自动查找）' -Path 'runtime.nodePath' `
+      -Value (Get-SettingsConfigString $Config 'runtime.nodePath'))
+  [void](Add-SettingsNumber -Table $table -LabelText '同步超时（分钟）' -Path 'runtime.syncTimeoutMinutes' `
+      -Value (Get-SettingsPathValue $Config 'runtime.syncTimeoutMinutes') -MinValue 1 -MaxValue 1440)
+  [void](Add-SettingsNumber -Table $table -LabelText 'Pull 超时（分钟）' -Path 'runtime.pullTimeoutMinutes' `
+      -Value (Get-SettingsPathValue $Config 'runtime.pullTimeoutMinutes') -MinValue 1 -MaxValue 120)
+  [void](Add-SettingsNumber -Table $table -LabelText 'Push 超时（分钟）' -Path 'runtime.pushTimeoutMinutes' `
+      -Value (Get-SettingsPathValue $Config 'runtime.pushTimeoutMinutes') -MinValue 1 -MaxValue 60)
+  return $table
+}
+
+function Add-SettingsLoggingPage {
+  param($Tabs, $Config, $BoldFont)
+  $table = New-SettingsPageTable -Tabs $Tabs -Title '日志与安全'
   Add-SettingsSectionRow -Table $table -Text '日志与安全' -BoldFont $BoldFont
-  [void](Add-SettingsNumber -Table $table -LabelText '日志保留天数（0 = 永久）' -Path 'logging.retentionDays' -Value (Get-SettingsPathValue $Config 'logging.retentionDays') -MinValue 0 -MaxValue 3650)
-  [void](Add-SettingsPassword -Table $table -LabelText '锁定密码（留空 = 不能锁定）' -Path 'security.lockPassword' -Value (Get-SettingsConfigString $Config 'security.lockPassword'))
+  [void](Add-SettingsNumber -Table $table -LabelText '日志保留天数（0 = 永久）' -Path 'logging.retentionDays' `
+      -Value (Get-SettingsPathValue $Config 'logging.retentionDays') -MinValue 0 -MaxValue 3650)
+  [void](Add-SettingsPassword -Table $table -LabelText '锁定密码（留空 = 不能锁定）' -Path 'security.lockPassword' `
+      -Value (Get-SettingsConfigString $Config 'security.lockPassword'))
+  return $table
+}
+
+function Add-SettingsGithubPage {
+  param($Tabs, $Config, $BoldFont)
+  $table = New-SettingsPageTable -Tabs $Tabs -Title 'GitHub 凭据'
   Add-SettingsSectionRow -Table $table -Text 'GitHub 凭据' -BoldFont $BoldFont
-  [void](Add-SettingsPassword -Table $table -LabelText 'GH_TOKEN（probe 只读 Token）' -Path 'credentials.GH_TOKEN' -Value (Get-SettingsConfigString $Config 'credentials.GH_TOKEN'))
+  [void](Add-SettingsPassword -Table $table -LabelText 'GH_TOKEN（probe 只读 Token）' -Path 'credentials.GH_TOKEN' `
+      -Value (Get-SettingsConfigString $Config 'credentials.GH_TOKEN'))
   return $table
 }
 
@@ -1088,7 +1130,54 @@ function Initialize-SettingsEnableDependencies {
   }
 }
 
-# 底部状态栏文字（IsError → 红字，否则灰字）
+# 按配置路径找控件（找不到返回 $null）
+function Get-SettingsFieldByPath {
+  param($Form, [string]$Path)
+
+  if ($null -eq $Form -or [string]::IsNullOrEmpty($Path)) { return $null }
+  foreach ($control in (Get-SettingsFieldControls $Form)) {
+    if ([string](Get-SettingsTagValue $control.Tag 'Path') -eq $Path) { return $control }
+  }
+  return $null
+}
+
+# 把用户带到某个字段所在的页签（先选顶层页，再选嵌套页）并聚焦该控件。
+function Focus-SettingsPath {
+  param($Form, [string]$Path)
+
+  $control = Get-SettingsFieldByPath -Form $Form -Path $Path
+  if ($null -eq $control) { return $false }
+
+  try {
+    $tabs = $Form.Tag['Tabs']
+    # 找到该控件所属的 TabPage 链：外层 TabControl → 可能的内层 TabControl
+    $node = $control
+    while ($null -ne $node -and $node -isnot [System.Windows.Forms.TabPage]) { $node = $node.Parent }
+    if ($null -eq $node) { return $false }
+
+    # 该 TabPage 的所有者是 TabControl；若它本身嵌在另一个 TabPage 里，则逐层向上
+    $page = $node
+    while ($null -ne $page) {
+      $owner = $page.Parent
+      while ($null -ne $owner -and $owner -isnot [System.Windows.Forms.TabControl]) { $owner = $owner.Parent }
+      if ($null -eq $owner) { break }
+      $owner.SelectedTab = $page
+      $owner.PerformLayout()
+      $page = $owner.Parent
+      while ($null -ne $page -and $page -isnot [System.Windows.Forms.TabPage]) { $page = $page.Parent }
+    }
+
+    try { [void]$control.Focus() } catch { }
+    try {
+      if ($control -is [System.Windows.Forms.TextBox] -or $control -is [System.Windows.Forms.ComboBox]) { $control.SelectAll() }
+    } catch { }
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+# 状态栏文字（IsError → 红字，否则灰字）
 function Set-SettingsStatus {
   param($Form, [string]$Text, [switch]$IsError)
 
@@ -1198,9 +1287,22 @@ function Invoke-SettingsSave {
 
   try {
     $config = Get-SettingsFromForm -Form $Form
-    $errors = @(Test-SettingsConfig -Config $config)
-    if ($errors.Count -gt 0) {
-      Set-SettingsStatus -Form $Form -Text ('无法保存：' + ($errors -join '；')) -IsError
+    $details = @(Test-SettingsConfigDetailed -Config $config)
+    if ($details.Count -gt 0) {
+      $messages = @()
+      foreach ($item in $details) { $messages += [string]$item['Message'] }
+      Set-SettingsStatus -Form $Form -Text ('无法保存：' + ($messages -join '；')) -IsError
+      # 校验失败必须让用户看得见：跳到出错的那个页签，再弹一次说明。
+      $firstPath = [string]$details[0]['Path']
+      [void](Focus-SettingsPath -Form $Form -Path $firstPath)
+      try {
+        [void][System.Windows.Forms.MessageBox]::Show(
+          ($messages -join "`r`n`r`n"),
+          '配置有误，未能保存',
+          [System.Windows.Forms.MessageBoxButtons]::OK,
+          [System.Windows.Forms.MessageBoxIcon]::Warning
+        )
+      } catch { }
       return $false
     }
     $Form.Tag['Result'] = $config
@@ -1304,7 +1406,10 @@ function New-SettingsForm {
   [void](Add-SettingsNotifyPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
   [void](Add-SettingsNestedGroup -Tabs $tabs -Title '高级' -Config $baseConfig -BoldFont $boldFont -Builder {
     param($childTabs, $cfg, $font)
-    [void](Add-SettingsOtherPage -Tabs $childTabs -Config $cfg -BoldFont $font)
+    [void](Add-SettingsSchedulePage -Tabs $childTabs -Config $cfg -BoldFont $font)
+    [void](Add-SettingsRuntimePage -Tabs $childTabs -Config $cfg -BoldFont $font)
+    [void](Add-SettingsLoggingPage -Tabs $childTabs -Config $cfg -BoldFont $font)
+    [void](Add-SettingsGithubPage -Tabs $childTabs -Config $cfg -BoldFont $font)
   })
 
   # --- 底部：状态栏 + 「保存」「取消」 ---
@@ -1363,9 +1468,22 @@ function New-SettingsForm {
   # --- 状态联动（先挂监听，再求值一次） ---
   Initialize-SettingsEnableDependencies -Form $form
   Update-SettingsEnableStates -Form $form
+  # --- 选项卡切换后强制重绘，避免嵌套页留下上一页的残影 ---
+  $repaint = {
+    param($sender, $eventArgs)
+    try {
+      if ($null -ne $sender) { $sender.PerformLayout() }
+    } catch { }
+  }
+  $tabs.add_SelectedIndexChanged($repaint)
   $form.add_Shown({
     param($sender, $eventArgs)
     try { Update-SettingsEnableStates -Form $sender } catch { }
+    try {
+      foreach ($page in $sender.Tag['Tabs'].TabPages) {
+        foreach ($child in $page.Controls) { if ($child -is [System.Windows.Forms.TabControl]) { $child.add_SelectedIndexChanged($repaint) } }
+      }
+    } catch { }
   }.GetNewClosure())
 
   # --- 保存：本地校验 → 通过才放行（非法时红字 + 不关闭） ---
