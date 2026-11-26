@@ -1,4 +1,4 @@
-﻿# =============================================================================
+# =============================================================================
 # settings.ps1 — 自动同步托盘 · 设置窗口（WinForms 单文件）
 # -----------------------------------------------------------------------------
 # 契约来源：scripts/auto-sync/local/PROTOCOL.md §4（config.json schema v1，字段权威表）
@@ -397,6 +397,33 @@ function Add-SettingsRow {
   $Table.Controls.Add($label, 0, $row)
   $Table.Controls.Add($Control, 1, $row)
   if ($null -ne $Trailing) { $Table.Controls.Add($Trailing, 2, $row) }
+  try {
+    if ($Control.Tag -is [System.Collections.IDictionary]) {
+      $Control.Tag['_SettingsRowTable'] = $Table
+      $Control.Tag['_SettingsRow'] = $row
+    }
+  } catch { }
+}
+
+# 设置一整行的可见性。WinForms 只隐藏控件会留下空白行，因此同步把行高设为 0。
+function Set-SettingsRowVisible {
+  param($Table, [int]$Row, [bool]$Visible)
+
+  if ($null -eq $Table -or $Row -lt 0 -or $Row -ge $Table.RowStyles.Count) { return }
+  foreach ($control in @($Table.Controls)) {
+    try {
+      if ([int]$Table.GetRow($control) -eq $Row) { $control.Visible = $Visible }
+    } catch { }
+  }
+  try {
+    if ($Visible) {
+      $Table.RowStyles[$Row].SizeType = [System.Windows.Forms.SizeType]::AutoSize
+      $Table.RowStyles[$Row].Height = 0
+    } else {
+      $Table.RowStyles[$Row].SizeType = [System.Windows.Forms.SizeType]::Absolute
+      $Table.RowStyles[$Row].Height = 0
+    }
+  } catch { }
 }
 
 # 勾选行：CheckBox 自带中文标签，跨 3 列
@@ -408,11 +435,17 @@ function Add-SettingsCheckRow {
   $CheckBox.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 5)
   $Table.Controls.Add($CheckBox, 0, $row)
   $Table.SetColumnSpan($CheckBox, 3)
+  try {
+    if ($CheckBox.Tag -is [System.Collections.IDictionary]) {
+      $CheckBox.Tag['_SettingsRowTable'] = $Table
+      $CheckBox.Tag['_SettingsRow'] = $row
+    }
+  } catch { }
 }
 
 # 分组标题行（跨 3 列，加粗）
 function Add-SettingsSectionRow {
-  param($Table, [string]$Text, $BoldFont)
+  param($Table, [string]$Text, $BoldFont, $EnableIf = $null)
 
   $row = New-SettingsRowIndex $Table
   $label = New-Object System.Windows.Forms.Label
@@ -425,6 +458,10 @@ function Add-SettingsSectionRow {
   if ($null -ne $BoldFont) { $label.Font = $BoldFont }
   $Table.Controls.Add($label, 0, $row)
   $Table.SetColumnSpan($label, 3)
+  if ($null -ne $EnableIf) {
+    $tag = @{ Path = ''; Kind = 'section'; EnableIf = $EnableIf; _SettingsRowTable = $Table; _SettingsRow = $row }
+    $label.Tag = $tag
+  }
 }
 
 function New-SettingsCheckBox {
@@ -758,7 +795,7 @@ function Add-SettingsSyncPage {
   [void](Add-SettingsCheck -Table $table -Text '跳过 Sync 阶段（不执行探测 / 下载 / 写数据）' `
       -Path 'stages.sync.enabled' -Checked (-not $enabled) -Invert)
 
-  Add-SettingsSectionRow -Table $table -Text '网盘凭据' -BoldFont $BoldFont
+  Add-SettingsSectionRow -Table $table -Text '网盘凭据' -BoldFont $BoldFont -EnableIf $whenEnabled
 
   [void](Add-SettingsPassword -Table $table -LabelText 'H1111_SESSION' -Path 'credentials.H1111_SESSION' `
       -Value (Get-SettingsConfigString $Config 'credentials.H1111_SESSION') -EnableIf $whenEnabled)
@@ -852,7 +889,7 @@ function Add-SettingsNotifyPage {
   $whenStandard = @{ Path = 'notifications.mode'; Values = @('standard') }
   $whenCumulative = @{ Path = 'notifications.mode'; Values = @('cumulative') }
 
-  Add-SettingsSectionRow -Table $table -Text '标准模式：按结果类型通知' -BoldFont $BoldFont
+  Add-SettingsSectionRow -Table $table -Text '标准模式：按结果类型通知' -BoldFont $BoldFont -EnableIf $whenStandard
   [void](Add-SettingsCheck -Table $table -Text '成功' -Path 'notifications.standard.success' `
       -Checked (Get-SettingsConfigBool $Config 'notifications.standard.success' $true) -EnableIf $whenStandard)
   [void](Add-SettingsCheck -Table $table -Text '已是最新' -Path 'notifications.standard.up-to-date' `
@@ -862,7 +899,7 @@ function Add-SettingsNotifyPage {
   [void](Add-SettingsCheck -Table $table -Text '内部错误' -Path 'notifications.standard.internal-error' `
       -Checked (Get-SettingsConfigBool $Config 'notifications.standard.internal-error' $true) -EnableIf $whenStandard)
 
-  Add-SettingsSectionRow -Table $table -Text '累积模式' -BoldFont $BoldFont
+  Add-SettingsSectionRow -Table $table -Text '累积模式' -BoldFont $BoldFont -EnableIf $whenCumulative
   [void](Add-SettingsNumber -Table $table -LabelText '每累积次数' -Path 'notifications.cumulative.everyRuns' `
       -Value (Get-SettingsPathValue $Config 'notifications.cumulative.everyRuns') -MinValue 1 -MaxValue 100 `
       -EnableIf $whenCumulative)
@@ -877,36 +914,35 @@ function Add-SettingsNotifyPage {
 # --- 其他 -------------------------------------------------------------
 function Add-SettingsOtherPage {
   param($Tabs, $Config, $BoldFont)
-
-  $table = New-SettingsPageTable -Tabs $Tabs -Title '其他'
+  $table = New-SettingsPageTable -Tabs $Tabs -Title '调度与运行时'
   Add-SettingsSectionRow -Table $table -Text '调度' -BoldFont $BoldFont
-
-  [void](Add-SettingsNumber -Table $table -LabelText '同步间隔（分钟）' -Path 'scheduler.intervalMinutes' `
-      -Value (Get-SettingsPathValue $Config 'scheduler.intervalMinutes') -MinValue 1 -MaxValue 1440)
-  [void](Add-SettingsCheck -Table $table -Text '休眠唤醒后补跑一轮' -Path 'scheduler.catchUpOnWake' `
-      -Checked (Get-SettingsConfigBool $Config 'scheduler.catchUpOnWake' $true))
-
+  [void](Add-SettingsNumber -Table $table -LabelText '同步间隔（分钟）' -Path 'scheduler.intervalMinutes' -Value (Get-SettingsPathValue $Config 'scheduler.intervalMinutes') -MinValue 1 -MaxValue 1440)
+  [void](Add-SettingsCheck -Table $table -Text '休眠唤醒后补跑一轮' -Path 'scheduler.catchUpOnWake' -Checked (Get-SettingsConfigBool $Config 'scheduler.catchUpOnWake' $true))
   Add-SettingsSectionRow -Table $table -Text '运行时' -BoldFont $BoldFont
-  [void](Add-SettingsText -Table $table -LabelText 'Node 路径（留空 = 自动查找）' -Path 'runtime.nodePath' `
-      -Value (Get-SettingsConfigString $Config 'runtime.nodePath'))
-  [void](Add-SettingsNumber -Table $table -LabelText '同步超时（分钟）' -Path 'runtime.syncTimeoutMinutes' `
-      -Value (Get-SettingsPathValue $Config 'runtime.syncTimeoutMinutes') -MinValue 1 -MaxValue 1440)
-  [void](Add-SettingsNumber -Table $table -LabelText 'Pull 超时（分钟）' -Path 'runtime.pullTimeoutMinutes' `
-      -Value (Get-SettingsPathValue $Config 'runtime.pullTimeoutMinutes') -MinValue 1 -MaxValue 120)
-  [void](Add-SettingsNumber -Table $table -LabelText 'Push 超时（分钟）' -Path 'runtime.pushTimeoutMinutes' `
-      -Value (Get-SettingsPathValue $Config 'runtime.pushTimeoutMinutes') -MinValue 1 -MaxValue 60)
-
+  [void](Add-SettingsText -Table $table -LabelText 'Node 路径（留空 = 自动查找）' -Path 'runtime.nodePath' -Value (Get-SettingsConfigString $Config 'runtime.nodePath'))
+  [void](Add-SettingsNumber -Table $table -LabelText '同步超时（分钟）' -Path 'runtime.syncTimeoutMinutes' -Value (Get-SettingsPathValue $Config 'runtime.syncTimeoutMinutes') -MinValue 1 -MaxValue 1440)
+  [void](Add-SettingsNumber -Table $table -LabelText 'Pull 超时（分钟）' -Path 'runtime.pullTimeoutMinutes' -Value (Get-SettingsPathValue $Config 'runtime.pullTimeoutMinutes') -MinValue 1 -MaxValue 120)
+  [void](Add-SettingsNumber -Table $table -LabelText 'Push 超时（分钟）' -Path 'runtime.pushTimeoutMinutes' -Value (Get-SettingsPathValue $Config 'runtime.pushTimeoutMinutes') -MinValue 1 -MaxValue 60)
   Add-SettingsSectionRow -Table $table -Text '日志与安全' -BoldFont $BoldFont
-  [void](Add-SettingsNumber -Table $table -LabelText '日志保留天数（0 = 永久）' -Path 'logging.retentionDays' `
-      -Value (Get-SettingsPathValue $Config 'logging.retentionDays') -MinValue 0 -MaxValue 3650)
-  [void](Add-SettingsPassword -Table $table -LabelText '锁定密码（留空 = 不能锁定）' -Path 'security.lockPassword' `
-      -Value (Get-SettingsConfigString $Config 'security.lockPassword'))
-
+  [void](Add-SettingsNumber -Table $table -LabelText '日志保留天数（0 = 永久）' -Path 'logging.retentionDays' -Value (Get-SettingsPathValue $Config 'logging.retentionDays') -MinValue 0 -MaxValue 3650)
+  [void](Add-SettingsPassword -Table $table -LabelText '锁定密码（留空 = 不能锁定）' -Path 'security.lockPassword' -Value (Get-SettingsConfigString $Config 'security.lockPassword'))
   Add-SettingsSectionRow -Table $table -Text 'GitHub 凭据' -BoldFont $BoldFont
-  [void](Add-SettingsPassword -Table $table -LabelText 'GH_TOKEN（probe 只读 Token）' -Path 'credentials.GH_TOKEN' `
-      -Value (Get-SettingsConfigString $Config 'credentials.GH_TOKEN'))
-
+  [void](Add-SettingsPassword -Table $table -LabelText 'GH_TOKEN（probe 只读 Token）' -Path 'credentials.GH_TOKEN' -Value (Get-SettingsConfigString $Config 'credentials.GH_TOKEN'))
   return $table
+}
+
+# 顶层主分页中的嵌套 TabControl。子页仍复用同一套字段控件和联动逻辑。
+function Add-SettingsNestedGroup {
+  param($Tabs, [string]$Title, $Config, $BoldFont, [scriptblock]$Builder)
+  $page = New-Object System.Windows.Forms.TabPage
+  $page.Text = $Title
+  $page.Padding = New-Object System.Windows.Forms.Padding(6)
+  $nested = New-Object System.Windows.Forms.TabControl
+  $nested.Dock = 'Fill'
+  $page.Controls.Add($nested)
+  [void]$Tabs.TabPages.Add($page)
+  & $Builder $nested $Config $BoldFont
+  return $page
 }
 
 # =============================================================================
@@ -1014,13 +1050,24 @@ function Update-SettingsEnableStates {
     foreach ($control in (Get-SettingsFieldControls $Form)) {
       $condition = Get-SettingsTagValue $control.Tag 'EnableIf'
       if ($null -eq $condition) { continue }
-      try {
-        $control.Enabled = [bool](Test-SettingsEnableCondition -Form $Form -Condition $condition)
-      } catch { }
+      $visible = $true
+      try { $visible = [bool](Test-SettingsEnableCondition -Form $Form -Condition $condition) } catch { }
+      try { $control.Enabled = $visible } catch { }
+
+      # 模式专属设置项不只是禁用，而是连同标签/尾部控件一起隐藏。
+      $table = Get-SettingsTagValue $control.Tag '_SettingsRowTable'
+      $row = Get-SettingsTagValue $control.Tag '_SettingsRow'
+      if ($null -ne $table -and $null -ne $row) {
+        Set-SettingsRowVisible -Table $table -Row ([int]$row) -Visible $visible
+      }
     }
   } catch {
     # 状态联动失败不影响保存
   }
+  try {
+    $Form.PerformLayout()
+    foreach ($page in $Form.Tag['Tabs'].TabPages) { $page.PerformLayout() }
+  } catch { }
 }
 
 # 给所有勾选 / 下拉控件挂上「状态联动」监听（值变化 → 重新求值 EnableIf）
@@ -1158,7 +1205,9 @@ function Invoke-SettingsSave {
     }
     $Form.Tag['Result'] = $config
     Set-SettingsStatus -Form $Form -Text '校验通过，配置已就绪。'
+    # 显式关闭模态窗体，避免仅设置 DialogResult 在部分 WinForms/PowerShell 组合下不退出。
     $Form.DialogResult = [System.Windows.Forms.DialogResult]::OK
+    try { $Form.Close() } catch { }
     return $true
   } catch {
     try { Set-SettingsStatus -Form $Form -Text ('保存失败：' + $_.Exception.Message) -IsError } catch { }
@@ -1241,16 +1290,22 @@ function New-SettingsForm {
   $root.Controls.Add($tabs, 0, 0)
   $form.Tag['Tabs'] = $tabs
 
-  # --- 9 个分页（顺序 = PROTOCOL.md §7 表格） ---
+  # --- 顶层分页 + 嵌套分页 ---
   [void](Add-SettingsDeployPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont -Form $form)
   [void](Add-SettingsPreparePage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
-  [void](Add-SettingsPullPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
-  [void](Add-SettingsSyncPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
-  [void](Add-SettingsCommitPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
-  [void](Add-SettingsPushPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
-  [void](Add-SettingsFinishPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
+  [void](Add-SettingsNestedGroup -Tabs $tabs -Title '同步阶段' -Config $baseConfig -BoldFont $boldFont -Builder {
+    param($childTabs, $cfg, $font)
+    [void](Add-SettingsPullPage -Tabs $childTabs -Config $cfg -BoldFont $font)
+    [void](Add-SettingsSyncPage -Tabs $childTabs -Config $cfg -BoldFont $font)
+    [void](Add-SettingsCommitPage -Tabs $childTabs -Config $cfg -BoldFont $font)
+    [void](Add-SettingsPushPage -Tabs $childTabs -Config $cfg -BoldFont $font)
+    [void](Add-SettingsFinishPage -Tabs $childTabs -Config $cfg -BoldFont $font)
+  })
   [void](Add-SettingsNotifyPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
-  [void](Add-SettingsOtherPage -Tabs $tabs -Config $baseConfig -BoldFont $boldFont)
+  [void](Add-SettingsNestedGroup -Tabs $tabs -Title '高级' -Config $baseConfig -BoldFont $boldFont -Builder {
+    param($childTabs, $cfg, $font)
+    [void](Add-SettingsOtherPage -Tabs $childTabs -Config $cfg -BoldFont $font)
+  })
 
   # --- 底部：状态栏 + 「保存」「取消」 ---
   $bottom = New-Object System.Windows.Forms.TableLayoutPanel
@@ -1308,12 +1363,17 @@ function New-SettingsForm {
   # --- 状态联动（先挂监听，再求值一次） ---
   Initialize-SettingsEnableDependencies -Form $form
   Update-SettingsEnableStates -Form $form
+  $form.add_Shown({
+    param($sender, $eventArgs)
+    try { Update-SettingsEnableStates -Form $sender } catch { }
+  }.GetNewClosure())
 
   # --- 保存：本地校验 → 通过才放行（非法时红字 + 不关闭） ---
   $btnSave.add_Click({
       param($sender, $eventArgs)
       try {
-        [void](Invoke-SettingsSave -Form $form)
+        $saved = Invoke-SettingsSave -Form $form
+        if ($saved) { $form.DialogResult = [System.Windows.Forms.DialogResult]::OK }
       } catch {
         try {
           Set-SettingsStatus -Form $form -Text ('保存失败：' + $_.Exception.Message) -IsError
