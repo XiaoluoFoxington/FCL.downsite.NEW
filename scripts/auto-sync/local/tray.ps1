@@ -544,6 +544,7 @@ function Build-ConfigMenu {
     [void](New-MenuItem $icon '选择图片…' { Select-IconFile })
     [void](New-MenuItem $icon '重置' { Reset-IconFile })
     Add-ConfigToggle $deployment '启动后同步一次' 'startup.runOnStart'
+    Add-TextConfigItem $deployment '设定Node.js路径…' 'runtime.nodePath' 'Node.js 路径' 'node.exe 路径（留空自动查找）'
 
     $prepare = New-SubMenu $configRoot '准备阶段'
     $wifi = New-SubMenu $prepare '无网时连指定WiFi'
@@ -559,10 +560,15 @@ function Build-ConfigMenu {
     $rebase = New-SubMenu $pull '变基模式'
     Add-ConfigRadio $rebase 'rebase' 'stages.pull.strategy' 'rebase'
     Add-ConfigRadio $rebase 'ff-only' 'stages.pull.strategy' 'ff-only'
+    [void](New-MenuItem $pull '设定超时(min)…' { Set-ConfigNumber 'runtime.pullTimeoutMinutes' 'Pull 阶段超时' '分钟' 1 1440 })
 
     $sync = New-SubMenu $configRoot 'sync阶段'
+    Add-ConfigToggle $sync '跳过此阶段' 'stages.sync.enabled' $true
     Add-TextConfigItem $sync '设定H1111_SESSION…' 'credentials.H1111_SESSION' 'H1111_SESSION' '会话 Cookie' $true
+    Add-TextConfigItem $sync '设定H1111_USER…' 'credentials.H1111_USER' 'H1111_USER' '用户名'
+    Add-TextConfigItem $sync '设定H1111_PASSWORD…' 'credentials.H1111_PASSWORD' 'H1111_PASSWORD' '密码' $true
     Add-TextConfigItem $sync '设定GH_TOKEN…' 'credentials.GH_TOKEN' 'GH_TOKEN' '只读 Token' $true
+    [void](New-MenuItem $sync '设定超时(min)…' { Set-ConfigNumber 'runtime.syncTimeoutMinutes' 'Sync 阶段超时' '分钟' 1 1440 })
 
     $commit = New-SubMenu $configRoot 'commit阶段'
     Add-ConfigToggle $commit '跳过此阶段' 'stages.commit.enabled' $true
@@ -577,10 +583,12 @@ function Build-ConfigMenu {
     Add-ConfigToggle $push '跳过此阶段' 'stages.push.enabled' $true
     Add-ConfigToggle $push '有未提交改动时跳过此阶段' 'stages.push.skipIfDirty'
     Add-TextConfigItem $push '设定PUSH_TOKEN…' 'credentials.PUSH_TOKEN' 'PUSH_TOKEN' '推送 Token' $true
+    [void](New-MenuItem $push '设定超时(min)…' { Set-ConfigNumber 'runtime.pushTimeoutMinutes' 'Push 阶段超时' '分钟' 1 1440 })
 
     $finish = New-SubMenu $configRoot '结束阶段'
     $disconnect = New-SubMenu $finish '断开指定WiFi'
-    Add-ConfigToggle $disconnect '无论是否成功，断开指定WiFi' 'wifi.disconnectAfter'
+    Add-ConfigToggle $disconnect '同步后断开指定WiFi' 'wifi.disconnectAfter'
+    Add-ConfigToggle $disconnect '失败时也断开' 'wifi.disconnectEvenOnFailure'
     Add-ConfigToggle $disconnect '并忘记' 'wifi.forgetOnDisconnect'
     $notifications = New-SubMenu $finish '通知'
     Add-ConfigRadio $notifications '标准模式' 'notifications.mode' 'standard'
@@ -597,6 +605,7 @@ function Build-ConfigMenu {
     Add-ConfigRadio $internal '不弹出' 'notifications.cumulative.internalErrorMode' 'never'
 
     [void](New-MenuItem $configRoot '设定间隔(min)…' { Set-ConfigNumber 'scheduler.intervalMinutes' '同步间隔' '分钟' 1 1440 })
+    Add-ConfigToggle $configRoot '唤醒后补跑' 'scheduler.catchUpOnWake'
     $misc = New-SubMenu $configRoot '杂项'
     [void](New-MenuItem $misc '设定日志保留天数…' { Set-ConfigNumber 'logging.retentionDays' '日志保留天数' '天数（0 = 永久）' 0 3650 })
     Add-TextConfigItem $misc '设定锁定密码…' 'security.lockPassword' '锁定密码' '密码' $true
@@ -617,6 +626,45 @@ function Get-TrayMenuTree {
     return $tree
 }
 
+function Add-DetailSubMenu {
+    param($Menu)
+    $detail = New-SubMenu $Menu '详细状态'
+    New-InfoItem $detail ('累计：成功 {0}｜最新 {1}｜失败 {2}｜内部错误 {3}' -f [int]$script:State.stats.success, [int]$script:State.stats.'up-to-date', [int]$script:State.stats.failure, [int]$script:State.stats.'internal-error')
+    if ($null -eq $script:State.lastRun) {
+        Add-Separator $detail
+        New-InfoItem $detail '尚无同步记录'
+        return
+    }
+    Add-Separator $detail
+    $msg = Redact-Text ([string](Get-ConfigValue $script:State.lastRun 'message' '')) 72
+    if ($msg) { New-InfoItem $detail ('上次消息：' + $msg) }
+    $durationMs = [int](Get-ConfigValue $script:State.lastRun 'durationMs' 0)
+    if ($durationMs -gt 0) { New-InfoItem $detail ('上次耗时：{0:N1} 秒' -f ($durationMs / 1000.0)) }
+    $stats = Get-ConfigValue $script:State.lastRun 'stats' $null
+    if ($null -ne $stats) {
+        New-InfoItem $detail ('上次同步：{0} 个资源，{1} 个版本' -f [int](Get-ConfigValue $stats 'resources' 0), [int](Get-ConfigValue $stats 'versions' 0))
+    }
+    $lastStages = @(Get-ConfigValue $script:State.lastRun 'stages' @())
+    if ($lastStages.Count -gt 0) {
+        Add-Separator $detail
+        New-InfoItem $detail '最近一轮阶段：'
+        foreach ($stage in $lastStages) {
+            $sName = Redact-Text ([string](Get-ConfigValue $stage 'name' '')) 24
+            $sStatus = Redact-Text ([string](Get-ConfigValue $stage 'status' '')) 16
+            $sMsg = Redact-Text ([string](Get-ConfigValue $stage 'message' '')) 64
+            New-InfoItem $detail ('  {0}：{1} · {2}' -f $sName, $sStatus, $sMsg)
+        }
+    }
+    $warnings = @(Get-ConfigValue $script:State.lastRun 'warnings' @())
+    if ($warnings.Count -gt 0) {
+        Add-Separator $detail
+        New-InfoItem $detail '最近一轮警告：'
+        foreach ($w in $warnings) {
+            New-InfoItem $detail ('  ' + (Redact-Text ([string]$w) 72))
+        }
+    }
+}
+
 function Build-TrayMenu {
     if ($null -eq $script:ContextMenu) { return }
     $menu = $script:ContextMenu
@@ -629,14 +677,14 @@ function Build-TrayMenu {
     Add-Separator $menu
 
     if ($script:Locked) {
-        [void](New-MenuItem $menu '查看详细状态' { Show-Detail })
+        Add-DetailSubMenu $menu
         [void](New-MenuItem $menu '立即同步' { Start-SyncRound } (-not $script:Running))
         [void](New-MenuItem $menu '解锁' { Unlock-Tray })
         [void](New-MenuItem $menu '浏览日志文件夹' { Open-Path $script:LogsDir })
         return
     }
 
-    [void](New-MenuItem $menu '查看详细状态' { Show-Detail })
+    Add-DetailSubMenu $menu
     [void](New-MenuItem $menu '立即同步' { Start-SyncRound } (-not $script:Running))
     $pauseText = if ($script:Paused) { '恢复自动同步' } else { '暂停自动同步' }
     [void](New-MenuItem $menu $pauseText { Toggle-Pause })
@@ -771,21 +819,6 @@ function Protect-Result {
     }
     foreach ($warning in @(Get-ConfigValue $Result 'warnings' @())) { $safe.warnings += Redact-Text ([string]$warning) 600 }
     return [pscustomobject]$safe
-}
-
-function Show-Detail {
-    $text = (Get-StatusLines) -join "`r`n"
-    $text += "`r`n`r`n累计结果："
-    foreach ($key in @('success', 'up-to-date', 'failure', 'internal-error')) { $text += "`r`n  $key：$($script:State.stats.$key)" }
-    $lastStages = Get-ConfigValue $script:State.lastRun 'stages' @()
-    if (@($lastStages).Count -gt 0) {
-        $text += "`r`n`r`n最近一轮阶段："
-        foreach ($stage in @($lastStages)) {
-            $text += "`r`n  $(Redact-Text ([string](Get-ConfigValue $stage 'name' '')) 120)：$(Redact-Text ([string](Get-ConfigValue $stage 'status' '')) 80) · $(Redact-Text ([string](Get-ConfigValue $stage 'message' '')) 800)"
-        }
-    }
-    $text = Redact-Text $text 6000
-    [void][Windows.Forms.MessageBox]::Show($text, ($script:AppName + ' · 详细状态'), [Windows.Forms.MessageBoxButtons]::OK, [Windows.Forms.MessageBoxIcon]::Information)
 }
 
 # ----------------------------- 调度与同步 -----------------------------

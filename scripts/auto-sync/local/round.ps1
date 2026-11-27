@@ -30,9 +30,9 @@ function Get-ConfigPathValue {
 
 function Get-SafeArrayProperty {
     param($Object, [string]$Name)
-    $value = Get-ConfigPathValue $Object $Name @()
-    if ($null -eq $value) { return @() }
-    return @($value)
+    $value = Get-ConfigPathValue $Object $Name $null
+    if ($null -eq $value) { return ,([object[]]@()) }
+    return ,([object[]]@($value))
 }
 
 function ConvertTo-SafeLogText {
@@ -433,7 +433,9 @@ function Invoke-CommitSyncData {
         $versionList = @()
         foreach ($item in (Get-SafeArrayProperty $Payload 'items')) {
             if ([string](Get-ConfigPathValue $item 'id' '') -eq $id) {
-                $versionList += @(Get-SafeArrayProperty $item 'versions' | ForEach-Object { [string]$_ })
+                foreach ($v in (Get-SafeArrayProperty $item 'versions')) {
+                    $versionList += [string]$v
+                }
             }
         }
         $subject = '[LOCAL] 新增：内容：数据源：资源id-' + $id + '：' + (($versionList | Sort-Object -Unique) -join '&') + '呜~'
@@ -619,10 +621,16 @@ function Invoke-AutoSyncRound {
         else { $result.message = '自动同步失败' }
     }
     if ($null -ne $payload) {
-        $items = @(Get-SafeArrayProperty $payload 'items' | Where-Object { (Get-SafeArrayProperty $_ 'versions').Count -gt 0 })
+        $items = @()
+        $versionTotal = 0
+        foreach ($item in (Get-SafeArrayProperty $payload 'items')) {
+            $itemVersions = Get-SafeArrayProperty $item 'versions'
+            if ($itemVersions.Count -gt 0) {
+                $items += $item
+                $versionTotal += $itemVersions.Count
+            }
+        }
         if ($items.Count -gt 0) {
-            $versionTotal = 0
-            foreach ($item in $items) { $versionTotal += (Get-SafeArrayProperty $item 'versions').Count }
             $result.stats = [pscustomobject]@{ resources = $items.Count; versions = $versionTotal }
         }
     }
