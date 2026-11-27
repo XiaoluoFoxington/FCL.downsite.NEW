@@ -18,7 +18,7 @@
 - `config.mjs`：环境变量与常量（**改配置看这里**）
 - `softwares.json`：软件映射表（**有哪些软件看这里**）
 - `tools/refresh-session.mjs`：**手动工具**（非 GHA 运行）——从浏览器提取会话 cookie，供更新 secret
-- `local/`：**Windows 托盘版 `fdn-autosync-tray`**（`start.vbs` → `tray.ps1` 宿主 → `main.mjs` 本地业务 → `sync.mjs` 共享业务），只是外壳，不重复实现同步逻辑；协议与配置结构见 [`local/PROTOCOL.md`](local/PROTOCOL.md)
+- `local/`：**Windows 托盘版 `fdn-autosync-tray`**（`start.vbs` → `tray.ps1` 宿主与调度 → `round.ps1` 六阶段 → `sync.mjs` 共享业务），只是外壳，不重复实现同步逻辑；设计见 [`docs/fdn-autosync-tray-redesign.md`](../../docs/fdn-autosync-tray-redesign.md)
 
 > ⚠️ 2026-10 日志全量重构：旧的可变全局 `ctx`（`ctx.log` / `ctx.group` / `ctx.sum` …）**已整体删除**。
 > 需要打日志的函数改为**接收作用域或回调**，再也没有「猴补丁替换全局 log」这种写法。
@@ -171,15 +171,14 @@ node scripts/auto-sync/probe.mjs
 
 ```text
 start.vbs（wscript，无窗口）
-  └─ powershell tray.ps1           宿主：托盘图标 / 菜单 / 详细状态 / 设置窗口 / Toast / 开机自启
-       └─ node main.mjs            本地业务：唯一调度器 + 唯一状态机（配置 / 状态 / Git / WiFi / 日志 / 通知）
-            └─ node sync.mjs       共享同步业务：与 GHA 完全同一份实现，按轮启动
+  └─ powershell tray.ps1       单一常驻进程：托盘 / 菜单 / 调度 / 配置 / 状态 / Git / WiFi / 日志 / 通知
+       └─ powershell runspace   本轮六阶段编排（round.ps1）
+            └─ node sync.mjs    仅在 Sync 阶段按需启动，共享 GHA 同一入口
 ```
 
-- 宿主（PowerShell）**不做业务**：不读 Git、不跑同步、不读写 `config.json`/`state.json`，只做窗口与 Windows 集成
-- 业务（Node）**不做 UI**：只发状态、发命令，需要打开文件夹/弹通知/改快捷方式时委托宿主
-- 两者用**标准输入输出 JSON Lines** 通信，协议见 [`local/PROTOCOL.md`](local/PROTOCOL.md)
-- **双击 [`local/start.vbs`](local/start.vbs)** 即可启动；单实例，重复双击不会起第二个
+- 托盘端不再启动常驻 Node 业务进程，也不使用 JSON Lines IPC；同步每轮使用配置快照，忙时不重复启动。
+- `tray.ps1` 负责 Windows UI、调度与配置，`round.ps1` 负责 Git/WiFi/Sync 六阶段；Node 只按需执行共享 `sync.mjs`。
+- **双击 [`local/start.vbs`](local/start.vbs)** 即可启动；用 Windows 命名互斥体保证同一仓库只有一个托盘实例。
 
 ### 托盘菜单
 
@@ -188,35 +187,57 @@ start.vbs（wscript，无窗口）
 ```text
 fdn-autosync-tray
 ────────────
-自启动后已同步：12 次
-当前状态：空闲 / 同步中（Sync） / 已暂停
-会话：剩 57 天（或「即将到期」「已失效，请更新 H1111_SESSION」）
-上次同步：2026-11-26 20:30:18
-上次结果：成功 · 用时 18 秒
-下次同步：2026-11-26 20:40:18
+自启动后已同步7次
+上次在11:35
+上次成功
+下次在11:45
 ────────────
-立即同步（同步中禁用）
+查看详细状态
+立即同步
 暂停自动同步 / 恢复自动同步
 锁定
 ────────────
-查看详细状态
-浏览 >（项目目录 / 下载数据目录 / 自动同步目录 / 最新日志 / 日志文件夹）
+浏览 >
+  配置文件
+  日志文件夹
 ────────────
-配置文件
-日志文件夹
-配置…
-开机自启动
-修复自启动（仅在配置已开启但快捷方式不见了时出现）
+配置 >
+  部署 >
+    开机自启（勾选）
+    托盘外观 > 图标 > 选择图片… / 重置
+    启动后同步一次（勾选）
+  准备阶段 >
+    无网时连指定WiFi >
+      总开关（勾选）
+      设定SSID…
+      设定密码…
+      优先使用已保存密码（勾选）
+      不检查网络，总是连（勾选）
+      失败时跳过整次（勾选）
+  pull阶段 >
+    跳过此阶段（勾选）
+    变基模式 > rebase / ff-only
+  sync阶段 > 设定H1111_SESSION… / 设定GH_TOKEN…
+  commit阶段 >
+    跳过此阶段（勾选）
+    git身份 > GHA / 默认 / 自定义 / 设定自定义用户名… / 设定自定义邮箱…
+  push阶段 > 跳过此阶段 / 有未提交改动时跳过此阶段 / 设定PUSH_TOKEN…
+  结束阶段 >
+    断开指定WiFi > 无论是否成功，断开指定WiFi / 并忘记
+    通知 > 标准模式 / 标准模式设置（成功/已是最新/失败/内部错误）/ 累积模式 / 累积模式设置（设定次数… / 内部错误处理 > 总是弹出 / 不弹出）
+  设定间隔(min)…
+  杂项 > 设定日志保留天数… / 设定锁定密码…
+────────────
 重启
 退出
 ```
 
-- 状态区是**只读**信息（灰显不可点），文本由 Node 排版好（本地时区、中文），宿主原样显示
-- 还没跑过任何一轮时显示「尚未同步」/「上次结果：—」，**不会虚构**上次时间
+- 状态区是**只读**信息（灰显不可点），按需求里的极简格式排版
+- 还没跑过任何一轮时**完全不显示**「上次在」「上次XX」两行，不会虚构时间
 
 **锁定**后菜单变成：`fdn-autosync-tray（已锁定）` + 同样的状态摘要 + **查看详细状态** + 立即同步 + 解锁 + 浏览日志文件夹。
 锁定**不隐藏状态、不影响定时同步、不影响图标角标**，只是把「改配置/暂停/重启/退出/开目录」等操作挡住；
-权限由宿主隐藏菜单项 **和** Node 侧二次校验双保险（Node 收到越权命令一律拒绝并回 `locked`）。
+锁定权限由宿主隐藏菜单项保证（旧 Node 常驻协议已不再是运行路径）。
 
 「查看详细状态」是**只读**窗口（只有「关闭」按钮）：当前状态与阶段、运行次数、上次开始/结束/耗时、上次结果与简短错误、
 各结果累计次数、下次同步时间（暂停时如实显示「未安排（已暂停）」），且**不含任何 Token / Cookie / 密码**。
@@ -247,7 +268,7 @@ fdn-autosync-tray
     "pull":   { "enabled": true, "strategy": "rebase" },
     "sync":   { "enabled": true },
     "commit": { "enabled": true, "identityMode": "gha", "userName": "", "userEmail": "" },
-    "push":   { "enabled": true }
+    "push":   { "enabled": true, "skipIfDirty": false }
   },
   "credentials": { "H1111_SESSION": "", "H1111_USER": "", "H1111_PASSWORD": "", "GH_TOKEN": "", "PUSH_TOKEN": "" },
   "notifications": {
@@ -275,6 +296,7 @@ fdn-autosync-tray
 | stages.sync | `enabled` | 开 | 是否执行 `sync.mjs`（关掉 = 只跑 Git 阶段，调试用） |
 | stages.commit | `enabled` / `identityMode` / `userName` / `userEmail` | 开 / `gha` | 身份：`gha` = `github-actions[bot]`（与 GHA 一致）/ `default` = 本机 git 配置 / `custom` = 下面两项（只作用于本仓库提交，不写 `--global`） |
 | stages.push | `enabled` | 开 | 是否推送；关掉时提交只留在本地 |
+| stages.push | `skipIfDirty` | 关 | Push 前若工作区又出现未提交改动，则跳过 Push |
 | credentials | `H1111_SESSION` | `""` | huang1111 会话 cookie（取法见上文「会话 cookie」） |
 | credentials | `H1111_USER` / `H1111_PASSWORD` | `""` | 回退用的账号密码（站点已改交互式验证，基本用不上） |
 | credentials | `GH_TOKEN` | `""` | GitHub 只读 token（把 API 限额从 60 次/时提到 5000 次/时） |
@@ -338,39 +360,30 @@ Prepare（检查网络，必要时连 WiFi）
 
 ### 设置窗口
 
-托盘菜单「配置…」打开原生 WinForms 窗口（锁定状态下不可打开），分页：
+托盘端**不再有独立设置窗口**：所有配置都在右键菜单「配置」的嵌套子菜单里直接改，
+点勾选/单选立即保存，文字、数字、密码用单项输入框。取消或保存失败不改变当前值。
+直接编辑 `local/config.json` 后重启托盘生效。
 
-| 页 | 内容 |
-|---|---|
-| 部署 | 开机自启动、托盘外观（选择图片 / 重置默认图标）、启动后立即同步一次 |
-| 准备阶段 | WiFi 总开关、SSID、密码、优先用系统已保存密码、总是尝试连接、失败跳过整次 |
-| Pull | 跳过 Pull、策略 rebase / ff-only |
-| Sync | 跳过 Sync、`H1111_SESSION`、`H1111_USER`、`H1111_PASSWORD` |
-| Commit | 跳过 Commit、身份（GHA / 默认 / 自定义）、自定义用户名与邮箱 |
-| Push | 跳过 Push、`PUSH_TOKEN` |
-| 结束阶段 | 同步后断开 WiFi、失败也断开、断开后忘记配置 |
-| 通知 | 标准 / 累积、四类结果勾选、累积次数、内部错误始终提示 |
-| 其他 | 同步间隔、日志保留天数、锁定密码、`GH_TOKEN`、Node 路径、各阶段超时 |
-
-保存时由 Node 校验并**原子**写入（唯一写配置的进程），校验失败会保留窗口里的输入让你改；
 本轮正在跑的同步用的是**开始时的配置快照**，改配置只影响下一轮。
 
 ### 开发与测试
 
-```bash
-# 本地业务（不弹窗口、不开托盘）——开发联调用
-node scripts/auto-sync/local/main.mjs        # 由 tray.ps1 通过 stdin/stdout 驱动
+```powershell
+# 无托盘单轮联调（完成一轮后自动退出；仍会检查真实工作区）
+powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -NoTray
+
+# 只导出现有菜单树（只读，使用内存默认配置，不碰真实 config.json / state.json）
+powershell -STA -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -TestMenu
 
 # 自动化测试（无需网络、不碰真实仓库）
-# 注意：Node 24 的 node --test 不再接受目录参数，用 glob 或进入目录后不带参数
 node --test "scripts/auto-sync/local/test/**/*.test.mjs"
 ```
 
-- 测试覆盖：配置默认值/校验/迁移/原子保存、状态记账、调度器间隔与暂停/唤醒、通知文案与计数、
-  **Git push 失败恢复（临时 bare 仓库 + pre-receive 钩子）**、工作区保护、锁定权限矩阵、协议编码、图标缓存键与 ICO 结构、WiFi 输出解析
+- `test/menu-tree.test.mjs` 会实际启动 `tray.ps1 -TestMenu`，断言「浏览 → 配置文件/日志文件夹」、
+  「准备阶段 → 无网时连指定WiFi」等层级没被平铺，并检查首次启动不显示上次同步信息
+- 其余测试覆盖：配置默认值/校验/迁移/原子保存、状态记账、调度器间隔与暂停/唤醒、通知文案与计数、
+  **Git push 失败恢复（临时 bare 仓库 + pre-receive 钩子）**、工作区保护、图标缓存键与 ICO 结构、WiFi 输出解析
 - 联调钩子（正常运行时不要设置）：`FDN_LOCAL_DIR` 把本机运行数据重定向到别处、`FDN_REPO_ROOT` 把 Git/同步业务指向另一个仓库
-- 宿主调试：`powershell -ExecutionPolicy Bypass -File scripts\auto-sync\local\tray.ps1 -NoTray`
-  不创建托盘图标、只跑协议循环（用于协议联调，不会和正在用的托盘抢通知区）
 
 ## 数据结构（站内 `data/down/{id}/`）
 

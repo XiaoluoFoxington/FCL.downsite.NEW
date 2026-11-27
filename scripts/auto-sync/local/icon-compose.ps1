@@ -4,7 +4,7 @@
     fdn-autosync-tray 图标合成器：底图 + 右下角状态角标 → 多尺寸 PNG。
 
 .DESCRIPTION
-    由 Node 端 modules/tray-icon.mjs 以子进程方式调用（见 PROTOCOL.md §8.2）：
+    由 tray.ps1 在状态变化时以子进程方式调用：
 
         powershell -NoProfile -ExecutionPolicy Bypass -File icon-compose.ps1 `
             -Base <底图路径> -Badge <running|paused|success|up-to-date|failure|internal-error|none> `
@@ -857,7 +857,7 @@ function Invoke-IconCompose {
         $icoFrames = New-Object System.Collections.ArrayList
         foreach ($size in $requested) {
             # 小尺寸兜底：挖空带在小画面上可能退化成「硬切的 1px 灰圈」。
-            # 判断方法（PROTOCOL 之外的观感修正）：按挖空渲染一版，与「无角标」版逐像素比 alpha，
+            # 判断方法（观感修正，不属于任何外部契约）：按挖空渲染一版，与「无角标」版逐像素比 alpha，
             # 若被挖掉的像素里「纯 0」占比 > 80%，说明这条带在这个尺寸上表达不出过渡，
             # 就干脆不挖空，让角标直接压在底图上（角标自带深色描边）。
             $cutout = $true
