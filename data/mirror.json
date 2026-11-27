@@ -42,6 +42,8 @@
     "baseUrl": "https://miawa.cn",
     "apiVer": "Lemwood",
     "description": "源：miawa.cn",
+    "notJoinRandom": true,
+    "disabled": true,
     "contributeId": [2]
   },
   {
