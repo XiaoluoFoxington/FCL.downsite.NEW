@@ -133,7 +133,7 @@ const ruRU = {
     },
     system: {
       cannotDetectOs: 'Не удалось определить название текущей ОС.',
-      harmonyOsAsAndroid: 'Текущая система ({osName}) — нечистокровный HarmonyOS; сопоставление выполняется как Android.',
+      harmonyOsAsAndroid: 'Текущая система ({osName}) не является чистым HarmonyOS и рассматривается как эквивалент Android при сопоставлении.',
       osRequirement: 'Требуется {supported}. Текущая система ({osName}) может работать некорректно. (Только для справки, без гарантий)',
       osVersionRequirement: 'Требуется {osName} {osVersion} или новее. Текущая система ({currentOs} {currentVersion}) может работать некорректно. (Только для справки, без гарантий)',
       matchedArch: 'Рекомендуемая архитектура сопоставлена: {arch}',

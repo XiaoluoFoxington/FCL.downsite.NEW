@@ -133,7 +133,7 @@ const ar = {
     },
     system: {
       cannotDetectOs: 'تعذر الكشف عن اسم النظام الحالي.',
-      harmonyOsAsAndroid: 'النظام الحالي ({osName}) هو HarmonyOS غير نقي، وستتم المطابقة باعتباره Android.',
+      harmonyOsAsAndroid: 'النظام الحالي ({osName}) ليس HarmonyOS النقي، ويُعامَل على أنه مكافئ لنظام Android عند المطابقة.',
       osRequirement: 'المطلوب {supported}، وقد لا يعمل النظام الحالي ({osName}) بشكل طبيعي. (للمرجعية فقط، وليس بالضرورة دقيقًا)',
       osVersionRequirement: 'المطلوب {osName} {osVersion} أو أحدث، وقد لا يعمل النظام الحالي ({currentOs} {currentVersion}) بشكل طبيعي. (للمرجعية فقط، وليس بالضرورة دقيقًا)',
       matchedArch: 'تم اختيار البنية الموصى بها لكم: {arch}',

@@ -133,7 +133,7 @@ const frFR = {
     },
     system: {
       cannotDetectOs: 'Impossible de détecter le nom du système actuel.',
-      harmonyOsAsAndroid: 'Le système actuel ({osName}) est un HarmonyOS non pur ; il est comparé comme Android.',
+      harmonyOsAsAndroid: 'Le système actuel ({osName}) n’est pas HarmonyOS pur et est traité comme équivalent à Android pour la correspondance.',
       osRequirement: 'Requiert {supported}. Le système actuel ({osName}) pourrait ne pas fonctionner correctement. (À titre indicatif, sans garantie)',
       osVersionRequirement: 'Requiert {osName} {osVersion} ou supérieur. Le système actuel ({currentOs} {currentVersion}) pourrait ne pas fonctionner correctement. (À titre indicatif, sans garantie)',
       matchedArch: 'Architecture recommandée correspondante : {arch}',
