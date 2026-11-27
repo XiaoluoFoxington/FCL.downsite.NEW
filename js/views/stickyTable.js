@@ -333,9 +333,9 @@ export function createStickyTableHeader(wrapper, { top = DEFAULT_TOP, offsetElem
     const headRect = thead?.getBoundingClientRect();
     const scrollLeft = wrapper.scrollLeft;
 
-    // 原表头滚过粘滞线、且表格整体还没滚出视口时才显示替身。
+    // 只要原表头不完整了就显示替身。
     const shouldShow = Boolean(headRect)
-      && headRect.bottom <= topValue + 0.5
+      && headRect.top <= topValue + 0.5
       && wrapperRect.bottom > topValue + 0.5;
 
     // 写阶段：隐藏时连 top 都不写，页面大部分滚动区间里没有任何样式变更。
