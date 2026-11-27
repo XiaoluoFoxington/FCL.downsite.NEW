@@ -50,6 +50,7 @@ $script:Paused = $false
 $script:Locked = $false
 $script:NextRunAt = $null
 $script:Runspace = $null
+$script:WorkerRunspace = $null
 $script:RunAsync = $null
 $script:RunTimer = $null
 $script:ScheduleTimer = $null
@@ -66,6 +67,7 @@ $script:ToastAppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v
 $script:PowerModeSubscribed = $false
 $script:LastIconCacheKey = ''
 $script:LastLogCleanupDate = ''
+$script:MenuClickHandler = $null
 
 # ----------------------------- 小工具 -----------------------------
 function Get-ConfigValue {
@@ -453,6 +455,8 @@ function Show-TextInput {
 function Open-Path { param([string]$Path) if (Test-Path -LiteralPath $Path) { Start-Process -FilePath 'explorer.exe' -ArgumentList @($Path) } else { Show-ErrorMessage ('路径不存在：' + $Path) } }
 
 function Install-StartupShortcut {
+    $shell = $null
+    $shortcut = $null
     try {
         $shell = New-Object -ComObject WScript.Shell
         $shortcut = $shell.CreateShortcut($script:StartupShortcutPath)
@@ -465,6 +469,10 @@ function Install-StartupShortcut {
         Save-Config | Out-Null
     }
     catch { Show-ErrorMessage ('创建开机自启动失败：' + $_.Exception.Message) }
+    finally {
+        if ($null -ne $shortcut) { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shortcut) } catch { } }
+        if ($null -ne $shell) { try { [void][Runtime.InteropServices.Marshal]::ReleaseComObject($shell) } catch { } }
+    }
 }
 
 function Remove-StartupShortcut {
@@ -498,6 +506,32 @@ function Reset-IconFile {
 }
 
 # ----------------------------- 菜单 -----------------------------
+function Invoke-MenuItemAction {
+    param($Tag)
+    if ($null -eq $Tag) { return }
+    switch ([string]$Tag.Kind) {
+        'toggle' { Toggle-Config ([string]$Tag.Path) }
+        'radio' { Set-ConfigEnum ([string]$Tag.Path) ([string]$Tag.Value) }
+        'text' { Set-ConfigText ([string]$Tag.Path) ([string]$Tag.Title) ([string]$Tag.Label) -Password:([bool]$Tag.Password) }
+        'number' { Set-ConfigNumber ([string]$Tag.Path) ([string]$Tag.Title) ([string]$Tag.Label) ([int]$Tag.Min) ([int]$Tag.Max) }
+        'startup' { Toggle-Startup }
+        'select-icon' { Select-IconFile }
+        'reset-icon' { Reset-IconFile }
+        'sync-now' { Start-SyncRound }
+        'toggle-pause' { Toggle-Pause }
+        'lock' { Lock-Tray }
+        'unlock' { Unlock-Tray }
+        'open-path' { Open-Path ([string]$Tag.Path) }
+        'restart' { Request-Shutdown $true }
+        'exit' { Request-Shutdown $false }
+    }
+}
+
+$script:MenuClickHandler = [EventHandler]{
+    param($sender, $e)
+    if ($null -ne $sender) { Invoke-MenuItemAction $sender.Tag }
+}
+
 function Add-MenuControl {
     param($Menu, $Control)
     if ($Menu -is [Windows.Forms.ContextMenuStrip]) { [void]$Menu.Items.Add($Control) }
@@ -506,12 +540,15 @@ function Add-MenuControl {
 }
 
 function New-MenuItem {
-    param($Menu, [string]$Text, [scriptblock]$Action = $null, [bool]$Enabled = $true, [bool]$Checked = $false)
+    param($Menu, [string]$Text, $ActionTag = $null, [bool]$Enabled = $true, [bool]$Checked = $false)
     $item = New-Object Windows.Forms.ToolStripMenuItem
     $item.Text = $Text
     $item.Enabled = $Enabled
     $item.Checked = $Checked
-    if ($null -ne $Action) { $item.Add_Click($Action) }
+    if ($null -ne $ActionTag) {
+        $item.Tag = $ActionTag
+        $item.Add_Click($script:MenuClickHandler)
+    }
     Add-MenuControl $Menu $item
     return $item
 }
@@ -522,16 +559,14 @@ function Add-Separator { param($Menu) Add-MenuControl $Menu (New-Object Windows.
 function Add-ConfigToggle {
     param($Menu, [string]$Text, [string]$Path, [bool]$Invert = $false)
     $checked = [bool](Get-ConfigValue $script:Config $Path $false)
-    $action = { Toggle-Config $Path }.GetNewClosure()
     if ($Invert) { $checked = -not $checked }
-    [void](New-MenuItem $Menu $Text $action $true $checked)
+    [void](New-MenuItem $Menu $Text @{ Kind = 'toggle'; Path = $Path } $true $checked)
 }
 
 function Add-ConfigRadio {
     param($Menu, [string]$Text, [string]$Path, [string]$Value)
     $checked = ([string](Get-ConfigValue $script:Config $Path '') -eq $Value)
-    $action = { Set-ConfigEnum $Path $Value }.GetNewClosure()
-    [void](New-MenuItem $Menu $Text $action $true $checked)
+    [void](New-MenuItem $Menu $Text @{ Kind = 'radio'; Path = $Path; Value = $Value } $true $checked)
 }
 
 function Format-ConfigPreview {
@@ -557,16 +592,16 @@ function Add-TextConfigItem {
     param($Menu, [string]$LabelBase, [string]$Path, [string]$Title, [string]$Label, [bool]$Password = $false, [string]$EmptyText = '未设定')
     $preview = Format-ConfigPreview -Path $Path -Password $Password -EmptyText $EmptyText
     $text = '{0}({1})…' -f $LabelBase, $preview
-    $action = { Set-ConfigText $Path $Title $Label -Password:$Password }.GetNewClosure()
-    [void](New-MenuItem $Menu $text $action)
+    $tag = @{ Kind = 'text'; Path = $Path; Title = $Title; Label = $Label; Password = $Password }
+    [void](New-MenuItem $Menu $text $tag)
 }
 
 function Add-NumberConfigItem {
     param($Menu, [string]$LabelBase, [string]$Path, [string]$Title, [string]$Label, [int]$Min = 1, [int]$Max = 1440, [string]$Unit = '', [string]$ZeroText = '')
     $preview = Format-ConfigPreview -Path $Path -Unit $Unit -ZeroText $ZeroText
     $text = '{0}({1})…' -f $LabelBase, $preview
-    $action = { Set-ConfigNumber $Path $Title $Label $Min $Max }.GetNewClosure()
-    [void](New-MenuItem $Menu $text $action)
+    $tag = @{ Kind = 'number'; Path = $Path; Title = $Title; Label = $Label; Min = $Min; Max = $Max }
+    [void](New-MenuItem $Menu $text $tag)
 }
 
 function Toggle-Startup {
@@ -589,11 +624,11 @@ function Build-ConfigMenu {
 
     $deployment = New-SubMenu $configRoot '部署'
     $startupChecked = Test-Path -LiteralPath $script:StartupShortcutPath
-    [void](New-MenuItem $deployment '开机自启' { Toggle-Startup } $true $startupChecked)
+    [void](New-MenuItem $deployment '开机自启' @{ Kind = 'startup' } $true $startupChecked)
     $appearance = New-SubMenu $deployment '托盘外观'
     $icon = New-SubMenu $appearance '图标'
-    [void](New-MenuItem $icon '选择图片…' { Select-IconFile })
-    [void](New-MenuItem $icon '重置' { Reset-IconFile })
+    [void](New-MenuItem $icon '选择图片…' @{ Kind = 'select-icon' })
+    [void](New-MenuItem $icon '重置' @{ Kind = 'reset-icon' })
     Add-ConfigToggle $deployment '启动后同步一次' 'startup.runOnStart'
     Add-TextConfigItem $deployment '设定Node.js路径' 'runtime.nodePath' 'Node.js 路径' 'node.exe 路径（留空自动查找）' $false '自动'
 
@@ -735,12 +770,18 @@ function Clear-MenuItems {
         if ($it -is [Windows.Forms.ToolStripDropDownItem] -and $it.HasDropDownItems) {
             Clear-MenuItems $it.DropDownItems
         }
+        if ($it -is [Windows.Forms.ToolStripItem]) {
+            try { $it.Remove_Click($script:MenuClickHandler) } catch { }
+            $it.Tag = $null
+        }
         try { $it.Dispose() } catch { }
     }
 }
 
 function Build-TrayMenu {
+    param([switch]$Force)
     if ($null -eq $script:ContextMenu) { return }
+    if (-not $Force -and $script:ContextMenu.Visible) { return }
     $menu = $script:ContextMenu
     Clear-MenuItems $menu.Items
     $title = $script:AppName
@@ -752,27 +793,27 @@ function Build-TrayMenu {
 
     if ($script:Locked) {
         Add-DetailSubMenu $menu
-        [void](New-MenuItem $menu '立即同步' { Start-SyncRound } (-not $script:Running))
-        [void](New-MenuItem $menu '解锁' { Unlock-Tray })
-        [void](New-MenuItem $menu '浏览日志文件夹' { Open-Path $script:LogsDir })
+        [void](New-MenuItem $menu '立即同步' @{ Kind = 'sync-now' } (-not $script:Running))
+        [void](New-MenuItem $menu '解锁' @{ Kind = 'unlock' })
+        [void](New-MenuItem $menu '浏览日志文件夹' @{ Kind = 'open-path'; Path = $script:LogsDir })
         return
     }
 
     Add-DetailSubMenu $menu
-    [void](New-MenuItem $menu '立即同步' { Start-SyncRound } (-not $script:Running))
+    [void](New-MenuItem $menu '立即同步' @{ Kind = 'sync-now' } (-not $script:Running))
     $pauseText = if ($script:Paused) { '恢复自动同步' } else { '暂停自动同步' }
-    [void](New-MenuItem $menu $pauseText { Toggle-Pause })
-    [void](New-MenuItem $menu '锁定' { Lock-Tray })
+    [void](New-MenuItem $menu $pauseText @{ Kind = 'toggle-pause' })
+    [void](New-MenuItem $menu '锁定' @{ Kind = 'lock' })
     Add-Separator $menu
 
     $browse = New-SubMenu $menu '浏览'
-    [void](New-MenuItem $browse '配置文件' { Open-Path $script:ConfigPath })
-    [void](New-MenuItem $browse '日志文件夹' { Open-Path $script:LogsDir })
+    [void](New-MenuItem $browse '配置文件' @{ Kind = 'open-path'; Path = $script:ConfigPath })
+    [void](New-MenuItem $browse '日志文件夹' @{ Kind = 'open-path'; Path = $script:LogsDir })
     Add-Separator $menu
     Build-ConfigMenu $menu
     Add-Separator $menu
-    [void](New-MenuItem $menu '重启' { Request-Shutdown $true })
-    [void](New-MenuItem $menu '退出' { Request-Shutdown $false })
+    [void](New-MenuItem $menu '重启' @{ Kind = 'restart' })
+    [void](New-MenuItem $menu '退出' @{ Kind = 'exit' })
 }
 
 # ----------------------------- 图标与通知 -----------------------------
@@ -800,6 +841,16 @@ function Get-BaseIconFingerprint {
     catch { return 'default' }
 }
 
+function Clear-IconCache {
+    if (-not (Test-Path -LiteralPath $script:CacheDir -PathType Container)) { return }
+    try {
+        foreach ($entry in (Get-ChildItem -LiteralPath $script:CacheDir -Force -ErrorAction SilentlyContinue)) {
+            Remove-Item -LiteralPath $entry.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+    catch { }
+}
+
 function Update-TrayIcon {
     param([switch]$ForceRebuild)
     if ($null -eq $script:NotifyIcon -or -not (Test-Path -LiteralPath $script:IconCompose -PathType Leaf)) { return }
@@ -815,20 +866,29 @@ function Update-TrayIcon {
     if (-not $ForceRebuild -and $cacheKey -eq $script:LastIconCacheKey -and $null -ne $script:CurrentIcon) { return }
     $outDir = Join-Path $script:CacheDir $cacheKey
     $ico = Join-Path $outDir 'tray.ico'
+    $newIcon = $null
     try {
+        if ($ForceRebuild) { Clear-IconCache }
         if ($ForceRebuild -or -not (Test-Path -LiteralPath $ico -PathType Leaf)) {
             [void][IO.Directory]::CreateDirectory($outDir)
             $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script:IconCompose -Base $base -Badge $badge -OutDir $outDir -OutIco $ico 2>&1
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $ico -PathType Leaf)) { throw (($output | Out-String).Trim()) }
         }
-        $newIcon = New-Object Drawing.Icon($ico)
+        $bytes = [IO.File]::ReadAllBytes($ico)
+        $ms = New-Object IO.MemoryStream(,$bytes)
+        try { $newIcon = New-Object Drawing.Icon($ms) }
+        finally { $ms.Dispose() }
         $old = $script:CurrentIcon
-        $script:CurrentIcon = $newIcon
         $script:NotifyIcon.Icon = $newIcon
+        $script:CurrentIcon = $newIcon
+        $newIcon = $null
         $script:LastIconCacheKey = $cacheKey
-        if ($null -ne $old) { $old.Dispose() }
+        if ($null -ne $old) { try { $old.Dispose() } catch { } }
     }
-    catch { Write-Log ('图标更新失败：' + $_.Exception.Message) 'WARN' }
+    catch {
+        if ($null -ne $newIcon) { try { $newIcon.Dispose() } catch { } }
+        Write-Log ('图标更新失败：' + $_.Exception.Message) 'WARN'
+    }
 }
 
 function Test-ToastAvailable {
@@ -984,7 +1044,8 @@ function Invoke-MemoryTrim {
         }
         if ('FdnNativeMemory' -as [type]) {
             $proc = [Diagnostics.Process]::GetCurrentProcess()
-            [void][FdnNativeMemory]::SetProcessWorkingSetSize($proc.Handle, [IntPtr](-1), [IntPtr](-1))
+            try { [void][FdnNativeMemory]::SetProcessWorkingSetSize($proc.Handle, [IntPtr](-1), [IntPtr](-1)) }
+            finally { $proc.Dispose() }
         }
     }
     catch { }
@@ -1045,6 +1106,34 @@ function Toggle-Pause {
     Update-TrayIcon
 }
 
+function Get-WorkerRunspace {
+    if ($null -ne $script:WorkerRunspace) {
+        try {
+            if ($script:WorkerRunspace.RunspaceStateInfo.State -eq [Management.Automation.Runspaces.RunspaceState]::Opened) {
+                return $script:WorkerRunspace
+            }
+        }
+        catch { }
+        try { $script:WorkerRunspace.Close() } catch { }
+        try { $script:WorkerRunspace.Dispose() } catch { }
+        $script:WorkerRunspace = $null
+    }
+    $rs = [Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+    $rs.ApartmentState = [Threading.ApartmentState]::MTA
+    $rs.ThreadOptions = [Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
+    $rs.Open()
+    $script:WorkerRunspace = $rs
+    return $rs
+}
+
+function Dispose-WorkerRunspace {
+    if ($null -ne $script:WorkerRunspace) {
+        try { $script:WorkerRunspace.Close() } catch { }
+        try { $script:WorkerRunspace.Dispose() } catch { }
+        $script:WorkerRunspace = $null
+    }
+}
+
 function Start-SyncRound {
     if ($script:Running -or $script:ExitRequested) { return }
     $power = $null
@@ -1058,6 +1147,7 @@ function Start-SyncRound {
         Build-TrayMenu
         Update-TrayIcon
         $power = [PowerShell]::Create()
+        $power.Runspace = Get-WorkerRunspace
         [void]$power.AddCommand($script:RoundPath)
         [void]$power.AddParameter('Root', $script:RepoRoot)
         [void]$power.AddParameter('LocalDir', $script:LocalDir)
@@ -1069,10 +1159,7 @@ function Start-SyncRound {
         Write-Log '开始同步'
     }
     catch {
-        if ($null -ne $power) {
-            try { if ($null -ne $power.Runspace) { $power.Runspace.Close(); $power.Runspace.Dispose() } } catch { }
-            try { $power.Dispose() } catch { }
-        }
+        if ($null -ne $power) { try { $power.Dispose() } catch { } }
         $script:Runspace = $null
         $script:RunAsync = $null
         $script:Running = $false
@@ -1101,13 +1188,7 @@ function Finish-SyncRound {
     finally {
         $script:RunTimer.Stop()
         if ($null -ne $script:Runspace) {
-            $rs = $null
-            try { $rs = $script:Runspace.Runspace } catch { }
             try { $script:Runspace.Dispose() } catch { }
-            if ($null -ne $rs) {
-                try { $rs.Close() } catch { }
-                try { $rs.Dispose() } catch { }
-            }
         }
         $script:Runspace = $null
         $script:RunAsync = $null
@@ -1213,7 +1294,7 @@ function Initialize-Tray {
     $script:ContextMenu = New-Object Windows.Forms.ContextMenuStrip
     $script:NotifyIcon.ContextMenuStrip = $script:ContextMenu
     $script:NotifyIcon.Visible = $true
-    $script:ContextMenu.Add_Opening({ Build-TrayMenu })
+    $script:ContextMenu.Add_Opening({ Build-TrayMenu -Force })
 
     try {
         $script:PowerModeHandler = [Microsoft.Win32.PowerModeChangedEventHandler]{
@@ -1273,9 +1354,10 @@ finally {
     }
     if ($null -ne $script:ScheduleTimer) { $script:ScheduleTimer.Dispose() }
     if ($null -ne $script:RunTimer) { $script:RunTimer.Dispose() }
-    if ($null -ne $script:NotifyIcon) { $script:NotifyIcon.Visible = $false; $script:NotifyIcon.Dispose() }
+    Dispose-WorkerRunspace
+    if ($null -ne $script:NotifyIcon) { $script:NotifyIcon.Visible = $false; $script:NotifyIcon.Icon = $null; $script:NotifyIcon.Dispose() }
     if ($null -ne $script:ContextMenu) { Clear-MenuItems $script:ContextMenu.Items; $script:ContextMenu.Dispose() }
-    if ($null -ne $script:CurrentIcon) { $script:CurrentIcon.Dispose() }
+    if ($null -ne $script:CurrentIcon) { $script:CurrentIcon.Dispose(); $script:CurrentIcon = $null }
     Release-InstanceMutex
     if ($script:RestartRequested) {
         try { Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList @('"' + $script:StartVbsPath + '"', '/from-restart') -WorkingDirectory $script:LocalDir } catch { }
