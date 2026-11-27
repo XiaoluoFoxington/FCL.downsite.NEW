@@ -15,7 +15,8 @@ param(
     [switch]$Uninstall,
     [switch]$NoTray,
     [switch]$VerboseLog,
-    [switch]$TestMenu
+    [switch]$TestMenu,
+    [switch]$FromRestart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,6 +61,11 @@ $script:RestartRequested = $false
 $script:RunNumber = 0
 $script:InstanceMutex = $null
 $script:InstanceMutexOwned = $false
+$script:ToastReady = $null
+$script:ToastAppId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+$script:PowerModeSubscribed = $false
+$script:LastIconCacheKey = ''
+$script:LastLogCleanupDate = ''
 
 # ----------------------------- 小工具 -----------------------------
 function Get-ConfigValue {
@@ -318,10 +324,11 @@ function New-DefaultState {
 
 function Load-State {
     $script:State = New-DefaultState
+    $script:State.totalRuns = 0
     if (Test-Path -LiteralPath $script:StatePath -PathType Leaf) {
         try {
             $raw = Get-Content -LiteralPath $script:StatePath -Raw | ConvertFrom-Json -ErrorAction Stop
-            foreach ($property in @('totalRuns', 'lastRun', 'nextRunAt')) {
+            foreach ($property in @('lastRun', 'nextRunAt')) {
                 if ($null -ne $raw.PSObject.Properties[$property]) { $script:State.$property = $raw.$property }
             }
             if ($null -ne $raw.PSObject.Properties['stats']) { $script:State.stats = $raw.stats }
@@ -373,6 +380,15 @@ function Set-ConfigNumber {
     if (-not [int]::TryParse($value, [ref]$number) -or $number -lt $Min -or $number -gt $Max) { Show-ErrorMessage ("请输入 {0} 到 {1} 之间的整数" -f $Min, $Max); return }
     Set-ConfigValue $script:Config $Path $number
     Save-Config | Out-Null
+    if ($Path -eq 'scheduler.intervalMinutes' -and -not $script:Running -and -not $script:Paused) {
+        $script:NextRunAt = (Get-Date).AddMinutes($number)
+        if ($null -ne $script:ScheduleTimer) { $script:ScheduleTimer.Start() }
+        Save-State
+    }
+    elseif ($Path -eq 'logging.retentionDays') {
+        $script:LastLogCleanupDate = ''
+        Invoke-LogRetentionCleanup
+    }
     Build-TrayMenu
 }
 
@@ -394,41 +410,44 @@ function Set-ConfigEnum {
 function Show-TextInput {
     param([string]$Title, [string]$Label, [string]$Value = '', [bool]$Password = $false)
     $form = New-Object Windows.Forms.Form
-    $form.Text = $Title
-    $form.Width = 460
-    $form.Height = 155
-    $form.StartPosition = 'CenterScreen'
-    $form.FormBorderStyle = 'FixedDialog'
-    $form.MaximizeBox = $false
-    $form.MinimizeBox = $false
-    $labelControl = New-Object Windows.Forms.Label
-    $labelControl.Text = $Label
-    $labelControl.Left = 12
-    $labelControl.Top = 15
-    $labelControl.AutoSize = $true
-    $text = New-Object Windows.Forms.TextBox
-    $text.Left = 12
-    $text.Top = 42
-    $text.Width = 420
-    $text.Text = $Value
-    $text.UseSystemPasswordChar = $Password
-    $ok = New-Object Windows.Forms.Button
-    $ok.Text = '确定'
-    $ok.Left = 265
-    $ok.Top = 78
-    $ok.Width = 80
-    $ok.DialogResult = [Windows.Forms.DialogResult]::OK
-    $cancel = New-Object Windows.Forms.Button
-    $cancel.Text = '取消'
-    $cancel.Left = 352
-    $cancel.Top = 78
-    $cancel.Width = 80
-    $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
-    $form.Controls.AddRange(@($labelControl, $text, $ok, $cancel))
-    $form.AcceptButton = $ok
-    $form.CancelButton = $cancel
-    if ($form.ShowDialog() -eq [Windows.Forms.DialogResult]::OK) { return $text.Text }
-    return $null
+    try {
+        $form.Text = $Title
+        $form.Width = 460
+        $form.Height = 155
+        $form.StartPosition = 'CenterScreen'
+        $form.FormBorderStyle = 'FixedDialog'
+        $form.MaximizeBox = $false
+        $form.MinimizeBox = $false
+        $labelControl = New-Object Windows.Forms.Label
+        $labelControl.Text = $Label
+        $labelControl.Left = 12
+        $labelControl.Top = 15
+        $labelControl.AutoSize = $true
+        $text = New-Object Windows.Forms.TextBox
+        $text.Left = 12
+        $text.Top = 42
+        $text.Width = 420
+        $text.Text = $Value
+        $text.UseSystemPasswordChar = $Password
+        $ok = New-Object Windows.Forms.Button
+        $ok.Text = '确定'
+        $ok.Left = 265
+        $ok.Top = 78
+        $ok.Width = 80
+        $ok.DialogResult = [Windows.Forms.DialogResult]::OK
+        $cancel = New-Object Windows.Forms.Button
+        $cancel.Text = '取消'
+        $cancel.Left = 352
+        $cancel.Top = 78
+        $cancel.Width = 80
+        $cancel.DialogResult = [Windows.Forms.DialogResult]::Cancel
+        $form.Controls.AddRange(@($labelControl, $text, $ok, $cancel))
+        $form.AcceptButton = $ok
+        $form.CancelButton = $cancel
+        if ($form.ShowDialog() -eq [Windows.Forms.DialogResult]::OK) { return $text.Text }
+        return $null
+    }
+    finally { $form.Dispose() }
 }
 
 function Open-Path { param([string]$Path) if (Test-Path -LiteralPath $Path) { Start-Process -FilePath 'explorer.exe' -ArgumentList @($Path) } else { Show-ErrorMessage ('路径不存在：' + $Path) } }
@@ -456,23 +475,26 @@ function Remove-StartupShortcut {
 
 function Select-IconFile {
     $dialog = New-Object Windows.Forms.OpenFileDialog
-    $dialog.Filter = '图片|*.png;*.bmp;*.ico|所有文件|*.*'
-    if ($dialog.ShowDialog() -ne [Windows.Forms.DialogResult]::OK) { return }
     try {
+        $dialog.Filter = '图片|*.png;*.bmp;*.ico|所有文件|*.*'
+        if ($dialog.ShowDialog() -ne [Windows.Forms.DialogResult]::OK) { return }
         $extension = [IO.Path]::GetExtension($dialog.FileName).ToLowerInvariant()
         $target = Join-Path $script:AssetsDir ('user-icon' + $extension)
         [void][IO.Directory]::CreateDirectory($script:AssetsDir)
         Copy-Item -LiteralPath $dialog.FileName -Destination $target -Force
         Set-ConfigValue $script:Config 'appearance.iconPath' ('assets/user-icon' + $extension)
-        if (Save-Config) { Update-TrayIcon }
+        $script:LastIconCacheKey = ''
+        if (Save-Config) { Update-TrayIcon -ForceRebuild }
     }
     catch { Show-ErrorMessage ('复制托盘底图失败：' + $_.Exception.Message) }
+    finally { $dialog.Dispose() }
 }
 
 function Reset-IconFile {
     Set-ConfigValue $script:Config 'appearance.iconPath' $null
     Save-Config | Out-Null
-    Update-TrayIcon
+    $script:LastIconCacheKey = ''
+    Update-TrayIcon -ForceRebuild
 }
 
 # ----------------------------- 菜单 -----------------------------
@@ -512,10 +534,39 @@ function Add-ConfigRadio {
     [void](New-MenuItem $Menu $Text $action $true $checked)
 }
 
+function Format-ConfigPreview {
+    param([string]$Path, [bool]$Password = $false, [string]$Unit = '', [string]$EmptyText = '未设定', [string]$ZeroText = '')
+    $raw = Get-ConfigValue $script:Config $Path ''
+    if ($Password) {
+        $text = [string]$raw
+        if ([string]::IsNullOrEmpty($text)) { return $EmptyText }
+        return '已设定'
+    }
+    if ($Unit) {
+        $num = [int]$raw
+        if ($ZeroText -and $num -eq 0) { return $ZeroText }
+        return ([string]$num + $Unit)
+    }
+    $text = ([string]$raw).Trim()
+    if ([string]::IsNullOrEmpty($text)) { return $EmptyText }
+    if ($text.Length -gt 24) { return $text.Substring(0, 23) + '…' }
+    return $text
+}
+
 function Add-TextConfigItem {
-    param($Menu, [string]$Text, [string]$Path, [string]$Title, [string]$Label, [bool]$Password = $false)
+    param($Menu, [string]$LabelBase, [string]$Path, [string]$Title, [string]$Label, [bool]$Password = $false, [string]$EmptyText = '未设定')
+    $preview = Format-ConfigPreview -Path $Path -Password $Password -EmptyText $EmptyText
+    $text = '{0}({1})…' -f $LabelBase, $preview
     $action = { Set-ConfigText $Path $Title $Label -Password:$Password }.GetNewClosure()
-    [void](New-MenuItem $Menu $Text $action)
+    [void](New-MenuItem $Menu $text $action)
+}
+
+function Add-NumberConfigItem {
+    param($Menu, [string]$LabelBase, [string]$Path, [string]$Title, [string]$Label, [int]$Min = 1, [int]$Max = 1440, [string]$Unit = '', [string]$ZeroText = '')
+    $preview = Format-ConfigPreview -Path $Path -Unit $Unit -ZeroText $ZeroText
+    $text = '{0}({1})…' -f $LabelBase, $preview
+    $action = { Set-ConfigNumber $Path $Title $Label $Min $Max }.GetNewClosure()
+    [void](New-MenuItem $Menu $text $action)
 }
 
 function Toggle-Startup {
@@ -544,13 +595,13 @@ function Build-ConfigMenu {
     [void](New-MenuItem $icon '选择图片…' { Select-IconFile })
     [void](New-MenuItem $icon '重置' { Reset-IconFile })
     Add-ConfigToggle $deployment '启动后同步一次' 'startup.runOnStart'
-    Add-TextConfigItem $deployment '设定Node.js路径…' 'runtime.nodePath' 'Node.js 路径' 'node.exe 路径（留空自动查找）'
+    Add-TextConfigItem $deployment '设定Node.js路径' 'runtime.nodePath' 'Node.js 路径' 'node.exe 路径（留空自动查找）' $false '自动'
 
     $prepare = New-SubMenu $configRoot '准备阶段'
     $wifi = New-SubMenu $prepare '无网时连指定WiFi'
     Add-ConfigToggle $wifi '总开关' 'wifi.enabled'
-    Add-TextConfigItem $wifi '设定SSID…' 'wifi.ssid' 'WiFi SSID' 'SSID'
-    Add-TextConfigItem $wifi '设定密码…' 'wifi.password' 'WiFi 密码' '密码' $true
+    Add-TextConfigItem $wifi '设定SSID' 'wifi.ssid' 'WiFi SSID' 'SSID'
+    Add-TextConfigItem $wifi '设定密码' 'wifi.password' 'WiFi 密码' '密码' $true
     Add-ConfigToggle $wifi '优先使用已保存密码' 'wifi.useSavedFirst'
     Add-ConfigToggle $wifi '不检查网络，总是连' 'wifi.alwaysConnect'
     Add-ConfigToggle $wifi '失败时跳过整次' 'wifi.skipOnFailure'
@@ -560,15 +611,15 @@ function Build-ConfigMenu {
     $rebase = New-SubMenu $pull '变基模式'
     Add-ConfigRadio $rebase 'rebase' 'stages.pull.strategy' 'rebase'
     Add-ConfigRadio $rebase 'ff-only' 'stages.pull.strategy' 'ff-only'
-    [void](New-MenuItem $pull '设定超时(min)…' { Set-ConfigNumber 'runtime.pullTimeoutMinutes' 'Pull 阶段超时' '分钟' 1 1440 })
+    Add-NumberConfigItem $pull '设定超时' 'runtime.pullTimeoutMinutes' 'Pull 阶段超时' '分钟' 1 1440 'min'
 
     $sync = New-SubMenu $configRoot 'sync阶段'
     Add-ConfigToggle $sync '跳过此阶段' 'stages.sync.enabled' $true
-    Add-TextConfigItem $sync '设定H1111_SESSION…' 'credentials.H1111_SESSION' 'H1111_SESSION' '会话 Cookie' $true
-    Add-TextConfigItem $sync '设定H1111_USER…' 'credentials.H1111_USER' 'H1111_USER' '用户名'
-    Add-TextConfigItem $sync '设定H1111_PASSWORD…' 'credentials.H1111_PASSWORD' 'H1111_PASSWORD' '密码' $true
-    Add-TextConfigItem $sync '设定GH_TOKEN…' 'credentials.GH_TOKEN' 'GH_TOKEN' '只读 Token' $true
-    [void](New-MenuItem $sync '设定超时(min)…' { Set-ConfigNumber 'runtime.syncTimeoutMinutes' 'Sync 阶段超时' '分钟' 1 1440 })
+    Add-TextConfigItem $sync '设定H1111_SESSION' 'credentials.H1111_SESSION' 'H1111_SESSION' '会话 Cookie' $true
+    Add-TextConfigItem $sync '设定H1111_USER' 'credentials.H1111_USER' 'H1111_USER' '用户名'
+    Add-TextConfigItem $sync '设定H1111_PASSWORD' 'credentials.H1111_PASSWORD' 'H1111_PASSWORD' '密码' $true
+    Add-TextConfigItem $sync '设定GH_TOKEN' 'credentials.GH_TOKEN' 'GH_TOKEN' '只读 Token' $true
+    Add-NumberConfigItem $sync '设定超时' 'runtime.syncTimeoutMinutes' 'Sync 阶段超时' '分钟' 1 1440 'min'
 
     $commit = New-SubMenu $configRoot 'commit阶段'
     Add-ConfigToggle $commit '跳过此阶段' 'stages.commit.enabled' $true
@@ -576,14 +627,14 @@ function Build-ConfigMenu {
     Add-ConfigRadio $identity 'GHA' 'stages.commit.identityMode' 'gha'
     Add-ConfigRadio $identity '默认' 'stages.commit.identityMode' 'default'
     Add-ConfigRadio $identity '自定义' 'stages.commit.identityMode' 'custom'
-    Add-TextConfigItem $identity '设定自定义用户名…' 'stages.commit.userName' 'Git 用户名' '用户名'
-    Add-TextConfigItem $identity '设定自定义邮箱…' 'stages.commit.userEmail' 'Git 邮箱' '邮箱'
+    Add-TextConfigItem $identity '设定自定义用户名' 'stages.commit.userName' 'Git 用户名' '用户名'
+    Add-TextConfigItem $identity '设定自定义邮箱' 'stages.commit.userEmail' 'Git 邮箱' '邮箱'
 
     $push = New-SubMenu $configRoot 'push阶段'
     Add-ConfigToggle $push '跳过此阶段' 'stages.push.enabled' $true
     Add-ConfigToggle $push '有未提交改动时跳过此阶段' 'stages.push.skipIfDirty'
-    Add-TextConfigItem $push '设定PUSH_TOKEN…' 'credentials.PUSH_TOKEN' 'PUSH_TOKEN' '推送 Token' $true
-    [void](New-MenuItem $push '设定超时(min)…' { Set-ConfigNumber 'runtime.pushTimeoutMinutes' 'Push 阶段超时' '分钟' 1 1440 })
+    Add-TextConfigItem $push '设定PUSH_TOKEN' 'credentials.PUSH_TOKEN' 'PUSH_TOKEN' '推送 Token' $true
+    Add-NumberConfigItem $push '设定超时' 'runtime.pushTimeoutMinutes' 'Push 阶段超时' '分钟' 1 1440 'min'
 
     $finish = New-SubMenu $configRoot '结束阶段'
     $disconnect = New-SubMenu $finish '断开指定WiFi'
@@ -599,16 +650,16 @@ function Build-ConfigMenu {
     Add-ConfigToggle $standard '内部错误' 'notifications.standard.internal-error'
     Add-ConfigRadio $notifications '累积模式' 'notifications.mode' 'cumulative'
     $cumulative = New-SubMenu $notifications '累积模式设置'
-    [void](New-MenuItem $cumulative '设定次数…' { Set-ConfigNumber 'notifications.cumulative.everyRuns' '累积通知次数' '次数' 1 100 })
+    Add-NumberConfigItem $cumulative '设定次数' 'notifications.cumulative.everyRuns' '累积通知次数' '次数' 1 100 '次'
     $internal = New-SubMenu $cumulative '内部错误处理'
     Add-ConfigRadio $internal '总是弹出' 'notifications.cumulative.internalErrorMode' 'always'
     Add-ConfigRadio $internal '不弹出' 'notifications.cumulative.internalErrorMode' 'never'
 
-    [void](New-MenuItem $configRoot '设定间隔(min)…' { Set-ConfigNumber 'scheduler.intervalMinutes' '同步间隔' '分钟' 1 1440 })
+    Add-NumberConfigItem $configRoot '设定间隔' 'scheduler.intervalMinutes' '同步间隔' '分钟' 1 1440 'min'
     Add-ConfigToggle $configRoot '唤醒后补跑' 'scheduler.catchUpOnWake'
     $misc = New-SubMenu $configRoot '杂项'
-    [void](New-MenuItem $misc '设定日志保留天数…' { Set-ConfigNumber 'logging.retentionDays' '日志保留天数' '天数（0 = 永久）' 0 3650 })
-    Add-TextConfigItem $misc '设定锁定密码…' 'security.lockPassword' '锁定密码' '密码' $true
+    Add-NumberConfigItem $misc '设定日志保留天数' 'logging.retentionDays' '日志保留天数' '天数（0 = 永久）' 0 3650 '天' '永久'
+    Add-TextConfigItem $misc '设定锁定密码' 'security.lockPassword' '锁定密码' '密码' $true
 }
 
 function Convert-MenuItemToTree {
@@ -630,6 +681,15 @@ function Add-DetailSubMenu {
     param($Menu)
     $detail = New-SubMenu $Menu '详细状态'
     New-InfoItem $detail ('累计：成功 {0}｜最新 {1}｜失败 {2}｜内部错误 {3}' -f [int]$script:State.stats.success, [int]$script:State.stats.'up-to-date', [int]$script:State.stats.failure, [int]$script:State.stats.'internal-error')
+    if ($null -ne $script:State.notification) {
+        $notif = $script:State.notification
+        $notifLine = '自上次通知：成功 {0}｜最新 {1}｜失败 {2}｜内部错误 {3}' -f [int]$notif.success, [int]$notif.'up-to-date', [int]$notif.failure, [int]$notif.'internal-error'
+        if ([string](Get-ConfigValue $script:Config 'notifications.mode' 'standard') -eq 'cumulative') {
+            $every = [math]::Max(1, [int](Get-ConfigValue $script:Config 'notifications.cumulative.everyRuns' 7))
+            $notifLine += ('（{0}/{1}）' -f [int]$notif.pendingRuns, $every)
+        }
+        New-InfoItem $detail $notifLine
+    }
     if ($null -eq $script:State.lastRun) {
         Add-Separator $detail
         New-InfoItem $detail '尚无同步记录'
@@ -665,10 +725,24 @@ function Add-DetailSubMenu {
     }
 }
 
+function Clear-MenuItems {
+    param($Collection)
+    if ($null -eq $Collection) { return }
+    $items = @()
+    foreach ($it in $Collection) { $items += $it }
+    $Collection.Clear()
+    foreach ($it in $items) {
+        if ($it -is [Windows.Forms.ToolStripDropDownItem] -and $it.HasDropDownItems) {
+            Clear-MenuItems $it.DropDownItems
+        }
+        try { $it.Dispose() } catch { }
+    }
+}
+
 function Build-TrayMenu {
     if ($null -eq $script:ContextMenu) { return }
     $menu = $script:ContextMenu
-    $menu.Items.Clear()
+    Clear-MenuItems $menu.Items
     $title = $script:AppName
     if ($script:Locked) { $title += '（已锁定）' }
     New-InfoItem $menu $title
@@ -713,7 +787,21 @@ function Get-BadgeName {
     }
 }
 
+function Get-BaseIconFingerprint {
+    param([string]$BasePath)
+    try {
+        $info = [IO.FileInfo]::new($BasePath)
+        $raw = '{0}|{1}|{2}' -f $info.FullName.ToLowerInvariant(), $info.Length, $info.LastWriteTimeUtc.Ticks
+        $sha = [Security.Cryptography.SHA256]::Create()
+        try { $bytes = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($raw)) }
+        finally { $sha.Dispose() }
+        return (($bytes[0..7] | ForEach-Object { $_.ToString('x2') }) -join '')
+    }
+    catch { return 'default' }
+}
+
 function Update-TrayIcon {
+    param([switch]$ForceRebuild)
     if ($null -eq $script:NotifyIcon -or -not (Test-Path -LiteralPath $script:IconCompose -PathType Leaf)) { return }
     $base = $script:DefaultIconPath
     $relative = [string](Get-ConfigValue $script:Config 'appearance.iconPath' '')
@@ -721,19 +809,79 @@ function Update-TrayIcon {
         $custom = Join-Path $script:LocalDir ($relative -replace '/', '\')
         if (Test-Path -LiteralPath $custom -PathType Leaf) { $base = $custom }
     }
-    $outDir = Join-Path $script:CacheDir 'single'
+    $badge = Get-BadgeName
+    $fp = Get-BaseIconFingerprint $base
+    $cacheKey = $fp + '-' + $badge
+    if (-not $ForceRebuild -and $cacheKey -eq $script:LastIconCacheKey -and $null -ne $script:CurrentIcon) { return }
+    $outDir = Join-Path $script:CacheDir $cacheKey
     $ico = Join-Path $outDir 'tray.ico'
     try {
-        [void][IO.Directory]::CreateDirectory($outDir)
-        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script:IconCompose -Base $base -Badge (Get-BadgeName) -OutDir $outDir -OutIco $ico 2>&1
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $ico -PathType Leaf)) { throw (($output | Out-String).Trim()) }
+        if ($ForceRebuild -or -not (Test-Path -LiteralPath $ico -PathType Leaf)) {
+            [void][IO.Directory]::CreateDirectory($outDir)
+            $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script:IconCompose -Base $base -Badge $badge -OutDir $outDir -OutIco $ico 2>&1
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $ico -PathType Leaf)) { throw (($output | Out-String).Trim()) }
+        }
         $newIcon = New-Object Drawing.Icon($ico)
         $old = $script:CurrentIcon
         $script:CurrentIcon = $newIcon
         $script:NotifyIcon.Icon = $newIcon
+        $script:LastIconCacheKey = $cacheKey
         if ($null -ne $old) { $old.Dispose() }
     }
     catch { Write-Log ('图标更新失败：' + $_.Exception.Message) 'WARN' }
+}
+
+function Test-ToastAvailable {
+    if ($null -ne $script:ToastReady) { return $script:ToastReady }
+    $script:ToastReady = $false
+    try {
+        [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime]
+        [void][Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime]
+        $script:ToastReady = $true
+    }
+    catch {
+        Write-Log ('WinRT Toast 不可用，将退化为气泡提示：' + $_.Exception.Message) 'WARN'
+        $script:ToastReady = $false
+    }
+    return $script:ToastReady
+}
+
+function Send-TrayNotification {
+    param([string]$Title, [string]$Text, [string]$Kind = 'Info')
+    $safeTitle = Redact-Text $Title 120
+    $safeText = Redact-Text $Text 800
+    if (Test-ToastAvailable) {
+        try {
+            $escTitle = [Security.SecurityElement]::Escape($safeTitle)
+            $escText = [Security.SecurityElement]::Escape($safeText)
+            $xml = '<toast><visual><binding template="ToastGeneric"><text>' + $escTitle + '</text><text>' + $escText + '</text></binding></visual></toast>'
+            $doc = New-Object Windows.Data.Xml.Dom.XmlDocument
+            $doc.LoadXml($xml)
+            $toast = New-Object Windows.UI.Notifications.ToastNotification $doc
+            $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($script:ToastAppId)
+            $notifier.Show($toast)
+            Write-Log ('通知已发送（Toast）：' + $safeTitle + ' / ' + $safeText)
+            return $true
+        }
+        catch {
+            Write-Log ('WinRT Toast 发送失败，退化为气泡：' + $_.Exception.Message) 'WARN'
+        }
+    }
+    if ($null -eq $script:NotifyIcon) { return $false }
+    $iconKind = [Windows.Forms.ToolTipIcon]::Info
+    if ($Kind -eq 'Error') { $iconKind = [Windows.Forms.ToolTipIcon]::Error }
+    elseif ($Kind -eq 'Warning') { $iconKind = [Windows.Forms.ToolTipIcon]::Warning }
+    $body = $safeText
+    if ($body.Length -gt 250) { $body = $body.Substring(0, 250) + '…' }
+    try {
+        $script:NotifyIcon.ShowBalloonTip(8000, $safeTitle, $body, $iconKind)
+        Write-Log ('通知已发送（Balloon）：' + $safeTitle + ' / ' + $body)
+        return $true
+    }
+    catch {
+        Write-Log ('气泡通知发送失败：' + $_.Exception.Message) 'WARN'
+        return $false
+    }
 }
 
 function Show-Notification {
@@ -744,36 +892,102 @@ function Show-Notification {
     $show = $false
     $title = '自动同步'
     $text = [string]$Result.message
+    $kind = 'Info'
+    $resetCumulative = $false
+
+    $notification = $script:State.notification
+    $notification.pendingRuns = [int]$notification.pendingRuns + 1
+    if ($null -eq $notification.PSObject.Properties[$status]) { $notification | Add-Member NoteProperty $status 0 }
+    $notification.$status = [int]$notification.$status + 1
+
     if ($mode -eq 'standard') {
         $show = [bool](Get-ConfigValue $script:Config ('notifications.standard.' + $status) $false)
+        $resetCumulative = $show
         switch ($status) {
             'success' { $title += '：成功' }
             'up-to-date' { $title += '：已是最新' }
-            'failure' { $title += '：失败' }
-            default { $title += '：内部错误' }
+            'failure' { $title += '：失败'; $kind = 'Warning' }
+            default { $title += '：内部错误'; $kind = 'Error' }
         }
         if ($Result.stats) { $text += ('；同步了 {0} 个资源，共 {1} 个版本。' -f $Result.stats.resources, $Result.stats.versions) }
     }
     else {
-        $notification = $script:State.notification
-        $notification.pendingRuns = [int]$notification.pendingRuns + 1
-        if ($null -eq $notification.PSObject.Properties[$status]) { $notification | Add-Member NoteProperty $status 0 }
-        $notification.$status = [int]$notification.$status + 1
-        $every = [int](Get-ConfigValue $script:Config 'notifications.cumulative.everyRuns' 7)
-        if ($status -eq 'internal-error' -and [string](Get-ConfigValue $script:Config 'notifications.cumulative.internalErrorMode' 'always') -eq 'always') {
-            $show = $true
-            $title = '自动同步：内部错误'
+        $every = [math]::Max(1, [int](Get-ConfigValue $script:Config 'notifications.cumulative.everyRuns' 7))
+        $internalAlert = ($status -eq 'internal-error' -and [string](Get-ConfigValue $script:Config 'notifications.cumulative.internalErrorMode' 'always') -eq 'always')
+        if ($internalAlert) {
+            [void](Send-TrayNotification '自动同步：内部错误' $text 'Error')
         }
-        elseif ($notification.pendingRuns -ge $every) {
+        if ($notification.pendingRuns -ge $every) {
             $show = $true
+            $resetCumulative = $true
             $title = '自动同步：运行汇总'
-            $text = '自上次通知后：成功 {0} 次，已是最新 {1} 次，失败 {2} 次，内部错误 {3} 次。' -f $notification.success, $notification.'up-to-date', $notification.failure, $notification.'internal-error'
-            $notification.pendingRuns = 0
-            $notification.success = 0; $notification.'up-to-date' = 0; $notification.failure = 0; $notification.'internal-error' = 0
+            $text = '自上次通知后共 {0} 次：成功 {1} 次，已是最新 {2} 次，失败 {3} 次，内部错误 {4} 次。' -f $notification.pendingRuns, $notification.success, $notification.'up-to-date', $notification.failure, $notification.'internal-error'
         }
-        Save-State
     }
-    if ($show) { try { $script:NotifyIcon.ShowBalloonTip(8000, $title, (Redact-Text $text 800), [Windows.Forms.ToolTipIcon]::Info) } catch { } }
+    Save-State
+
+    if ($show) {
+        $sent = Send-TrayNotification $title $text $kind
+        if ($sent -and $resetCumulative) {
+            $notification = $script:State.notification
+            $notification.pendingRuns = 0
+            $notification.success = 0
+            $notification.'up-to-date' = 0
+            $notification.failure = 0
+            $notification.'internal-error' = 0
+            Save-State
+        }
+    }
+}
+
+function Invoke-LogRetentionCleanup {
+    $days = [int](Get-ConfigValue $script:Config 'logging.retentionDays' 90)
+    if ($days -le 0) { return }
+    $todayKey = (Get-Date).ToString('yyyy-MM-dd')
+    if ($script:LastLogCleanupDate -eq $todayKey) { return }
+    $script:LastLogCleanupDate = $todayKey
+    if (-not (Test-Path -LiteralPath $script:LogsDir -PathType Container)) { return }
+    $cutoff = (Get-Date).Date.AddDays(-$days)
+    try {
+        foreach ($yearDir in (Get-ChildItem -LiteralPath $script:LogsDir -Directory -ErrorAction SilentlyContinue)) {
+            if ($yearDir.Name -notmatch '^\d{4}$') { continue }
+            foreach ($monthDir in (Get-ChildItem -LiteralPath $yearDir.FullName -Directory -ErrorAction SilentlyContinue)) {
+                if ($monthDir.Name -notmatch '^\d{2}$') { continue }
+                foreach ($dayDir in (Get-ChildItem -LiteralPath $monthDir.FullName -Directory -ErrorAction SilentlyContinue)) {
+                    if ($dayDir.Name -notmatch '^\d{2}$') { continue }
+                    [datetime]$dirDate = [datetime]::MinValue
+                    if ([datetime]::TryParseExact(($yearDir.Name + '-' + $monthDir.Name + '-' + $dayDir.Name), 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$dirDate)) {
+                        if ($dirDate -lt $cutoff) {
+                            Remove-Item -LiteralPath $dayDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+                        }
+                    }
+                }
+                if (@(Get-ChildItem -LiteralPath $monthDir.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+                    Remove-Item -LiteralPath $monthDir.FullName -Force -ErrorAction SilentlyContinue
+                }
+            }
+            if (@(Get-ChildItem -LiteralPath $yearDir.FullName -Force -ErrorAction SilentlyContinue).Count -eq 0) {
+                Remove-Item -LiteralPath $yearDir.FullName -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    catch { Write-Log ('清理过期日志失败：' + $_.Exception.Message) 'WARN' }
+}
+
+function Invoke-MemoryTrim {
+    try {
+        [GC]::Collect()
+        [GC]::WaitForPendingFinalizers()
+        [GC]::Collect()
+        if (-not ('FdnNativeMemory' -as [type])) {
+            Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class FdnNativeMemory { [DllImport("kernel32.dll")] public static extern bool SetProcessWorkingSetSize(IntPtr proc, IntPtr min, IntPtr max); }' -ErrorAction SilentlyContinue
+        }
+        if ('FdnNativeMemory' -as [type]) {
+            $proc = [Diagnostics.Process]::GetCurrentProcess()
+            [void][FdnNativeMemory]::SetProcessWorkingSetSize($proc.Handle, [IntPtr](-1), [IntPtr](-1))
+        }
+    }
+    catch { }
 }
 
 function Protect-Result {
@@ -855,7 +1069,10 @@ function Start-SyncRound {
         Write-Log '开始同步'
     }
     catch {
-        if ($null -ne $power) { try { $power.Dispose() } catch { } }
+        if ($null -ne $power) {
+            try { if ($null -ne $power.Runspace) { $power.Runspace.Close(); $power.Runspace.Dispose() } } catch { }
+            try { $power.Dispose() } catch { }
+        }
         $script:Runspace = $null
         $script:RunAsync = $null
         $script:Running = $false
@@ -883,7 +1100,15 @@ function Finish-SyncRound {
     catch { Show-ErrorMessage ('同步结果处理失败：' + $_.Exception.Message) }
     finally {
         $script:RunTimer.Stop()
-        if ($null -ne $script:Runspace) { $script:Runspace.Dispose() }
+        if ($null -ne $script:Runspace) {
+            $rs = $null
+            try { $rs = $script:Runspace.Runspace } catch { }
+            try { $script:Runspace.Dispose() } catch { }
+            if ($null -ne $rs) {
+                try { $rs.Close() } catch { }
+                try { $rs.Dispose() } catch { }
+            }
+        }
         $script:Runspace = $null
         $script:RunAsync = $null
         $script:Running = $false
@@ -892,9 +1117,11 @@ function Finish-SyncRound {
             $script:NextRunAt = (Get-Date).AddMinutes([int](Get-ConfigValue $script:Config 'scheduler.intervalMinutes' 10))
             $script:ScheduleTimer.Start()
         }
+        Invoke-LogRetentionCleanup
         Save-State
         Build-TrayMenu
         Update-TrayIcon
+        Invoke-MemoryTrim
         if ($script:ExitRequested -and $null -eq $script:Runspace -and -not $script:NoTrayMode) { [Windows.Forms.Application]::Exit() }
     }
 }
@@ -905,7 +1132,8 @@ function Request-Shutdown {
     $script:ExitRequested = $true
     $script:ScheduleTimer.Stop()
     if ($script:Running) {
-        Show-Notification ([pscustomobject]@{ status = 'up-to-date'; message = '当前同步结束后退出托盘'; stats = $null })
+        $msg = if ($Restart) { '当前同步结束后重启托盘' } else { '当前同步结束后退出托盘' }
+        [void](Send-TrayNotification '自动同步' $msg 'Info')
         return
     }
     if (-not $script:NoTrayMode) { [Windows.Forms.Application]::Exit() }
@@ -962,7 +1190,7 @@ function Initialize-Tray {
     if ($Uninstall) { Remove-StartupShortcut; return $false }
 
     $script:ScheduleTimer = New-Object Windows.Forms.Timer
-    $script:ScheduleTimer.Interval = 1000
+    $script:ScheduleTimer.Interval = 5000
     $script:ScheduleTimer.Add_Tick({
         if ($null -ne $script:NextRunAt -and (Get-Date) -ge [datetime]$script:NextRunAt -and -not $script:Running) {
             $script:ScheduleTimer.Stop()
@@ -987,15 +1215,39 @@ function Initialize-Tray {
     $script:NotifyIcon.Visible = $true
     $script:ContextMenu.Add_Opening({ Build-TrayMenu })
 
+    try {
+        $script:PowerModeHandler = [Microsoft.Win32.PowerModeChangedEventHandler]{
+            param($sender, $e)
+            if ($e.Mode -ne [Microsoft.Win32.PowerModes]::Resume) { return }
+            if ($script:Paused -or $script:Running -or $script:ExitRequested) { return }
+            if (-not [bool](Get-ConfigValue $script:Config 'scheduler.catchUpOnWake' $true)) {
+                $script:NextRunAt = (Get-Date).AddMinutes([int](Get-ConfigValue $script:Config 'scheduler.intervalMinutes' 10))
+                if ($null -ne $script:ScheduleTimer) { $script:ScheduleTimer.Start() }
+                Save-State
+                return
+            }
+            if ($null -ne $script:NextRunAt -and (Get-Date) -ge [datetime]$script:NextRunAt) {
+                Write-Log '系统唤醒且已错过计划时间，立即补跑一轮'
+                if ($null -ne $script:ScheduleTimer) { $script:ScheduleTimer.Stop() }
+                Start-SyncRound
+            }
+        }
+        [Microsoft.Win32.SystemEvents]::add_PowerModeChanged($script:PowerModeHandler)
+        $script:PowerModeSubscribed = $true
+    }
+    catch { Write-Log ('注册休眠唤醒监听失败：' + $_.Exception.Message) 'WARN' }
+
+    Invoke-LogRetentionCleanup
     Build-TrayMenu
     Update-TrayIcon
-    if (-not $script:Paused -and [bool](Get-ConfigValue $script:Config 'startup.runOnStart' $true)) {
+    if (-not $script:Paused -and -not $FromRestart -and [bool](Get-ConfigValue $script:Config 'startup.runOnStart' $true)) {
         Start-SyncRound
     }
     elseif (-not $script:Paused) {
         $script:NextRunAt = (Get-Date).AddMinutes([int](Get-ConfigValue $script:Config 'scheduler.intervalMinutes' 10))
         $script:ScheduleTimer.Start()
     }
+    Invoke-MemoryTrim
     return $true
 }
 
@@ -1016,12 +1268,16 @@ catch {
     Show-ErrorMessage ('托盘启动失败：' + $_.Exception.Message)
 }
 finally {
+    if ($script:PowerModeSubscribed -and $null -ne $script:PowerModeHandler) {
+        try { [Microsoft.Win32.SystemEvents]::remove_PowerModeChanged($script:PowerModeHandler) } catch { }
+    }
     if ($null -ne $script:ScheduleTimer) { $script:ScheduleTimer.Dispose() }
     if ($null -ne $script:RunTimer) { $script:RunTimer.Dispose() }
     if ($null -ne $script:NotifyIcon) { $script:NotifyIcon.Visible = $false; $script:NotifyIcon.Dispose() }
+    if ($null -ne $script:ContextMenu) { Clear-MenuItems $script:ContextMenu.Items; $script:ContextMenu.Dispose() }
     if ($null -ne $script:CurrentIcon) { $script:CurrentIcon.Dispose() }
     Release-InstanceMutex
     if ($script:RestartRequested) {
-        try { Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList @('"' + $script:StartVbsPath + '"') -WorkingDirectory $script:LocalDir } catch { }
+        try { Start-Process -FilePath (Join-Path $env:WINDIR 'System32\wscript.exe') -ArgumentList @('"' + $script:StartVbsPath + '"', '/from-restart') -WorkingDirectory $script:LocalDir } catch { }
     }
 }

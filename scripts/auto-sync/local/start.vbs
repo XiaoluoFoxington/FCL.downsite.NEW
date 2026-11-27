@@ -13,7 +13,7 @@
 
 Option Explicit
 
-Dim fso, shell, here, ps1, cmd
+Dim fso, shell, here, ps1, cmd, extraArgs, i
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
@@ -26,7 +26,14 @@ If Not fso.FileExists(ps1) Then
   WScript.Quit 1
 End If
 
-cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & ps1 & """"
+extraArgs = ""
+For i = 0 To WScript.Arguments.Count - 1
+  If LCase(WScript.Arguments(i)) = "/from-restart" Then
+    extraArgs = extraArgs & " -FromRestart"
+  End If
+Next
+
+cmd = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File """ & ps1 & """" & extraArgs
 
 ' 0 = hidden window; False = do not wait for it to exit
 shell.Run cmd, 0, False

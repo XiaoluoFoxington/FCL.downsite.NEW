@@ -202,8 +202,18 @@ function Get-ConnectedSsid {
 }
 
 function Test-InternetConnectivity {
-    try { return [bool](Test-NetConnection -ComputerName 'api.github.com' -Port 443 -InformationLevel Quiet -WarningAction SilentlyContinue) }
+    $client = $null
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $async = $client.BeginConnect('api.github.com', 443, $null, $null)
+        if (-not $async.AsyncWaitHandle.WaitOne(5000, $false)) { return $false }
+        $client.EndConnect($async)
+        return $true
+    }
     catch { return $false }
+    finally {
+        if ($null -ne $client) { try { $client.Dispose() } catch { } }
+    }
 }
 
 function Get-SavedWifiProfileName {
