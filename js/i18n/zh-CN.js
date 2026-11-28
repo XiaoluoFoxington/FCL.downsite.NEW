@@ -43,6 +43,7 @@ const zhCN = {
     showAll: '显示所有',
     mirrorId: '线路ID',
     mirrorName: '线路名称',
+    mirrorEnabled: '可用',
     mirrorUrl: '完整API URL',
     joinAutoSelect: '参与自动选择中的随机选择',
     notAvailable: '暂不可用',

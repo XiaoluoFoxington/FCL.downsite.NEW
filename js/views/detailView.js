@@ -268,8 +268,10 @@ function renderMirrorInfo(body, downloads, mirrors) {
       nameCell.textContent = t('common.unknownMirror');
       urlCell.textContent = t('common.mirrorConfigMissing');
     }
+    const enabledCell = document.createElement('td');
+    enabledCell.textContent = mirror?.disabled ? t('common.no') : t('common.yes');
     joinAutoSelectCell.textContent = mirror?.notJoinRandom ? t('common.no') : t('common.yes');
-    row.append(idCell, nameCell, urlCell, joinAutoSelectCell);
+    row.append(idCell, nameCell, enabledCell, urlCell, joinAutoSelectCell);
     fragment.appendChild(row);
   });
   body.replaceChildren(fragment);
