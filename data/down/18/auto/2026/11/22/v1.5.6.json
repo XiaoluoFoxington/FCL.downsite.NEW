@@ -1,7 +1,27 @@
 [
   {
+    "arch": "all",
+    "url": "https://pan.huang1111.cn/f/PnRqhq/z-pcl-1.5.6-release-all.apk",
+    "size": 361154368
+  },
+  {
+    "arch": "arm64-v8a",
+    "url": "https://pan.huang1111.cn/f/1gYKt4/z-pcl-1.5.6-release-arm64.apk",
+    "size": 188074944
+  },
+  {
+    "arch": "armeabi-v7a",
+    "url": "https://pan.huang1111.cn/f/ylb7sV/z-pcl-1.5.6-release-armv7.apk",
+    "size": 173776077
+  },
+  {
     "arch": "x86",
     "url": "https://pan.huang1111.cn/f/L8qAcj/z-pcl-1.5.6-release-x86.apk",
     "size": 162314167
+  },
+  {
+    "arch": "x86_64",
+    "url": "https://pan.huang1111.cn/f/jNwQHV/z-pcl-1.5.6-release-x86_64.apk",
+    "size": 187684217
   }
 ]

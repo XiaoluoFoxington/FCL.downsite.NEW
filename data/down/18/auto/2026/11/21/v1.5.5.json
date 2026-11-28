@@ -5,6 +5,16 @@
     "size": 354881484
   },
   {
+    "arch": "arm64-v8a",
+    "url": "https://pan.huang1111.cn/f/x74wUl/z-pcl-1.5.5-release-arm64.apk",
+    "size": 181807272
+  },
+  {
+    "arch": "armeabi-v7a",
+    "url": "https://pan.huang1111.cn/f/gmz1UP/z-pcl-1.5.5-release-armv7.apk",
+    "size": 173721794
+  },
+  {
     "arch": "x86",
     "url": "https://pan.huang1111.cn/f/EAYmf3/z-pcl-1.5.5-release-x86.apk",
     "size": 162259701
